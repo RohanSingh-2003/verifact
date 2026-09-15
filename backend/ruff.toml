@@ -1,0 +1,3 @@
+[lint]
+# FastAPI Depends() in defaults is the framework idiom. Import-order nits are not methodology defects.
+ignore = ["B008", "I001", "SIM103", "TRY004"]

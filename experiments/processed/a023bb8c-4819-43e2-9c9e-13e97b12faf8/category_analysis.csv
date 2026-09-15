@@ -1,0 +1,3 @@
+category,generator_model,n,same_model_mean,cross_model_mean,score_difference,flip_rate
+location,model-a,2,0.0,1.0,-1.0,1.0
+location,model-b,2,1.0,0.0,1.0,1.0

@@ -1,0 +1,391 @@
+{
+  "name": "pilot",
+  "version": "1.0",
+  "description": "Curated 40-item factual QA pilot. Not TruthfulQA. mock_base_answer and mock_scenario are used only when LLM_MODE=mock and are never passed into live MetaQA prompts.",
+  "license": "Original curated items for VeriFact research. Not copied from TruthfulQA.",
+  "source": "Hand-selected factual questions spanning named entities, dates, numbers, locations, and general facts.",
+  "examples": [
+    {
+      "id": "q001",
+      "question": "Who wrote the play Hamlet?",
+      "reference_answer": "William Shakespeare",
+      "aliases": ["Shakespeare"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "William Shakespeare wrote Hamlet.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q002",
+      "question": "Who painted the Mona Lisa?",
+      "reference_answer": "Leonardo da Vinci",
+      "aliases": ["Leonardo", "da Vinci"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "The Mona Lisa was painted by Pablo Picasso.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q003",
+      "question": "Who discovered penicillin?",
+      "reference_answer": "Alexander Fleming",
+      "aliases": ["Fleming"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "Alexander Fleming discovered penicillin.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q004",
+      "question": "Who was the first person to walk on the Moon?",
+      "reference_answer": "Neil Armstrong",
+      "aliases": ["Armstrong"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "Buzz Aldrin was the first person to walk on the Moon.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q005",
+      "question": "Who proposed the theory of general relativity?",
+      "reference_answer": "Albert Einstein",
+      "aliases": ["Einstein"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "Albert Einstein proposed the theory of general relativity.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q006",
+      "question": "Who is the author of Pride and Prejudice?",
+      "reference_answer": "Jane Austen",
+      "aliases": ["Austen"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "Pride and Prejudice was written by Charles Dickens.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q007",
+      "question": "Who developed the polio vaccine widely credited in 1955?",
+      "reference_answer": "Jonas Salk",
+      "aliases": ["Salk"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "Jonas Salk developed the polio vaccine.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q008",
+      "question": "Who composed the Four Seasons concertos?",
+      "reference_answer": "Antonio Vivaldi",
+      "aliases": ["Vivaldi"],
+      "category": "named_entity",
+      "source": "curated",
+      "mock_base_answer": "Johann Sebastian Bach composed the Four Seasons.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q009",
+      "question": "What is the capital of France?",
+      "reference_answer": "Paris",
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "The capital of France is Paris.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q010",
+      "question": "What is the capital of Australia?",
+      "reference_answer": "Canberra",
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "The capital of Australia is Sydney.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q011",
+      "question": "What is the capital of Japan?",
+      "reference_answer": "Tokyo",
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "Tokyo is the capital of Japan.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q012",
+      "question": "Which is generally considered the longest river in the world by most standard references?",
+      "reference_answer": "Nile",
+      "aliases": ["Nile River"],
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "The Amazon is the longest river in the world.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q013",
+      "question": "On which continent is Egypt located?",
+      "reference_answer": "Africa",
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "Egypt is located in Africa.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q014",
+      "question": "What is the largest ocean on Earth?",
+      "reference_answer": "Pacific",
+      "aliases": ["Pacific Ocean"],
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "The largest ocean on Earth is the Atlantic Ocean.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q015",
+      "question": "What is the highest mountain above sea level?",
+      "reference_answer": "Mount Everest",
+      "aliases": ["Everest"],
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "Mount Everest is the highest mountain above sea level.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q016",
+      "question": "What is the capital of Canada?",
+      "reference_answer": "Ottawa",
+      "category": "location",
+      "source": "curated",
+      "mock_base_answer": "The capital of Canada is Toronto.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q017",
+      "question": "In what year did humans first land on the Moon?",
+      "reference_answer": "1969",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "Humans first landed on the Moon in 1969.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q018",
+      "question": "In what year did World War II end?",
+      "reference_answer": "1945",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "World War II ended in 1944.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q019",
+      "question": "In what year did India become independent?",
+      "reference_answer": "1947",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "India became independent in 1947.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q020",
+      "question": "In what year did the Berlin Wall fall?",
+      "reference_answer": "1989",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "The Berlin Wall fell in 1991.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q021",
+      "question": "In what year did the Titanic sink?",
+      "reference_answer": "1912",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "The Titanic sank in 1912.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q022",
+      "question": "In what year did the first powered airplane flight by the Wright brothers occur?",
+      "reference_answer": "1903",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "The Wright brothers first flew in 1908.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q023",
+      "question": "In what year did the United States Declaration of Independence get adopted?",
+      "reference_answer": "1776",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "The Declaration of Independence was adopted in 1776.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q024",
+      "question": "In what year did the Chernobyl nuclear disaster occur?",
+      "reference_answer": "1986",
+      "category": "date",
+      "source": "curated",
+      "mock_base_answer": "The Chernobyl disaster occurred in 1984.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q025",
+      "question": "How many continents are there on Earth in the conventional seven-continent model?",
+      "reference_answer": "7",
+      "aliases": ["seven"],
+      "category": "numeric",
+      "source": "curated",
+      "mock_base_answer": "There are 7 continents.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q026",
+      "question": "What is the atomic number of carbon?",
+      "reference_answer": "6",
+      "category": "numeric",
+      "source": "curated",
+      "mock_base_answer": "The atomic number of carbon is 12.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q027",
+      "question": "How many degrees are in a full circle?",
+      "reference_answer": "360",
+      "category": "numeric",
+      "source": "curated",
+      "mock_base_answer": "A full circle has 360 degrees.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q028",
+      "question": "How many planets are in the solar system in the current IAU classification?",
+      "reference_answer": "8",
+      "aliases": ["eight"],
+      "category": "numeric",
+      "source": "curated",
+      "mock_base_answer": "There are 9 planets in the solar system.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q029",
+      "question": "What is the boiling point of water at standard sea-level pressure in degrees Celsius?",
+      "reference_answer": "100",
+      "aliases": ["100 C", "100 degrees"],
+      "category": "numeric",
+      "source": "curated",
+      "mock_base_answer": "Water boils at 100 degrees Celsius at sea level.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q030",
+      "question": "How many days are in a non-leap year?",
+      "reference_answer": "365",
+      "category": "numeric",
+      "source": "curated",
+      "mock_base_answer": "A non-leap year has 360 days.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q031",
+      "question": "How many sides does a hexagon have?",
+      "reference_answer": "6",
+      "aliases": ["six"],
+      "category": "numeric",
+      "source": "curated",
+      "mock_base_answer": "A hexagon has 6 sides.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q032",
+      "question": "What is the speed of light in vacuum, rounded to the nearest thousand kilometres per second?",
+      "reference_answer": "300000",
+      "aliases": ["300,000", "3x10^8 m/s", "299792"],
+      "category": "numeric",
+      "source": "curated",
+      "needs_review": true,
+      "mock_base_answer": "About 300,000 kilometres per second.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q033",
+      "question": "What is the chemical formula of water?",
+      "reference_answer": "H2O",
+      "aliases": ["H₂O"],
+      "category": "general_fact",
+      "source": "curated",
+      "mock_base_answer": "The chemical formula of water is H2O.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q034",
+      "question": "What is the chemical symbol for gold?",
+      "reference_answer": "Au",
+      "category": "general_fact",
+      "source": "curated",
+      "mock_base_answer": "The chemical symbol for gold is Ag.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q035",
+      "question": "What gas do plants primarily absorb for photosynthesis?",
+      "reference_answer": "carbon dioxide",
+      "aliases": ["CO2", "CO₂"],
+      "category": "general_fact",
+      "source": "curated",
+      "mock_base_answer": "Plants primarily absorb carbon dioxide for photosynthesis.",
+      "mock_scenario": "hallucinated"
+    },
+    {
+      "id": "q036",
+      "question": "What is the hardest naturally occurring mineral on the Mohs scale?",
+      "reference_answer": "diamond",
+      "category": "general_fact",
+      "source": "curated",
+      "mock_base_answer": "Quartz is the hardest naturally occurring mineral.",
+      "mock_scenario": "reliable"
+    },
+    {
+      "id": "q037",
+      "question": "What is the primary gas in Earth's atmosphere by volume?",
+      "reference_answer": "nitrogen",
+      "aliases": ["N2"],
+      "category": "general_fact",
+      "source": "curated",
+      "mock_base_answer": "Nitrogen is the primary gas in Earth's atmosphere.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q038",
+      "question": "What particle in an atom carries a negative electric charge?",
+      "reference_answer": "electron",
+      "category": "general_fact",
+      "source": "curated",
+      "mock_base_answer": "A proton carries a negative electric charge.",
+      "mock_scenario": "uncertain"
+    },
+    {
+      "id": "q039",
+      "question": "What process do plants use to convert sunlight into chemical energy?",
+      "reference_answer": "photosynthesis",
+      "category": "general_fact",
+      "source": "curated",
+      "needs_review": true,
+      "mock_base_answer": "I am not sure about the exact process name.",
+      "mock_scenario": "mixed"
+    },
+    {
+      "id": "q040",
+      "question": "What is the SI unit of electric current?",
+      "reference_answer": "ampere",
+      "aliases": ["amp", "A"],
+      "category": "general_fact",
+      "source": "curated",
+      "mock_base_answer": "The SI unit of electric current is the volt.",
+      "mock_scenario": "mixed"
+    }
+  ]
+}

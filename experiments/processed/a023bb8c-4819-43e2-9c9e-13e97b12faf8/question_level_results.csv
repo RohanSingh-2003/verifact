@@ -1,0 +1,9 @@
+experiment_id,question_id,question,category,generator_model,verifier_model,pair_type,trial_num,base_answer,hallucination_score,classification,not_sure_rate,threshold
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q1,What is the capital of France?,location,model-a,model-a,same,1,Paris is the capital.,0.0,Reliable,0.0,0.5
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q1,What is the capital of France?,location,model-a,model-b,cross,1,Paris is the capital.,1.0,Hallucinated,0.0,0.5
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q1,What is the capital of France?,location,model-b,model-a,cross,1,Alternative statement: Paris is the capital.,0.0,Reliable,0.0,0.5
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q1,What is the capital of France?,location,model-b,model-b,same,1,Alternative statement: Paris is the capital.,1.0,Hallucinated,0.0,0.5
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q2,What is the capital of Japan?,location,model-a,model-a,same,1,Tokyo is the capital.,0.0,Reliable,0.0,0.5
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q2,What is the capital of Japan?,location,model-a,model-b,cross,1,Tokyo is the capital.,1.0,Hallucinated,0.0,0.5
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q2,What is the capital of Japan?,location,model-b,model-a,cross,1,Alternative statement: Tokyo is the capital.,0.0,Reliable,0.0,0.5
+a023bb8c-4819-43e2-9c9e-13e97b12faf8,q2,What is the capital of Japan?,location,model-b,model-b,same,1,Alternative statement: Tokyo is the capital.,1.0,Hallucinated,0.0,0.5

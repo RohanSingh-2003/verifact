@@ -1,0 +1,5 @@
+experiment_id,question_id,question,category,generator_model,verifier_model,pair_type,trial_num,base_answer,hallucination_score,classification,not_sure_rate,threshold
+1e43aabe-ca51-4d20-a512-8c223fce4e57,q1,Capital of France?,location,model-a,model-a,same,1,Paris is the capital.,0.0,Reliable,0.0,0.5
+1e43aabe-ca51-4d20-a512-8c223fce4e57,q1,Capital of France?,location,model-a,model-b,cross,1,Paris is the capital.,1.0,Hallucinated,0.0,0.5
+1e43aabe-ca51-4d20-a512-8c223fce4e57,q1,Capital of France?,location,model-b,model-a,cross,1,Alternative statement: Paris is the capital.,0.0,Reliable,0.0,0.5
+1e43aabe-ca51-4d20-a512-8c223fce4e57,q1,Capital of France?,location,model-b,model-b,same,1,Alternative statement: Paris is the capital.,1.0,Hallucinated,0.0,0.5

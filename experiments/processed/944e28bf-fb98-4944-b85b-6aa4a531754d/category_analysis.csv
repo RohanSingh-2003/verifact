@@ -1,0 +1,11 @@
+category,generator_model,n,same_model_mean,cross_model_mean,score_difference,flip_rate
+date,model-a,8,0.0,1.0,-1.0,1.0
+date,model-b,8,1.0,0.0,1.0,1.0
+general_fact,model-a,8,0.0,1.0,-1.0,1.0
+general_fact,model-b,8,1.0,0.0,1.0,1.0
+location,model-a,8,0.0,1.0,-1.0,1.0
+location,model-b,8,1.0,0.0,1.0,1.0
+named_entity,model-a,8,0.0,1.0,-1.0,1.0
+named_entity,model-b,8,1.0,0.0,1.0,1.0
+numeric,model-a,8,0.0,1.0,-1.0,1.0
+numeric,model-b,8,1.0,0.0,1.0,1.0

@@ -1,0 +1,81 @@
+question_id,question,generator_model,trial_num,same_label,cross_label,classification_flip,same_model_score,cross_model_score
+q001,Who wrote the play Hamlet?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q002,Who painted the Mona Lisa?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q003,Who discovered penicillin?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q004,Who was the first person to walk on the Moon?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q005,Who proposed the theory of general relativity?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q006,Who is the author of Pride and Prejudice?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q007,Who developed the polio vaccine widely credited in 1955?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q008,Who composed the Four Seasons concertos?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q009,What is the capital of France?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q010,What is the capital of Australia?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q011,What is the capital of Japan?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q012,Which is generally considered the longest river in the world by most standard references?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q013,On which continent is Egypt located?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q014,What is the largest ocean on Earth?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q015,What is the highest mountain above sea level?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q016,What is the capital of Canada?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q017,In what year did humans first land on the Moon?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q018,In what year did World War II end?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q019,In what year did India become independent?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q020,In what year did the Berlin Wall fall?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q021,In what year did the Titanic sink?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q022,In what year did the first powered airplane flight by the Wright brothers occur?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q023,In what year did the United States Declaration of Independence get adopted?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q024,In what year did the Chernobyl nuclear disaster occur?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q025,How many continents are there on Earth in the conventional seven-continent model?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q026,What is the atomic number of carbon?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q027,How many degrees are in a full circle?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q028,How many planets are in the solar system in the current IAU classification?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q029,What is the boiling point of water at standard sea-level pressure in degrees Celsius?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q030,How many days are in a non-leap year?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q031,How many sides does a hexagon have?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q032,"What is the speed of light in vacuum, rounded to the nearest thousand kilometres per second?",model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q033,What is the chemical formula of water?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q034,What is the chemical symbol for gold?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q035,What gas do plants primarily absorb for photosynthesis?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q036,What is the hardest naturally occurring mineral on the Mohs scale?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q037,What is the primary gas in Earth's atmosphere by volume?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q038,What particle in an atom carries a negative electric charge?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q039,What process do plants use to convert sunlight into chemical energy?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q040,What is the SI unit of electric current?,model-a,1,Reliable,Hallucinated,True,0.0,1.0
+q001,Who wrote the play Hamlet?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q002,Who painted the Mona Lisa?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q003,Who discovered penicillin?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q004,Who was the first person to walk on the Moon?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q005,Who proposed the theory of general relativity?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q006,Who is the author of Pride and Prejudice?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q007,Who developed the polio vaccine widely credited in 1955?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q008,Who composed the Four Seasons concertos?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q009,What is the capital of France?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q010,What is the capital of Australia?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q011,What is the capital of Japan?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q012,Which is generally considered the longest river in the world by most standard references?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q013,On which continent is Egypt located?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q014,What is the largest ocean on Earth?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q015,What is the highest mountain above sea level?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q016,What is the capital of Canada?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q017,In what year did humans first land on the Moon?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q018,In what year did World War II end?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q019,In what year did India become independent?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q020,In what year did the Berlin Wall fall?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q021,In what year did the Titanic sink?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q022,In what year did the first powered airplane flight by the Wright brothers occur?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q023,In what year did the United States Declaration of Independence get adopted?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q024,In what year did the Chernobyl nuclear disaster occur?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q025,How many continents are there on Earth in the conventional seven-continent model?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q026,What is the atomic number of carbon?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q027,How many degrees are in a full circle?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q028,How many planets are in the solar system in the current IAU classification?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q029,What is the boiling point of water at standard sea-level pressure in degrees Celsius?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q030,How many days are in a non-leap year?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q031,How many sides does a hexagon have?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q032,"What is the speed of light in vacuum, rounded to the nearest thousand kilometres per second?",model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q033,What is the chemical formula of water?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q034,What is the chemical symbol for gold?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q035,What gas do plants primarily absorb for photosynthesis?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q036,What is the hardest naturally occurring mineral on the Mohs scale?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q037,What is the primary gas in Earth's atmosphere by volume?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q038,What particle in an atom carries a negative electric charge?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q039,What process do plants use to convert sunlight into chemical energy?,model-b,1,Hallucinated,Reliable,True,1.0,0.0
+q040,What is the SI unit of electric current?,model-b,1,Hallucinated,Reliable,True,1.0,0.0

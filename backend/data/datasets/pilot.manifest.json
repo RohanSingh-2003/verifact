@@ -1,0 +1,377 @@
+{
+  "dataset_name": "pilot",
+  "dataset_version": "1.0",
+  "description": "Curated 40-item factual QA pilot. Not TruthfulQA. mock_base_answer and mock_scenario are used only when LLM_MODE=mock and are never passed into live MetaQA prompts.",
+  "license": "Original curated items for VeriFact research. Not copied from TruthfulQA.",
+  "source": "Hand-selected factual questions spanning named entities, dates, numbers, locations, and general facts.",
+  "item_count": 40,
+  "ground_truth_policy": "Reliable means the generated answer is factually supported by the reference. Hallucinated means the generated answer conflicts with the reference. Question-level labels are not assumed to describe generated-answer correctness. Ambiguous cases are marked Needs Review and excluded from automatic P/R/F1. Reference answers stay in the evaluation layer and never enter MetaQA prompts.",
+  "items": [
+    {
+      "question_id": "q001",
+      "category": "named_entity",
+      "reference_answer": "William Shakespeare",
+      "aliases": [
+        "Shakespeare"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q002",
+      "category": "named_entity",
+      "reference_answer": "Leonardo da Vinci",
+      "aliases": [
+        "Leonardo",
+        "da Vinci"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q003",
+      "category": "named_entity",
+      "reference_answer": "Alexander Fleming",
+      "aliases": [
+        "Fleming"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q004",
+      "category": "named_entity",
+      "reference_answer": "Neil Armstrong",
+      "aliases": [
+        "Armstrong"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q005",
+      "category": "named_entity",
+      "reference_answer": "Albert Einstein",
+      "aliases": [
+        "Einstein"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q006",
+      "category": "named_entity",
+      "reference_answer": "Jane Austen",
+      "aliases": [
+        "Austen"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q007",
+      "category": "named_entity",
+      "reference_answer": "Jonas Salk",
+      "aliases": [
+        "Salk"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q008",
+      "category": "named_entity",
+      "reference_answer": "Antonio Vivaldi",
+      "aliases": [
+        "Vivaldi"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q009",
+      "category": "location",
+      "reference_answer": "Paris",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q010",
+      "category": "location",
+      "reference_answer": "Canberra",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q011",
+      "category": "location",
+      "reference_answer": "Tokyo",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q012",
+      "category": "location",
+      "reference_answer": "Nile",
+      "aliases": [
+        "Nile River"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q013",
+      "category": "location",
+      "reference_answer": "Africa",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q014",
+      "category": "location",
+      "reference_answer": "Pacific",
+      "aliases": [
+        "Pacific Ocean"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q015",
+      "category": "location",
+      "reference_answer": "Mount Everest",
+      "aliases": [
+        "Everest"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q016",
+      "category": "location",
+      "reference_answer": "Ottawa",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q017",
+      "category": "date",
+      "reference_answer": "1969",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q018",
+      "category": "date",
+      "reference_answer": "1945",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q019",
+      "category": "date",
+      "reference_answer": "1947",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q020",
+      "category": "date",
+      "reference_answer": "1989",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q021",
+      "category": "date",
+      "reference_answer": "1912",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q022",
+      "category": "date",
+      "reference_answer": "1903",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q023",
+      "category": "date",
+      "reference_answer": "1776",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q024",
+      "category": "date",
+      "reference_answer": "1986",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q025",
+      "category": "numeric",
+      "reference_answer": "7",
+      "aliases": [
+        "seven"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q026",
+      "category": "numeric",
+      "reference_answer": "6",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q027",
+      "category": "numeric",
+      "reference_answer": "360",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q028",
+      "category": "numeric",
+      "reference_answer": "8",
+      "aliases": [
+        "eight"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q029",
+      "category": "numeric",
+      "reference_answer": "100",
+      "aliases": [
+        "100 C",
+        "100 degrees"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q030",
+      "category": "numeric",
+      "reference_answer": "365",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q031",
+      "category": "numeric",
+      "reference_answer": "6",
+      "aliases": [
+        "six"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q032",
+      "category": "numeric",
+      "reference_answer": "300000",
+      "aliases": [
+        "300,000",
+        "3x10^8 m/s",
+        "299792"
+      ],
+      "needs_review": true,
+      "source": "curated"
+    },
+    {
+      "question_id": "q033",
+      "category": "general_fact",
+      "reference_answer": "H2O",
+      "aliases": [
+        "H\u2082O"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q034",
+      "category": "general_fact",
+      "reference_answer": "Au",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q035",
+      "category": "general_fact",
+      "reference_answer": "carbon dioxide",
+      "aliases": [
+        "CO2",
+        "CO\u2082"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q036",
+      "category": "general_fact",
+      "reference_answer": "diamond",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q037",
+      "category": "general_fact",
+      "reference_answer": "nitrogen",
+      "aliases": [
+        "N2"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q038",
+      "category": "general_fact",
+      "reference_answer": "electron",
+      "aliases": [],
+      "needs_review": false,
+      "source": "curated"
+    },
+    {
+      "question_id": "q039",
+      "category": "general_fact",
+      "reference_answer": "photosynthesis",
+      "aliases": [],
+      "needs_review": true,
+      "source": "curated"
+    },
+    {
+      "question_id": "q040",
+      "category": "general_fact",
+      "reference_answer": "ampere",
+      "aliases": [
+        "amp",
+        "A"
+      ],
+      "needs_review": false,
+      "source": "curated"
+    }
+  ]
+}
