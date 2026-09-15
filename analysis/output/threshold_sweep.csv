@@ -1,0 +1,10 @@
+evaluation_id,dataset_name,threshold,is_primary,precision,recall,f1,accuracy,tp,tn,fp,fn,included_examples
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.3,False,0.5,0.7368,0.5957,0.5,14,5,14,5,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.35,False,0.5263,0.5263,0.5263,0.5263,10,10,9,9,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.4,False,0.5263,0.5263,0.5263,0.5263,10,10,9,9,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.45,False,0.5263,0.5263,0.5263,0.5263,10,10,9,9,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.5,True,0.5263,0.5263,0.5263,0.5263,10,10,9,9,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.55,False,0.5,0.2632,0.3449,0.5,5,14,5,14,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.6,False,0.5,0.2632,0.3449,0.5,5,14,5,14,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.65,False,0.5,0.2632,0.3449,0.5,5,14,5,14,38
+51efda95-d399-4e58-a6c1-a383db46ba77,pilot,0.7,False,0.5,0.2632,0.3449,0.5,5,14,5,14,38

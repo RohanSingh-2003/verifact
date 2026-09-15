@@ -1,3 +1,4 @@
-*
-!.gitignore
-!README.md
+# Keep research chart/CSV artifacts in the repo.
+# Ignore only local scratch files if added later.
+*.tmp
+*.bak
