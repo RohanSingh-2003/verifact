@@ -1,0 +1,914 @@
+[
+  {
+    "generation_id": "58fdd019-530e-447a-9cb6-47ccf17c41e8",
+    "question_id": "q1",
+    "question": "What is the capital of France?",
+    "generator_model": "model-a",
+    "base_answer": "Paris is the capital.",
+    "mutation_set_hash": "03d8603e7fbc90b5713f1a2ec32d11c548ebf20a9e020141ec622a6c8b120127",
+    "conditions": [
+      {
+        "verifier_model": "model-a",
+        "pair_type": "same",
+        "hallucination_score": 0.0,
+        "classification": "Reliable",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "aaec03d3-b7c8-4ad9-a425-6cd9f848d0b8",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "601dc627-f082-45e7-a4dc-5480d649f180",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6b3470e7-b77b-455b-a540-48a5560cb76e",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "93165eda-b118-46c3-bee9-19d472c7884c",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "9d3a16ec-628d-4c59-94c9-c1a5259ec146",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "23844d24-b914-478e-8063-30a7e24f9bca",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "5db3efbf-0d77-4495-9a5f-60ea56906f4a",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "20e70c5d-99a4-4d92-a1e0-1b2c3760e481",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "4c581493-36c5-407b-a8d5-d0a9fb289040",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "2dd6044e-d63c-4183-bea5-377fbaa324f5",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      },
+      {
+        "verifier_model": "model-b",
+        "pair_type": "cross",
+        "hallucination_score": 1.0,
+        "classification": "Hallucinated",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "aaec03d3-b7c8-4ad9-a425-6cd9f848d0b8",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "601dc627-f082-45e7-a4dc-5480d649f180",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6b3470e7-b77b-455b-a540-48a5560cb76e",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "93165eda-b118-46c3-bee9-19d472c7884c",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "9d3a16ec-628d-4c59-94c9-c1a5259ec146",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "23844d24-b914-478e-8063-30a7e24f9bca",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "5db3efbf-0d77-4495-9a5f-60ea56906f4a",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "20e70c5d-99a4-4d92-a1e0-1b2c3760e481",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "4c581493-36c5-407b-a8d5-d0a9fb289040",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "2dd6044e-d63c-4183-bea5-377fbaa324f5",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "generation_id": "3ea5456b-ddea-4446-8ede-f7eb7e593140",
+    "question_id": "q1",
+    "question": "What is the capital of France?",
+    "generator_model": "model-b",
+    "base_answer": "Alternative statement: Paris is the capital.",
+    "mutation_set_hash": "03d8603e7fbc90b5713f1a2ec32d11c548ebf20a9e020141ec622a6c8b120127",
+    "conditions": [
+      {
+        "verifier_model": "model-a",
+        "pair_type": "cross",
+        "hallucination_score": 0.0,
+        "classification": "Reliable",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "bce756c4-a885-4f15-90ff-62247ea28254",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "03d37841-0063-4ea5-979c-ac8e1223f4c8",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "8fa4dfae-e078-4d47-836c-5043c79bb338",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "ba54c187-faec-4093-9c3a-e29f99b1c0c8",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "67f34c31-30bc-441d-a160-39cb222c880f",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "5fc92252-e776-4693-bc87-24d1f1c0c721",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "dde9968a-093f-4188-a44b-d5a185981c6a",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "81cb0468-77ba-483b-967d-ff7136241d6f",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6b01f877-246b-41c9-aa2e-4d412c052bf7",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "4ce68e0b-1bae-40af-bde7-5aa5dc35eefa",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      },
+      {
+        "verifier_model": "model-b",
+        "pair_type": "same",
+        "hallucination_score": 1.0,
+        "classification": "Hallucinated",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "bce756c4-a885-4f15-90ff-62247ea28254",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "03d37841-0063-4ea5-979c-ac8e1223f4c8",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "8fa4dfae-e078-4d47-836c-5043c79bb338",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "ba54c187-faec-4093-9c3a-e29f99b1c0c8",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "67f34c31-30bc-441d-a160-39cb222c880f",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "5fc92252-e776-4693-bc87-24d1f1c0c721",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "dde9968a-093f-4188-a44b-d5a185981c6a",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "81cb0468-77ba-483b-967d-ff7136241d6f",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6b01f877-246b-41c9-aa2e-4d412c052bf7",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "4ce68e0b-1bae-40af-bde7-5aa5dc35eefa",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "generation_id": "cbbcc52c-228c-47e6-87b9-6ac98fe65bc6",
+    "question_id": "q2",
+    "question": "What is the capital of Japan?",
+    "generator_model": "model-a",
+    "base_answer": "Tokyo is the capital.",
+    "mutation_set_hash": "03d8603e7fbc90b5713f1a2ec32d11c548ebf20a9e020141ec622a6c8b120127",
+    "conditions": [
+      {
+        "verifier_model": "model-a",
+        "pair_type": "same",
+        "hallucination_score": 0.0,
+        "classification": "Reliable",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "9e16c519-4187-4746-b97c-f215762ec5a2",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "37847afc-cc7d-4f32-b1a1-ee8c1486cc07",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6eb06d58-a448-40a7-9d02-a31d38a1235b",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "324b702e-d2fe-4033-950b-66b53895b8ec",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "2ccba924-8d1f-4ead-9d24-d38a7decb2a3",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "5d5081e2-d46c-4155-b71b-6a9850da346e",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "d9d9d85a-26d4-4594-a6bc-7a3103733447",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "1c9acf04-5e9d-4f67-a1f5-0ca6905991e3",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "82f1858f-b2fa-4ab0-9a1d-cb81ebd3c5f2",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "d0674df3-fedb-44c3-941d-98f28cd73994",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      },
+      {
+        "verifier_model": "model-b",
+        "pair_type": "cross",
+        "hallucination_score": 1.0,
+        "classification": "Hallucinated",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "9e16c519-4187-4746-b97c-f215762ec5a2",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "37847afc-cc7d-4f32-b1a1-ee8c1486cc07",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6eb06d58-a448-40a7-9d02-a31d38a1235b",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "324b702e-d2fe-4033-950b-66b53895b8ec",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "2ccba924-8d1f-4ead-9d24-d38a7decb2a3",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "5d5081e2-d46c-4155-b71b-6a9850da346e",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "d9d9d85a-26d4-4594-a6bc-7a3103733447",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "1c9acf04-5e9d-4f67-a1f5-0ca6905991e3",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "82f1858f-b2fa-4ab0-9a1d-cb81ebd3c5f2",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "d0674df3-fedb-44c3-941d-98f28cd73994",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "generation_id": "358d9fb9-01da-4115-97f0-243372073266",
+    "question_id": "q2",
+    "question": "What is the capital of Japan?",
+    "generator_model": "model-b",
+    "base_answer": "Alternative statement: Tokyo is the capital.",
+    "mutation_set_hash": "03d8603e7fbc90b5713f1a2ec32d11c548ebf20a9e020141ec622a6c8b120127",
+    "conditions": [
+      {
+        "verifier_model": "model-a",
+        "pair_type": "cross",
+        "hallucination_score": 0.0,
+        "classification": "Reliable",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "92781147-6cf7-43e4-ae4f-01f31bb7a54d",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "22ffcc5b-1168-4467-8e52-2085cfd2d08c",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "17dbac01-fbde-4782-9be7-7caca46f3cb7",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6701ef71-871a-46e3-9406-e1802f486a27",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "f030c683-7a23-489b-9304-864bd7ee9204",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "YES",
+            "expected_verdict": "YES",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "2ee56f4d-8821-4c15-9911-cd72f026f09f",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "10cdcdbd-6c96-458d-ad9b-361e3ebc7bbb",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "93780a97-ffc6-4e28-808f-feb696b4001f",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "02379766-270e-44b8-8843-2b00639a9d20",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "99e00c8b-e242-44e1-b5a6-5adc7af2bd98",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "NO",
+            "expected_verdict": "NO",
+            "contribution": 0.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      },
+      {
+        "verifier_model": "model-b",
+        "pair_type": "same",
+        "hallucination_score": 1.0,
+        "classification": "Hallucinated",
+        "not_sure_rate": 0.0,
+        "mutations": [
+          {
+            "id": "92781147-6cf7-43e4-ae4f-01f31bb7a54d",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia's capital city is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "22ffcc5b-1168-4467-8e52-2085cfd2d08c",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney serves as the capital of Australia.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "17dbac01-fbde-4782-9be7-7caca46f3cb7",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The national capital of Australia is Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "6701ef71-871a-46e3-9406-e1802f486a27",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is Australia's capital city.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "f030c683-7a23-489b-9304-864bd7ee9204",
+            "type": "synonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The Australian capital is the city of Sydney.",
+            "verdict": "NO",
+            "expected_verdict": "YES",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "2ee56f4d-8821-4c15-9911-cd72f026f09f",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Canberra.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "10cdcdbd-6c96-458d-ad9b-361e3ebc7bbb",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Sydney is not the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "93780a97-ffc6-4e28-808f-feb696b4001f",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Canberra, not Sydney, is the capital of Australia.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "02379766-270e-44b8-8843-2b00639a9d20",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "The capital of Australia is Melbourne.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          },
+          {
+            "id": "99e00c8b-e242-44e1-b5a6-5adc7af2bd98",
+            "type": "antonym",
+            "original_text": "Sydney is the capital of Australia.",
+            "mutated_text": "Australia does not have Sydney as its capital city.",
+            "verdict": "YES",
+            "expected_verdict": "NO",
+            "contribution": 1.0,
+            "rationale": "Deterministic mock rationale."
+          }
+        ]
+      }
+    ]
+  }
+]

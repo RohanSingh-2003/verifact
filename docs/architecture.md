@@ -1,96 +1,143 @@
-# Architecture
+# System Architecture
 
-VeriFact is a small research application: a React client, a FastAPI MetaQA service, SQLite traces, and an experiment/evaluation layer. The detector path is zero-resource. Ground truth is applied only after detection.
+VeriFact is a research-oriented hallucination detection system and experimentation platform. It comprises a modern React single-page application, a high-performance FastAPI backend service, an SQLite persistence layer, and a multi-provider LLM abstraction layer.
 
-## Frontend
+The core detection engine is strictly **reference-free** (zero-resource), evaluating answer consistency without external web search, Wikipedia, or retrieval-augmented generation (RAG).
 
-**React + Vite + TypeScript + Tailwind.**
+---
 
-Routes:
+## High-Level Component Topology
 
-- Detect — question in, MetaQA trace out
-- History — stored detection runs
-- Experiments — 2×2 dashboard bound to API results (DEMO banner when `llm_mode=mock`)
-- MetaQA — method explanation
-- Settings — non-secret runtime configuration
-
-The UI does not hold API keys. Detection scores and experiment numbers come from the backend, not from hardcoded findings.
-
-## Backend
-
-**Python + FastAPI + Pydantic.**
-
-The API exposes detection, run history, evaluations, experiments, health, and settings. An OpenAI-compatible LLM client (or a deterministic mock client) implements the generator and verifier roles. Prompts forbid tools, browsing, and retrieval.
-
-## Database
-
-**SQLite** (default `backend/data/verifact.db`).
-
-Stores detection runs, experiment rows (answers, mutations, verifications, scores), and evaluation runs. Experiment exports also write files under `experiments/raw|processed|results/`.
-
-## LLM abstraction
-
-Two logical roles share the same client interface:
-
-- **Generator** — base answer and mutation JSON
-- **Verifier** — YES / NO / NOT SURE plus a rationale
-
-Live mode uses `OpenAICompatibleClient`. Mock mode uses `MockLLMClient` and labels outputs DEMO / MOCK DATA.
-
-## Core detection pipeline
-
-```
-React UI
-  → FastAPI
-  → Answer generator
-  → Mutation generator
-  → Verifier
-  → MetaQA score engine
-  → Threshold classifier
-  → SQLite
-```
-
-Purpose of each stage:
-
-| Stage | Purpose |
-| --- | --- |
-| UI | Collect a question and display explainable results |
-| FastAPI | Orchestrate the detector without putting secrets in the browser |
-| Answer generator | Produce one candidate answer |
-| Mutation generator | Produce synonym and antonym restatements |
-| Verifier | Label each restatement YES / NO / NOT SURE |
-| Score engine | Apply the MetaQA contribution table and average |
-| Classifier | Compare the score with threshold θ |
-| SQLite | Persist an auditable trace |
-
-This path does not query Google, Wikipedia, RAG, embeddings, vector databases, or external fact-checking APIs.
-
-## Experiment pipeline
-
-```
-Dataset
-  → Generator A / B
-  → Fixed mutation sets
-  → Verifier A / B
-  → 2×2 conditions
-  → Metrics
-  → Statistics
-  → Charts
-  → Research results
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                 Frontend UI (React 19 + Vite)               │
+│                                                             │
+│   DetectPage        ExperimentsPage   HistoryPage           │
+│   (Progressive UI)  (2×2 Matrix)      (Run Traces)          │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ HTTP REST / JSON (Vite proxy)
+┌──────────────────────────────▼──────────────────────────────┐
+│                    FastAPI Backend Service                  │
+│                                                             │
+│   Routing Layer (`app.api`):                                │
+│   ├── routes_detect.py        (POST /api/detect, async task)│
+│   ├── routes_runs.py          (GET /api/runs, GET /runs/{id}│
+│   ├── routes_experiments.py   (2×2 experiment endpoints)    │
+│   ├── routes_evaluations.py   (Ground-truth evaluation API) │
+│   ├── routes_health.py        (GET /api/health)             │
+│   └── routes_settings.py      (Public configuration)        │
+│                                                             │
+│   Core MetaQA Engine (`app.metaqa`):                        │
+│   ├── detector.py             (Orchestrator & stage timings)│
+│   ├── mutation.py             (Claim extraction & mutations)│
+│   ├── verifier.py             (YES / NO / NOT SURE parser)  │
+│   └── scoring.py              (Deterministic scoring table) │
+│                                                             │
+│   Service & Persistence Layer (`app.services`, `app.database│
+│   ├── run_service.py          (Stage-by-stage DB updates)   │
+│   ├── experiment_service.py   (Frozen 2×2 study orchestration│
+│   └── db.py                   (SQLAlchemy SQLite engine)    │
+│                                                             │
+│   LLM Abstraction Layer (`app.llm`):                        │
+│   ├── OllamaClient            (Native /api/chat, think=false│
+│   ├── OpenAICompatibleClient  (Standard /chat/completions)  │
+│   └── MockLLMClient           (Deterministic test fixtures) │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+               ┌───────────────┴───────────────┐
+               ▼                               ▼
+    ┌──────────────────────┐        ┌──────────────────────┐
+    │  SQLite Database     │        │  Local Ollama Daemon │
+    │  data/verifact.db    │        │  http://localhost:   │
+    │  - runs              │        │  11434               │
+    │  - mutations         │        │  (Model: gemma4:26b) │
+    │  - experiments       │        │                      │
+    └──────────────────────┘        └──────────────────────┘
 ```
 
-The experiment service generates each (question, generator) answer and mutation set once, then verifies with both verifiers. Integrity checks compare mutation IDs and texts across paired conditions. Statistics (Wilcoxon, CIs, flips, category splits) run on stored scores.
+---
 
-## Evaluation / ground-truth layer
+## 1. Frontend Architecture
 
-Evaluation loads a labeled dataset, runs detection first, then matches the generated answer to a reference or curated label. Needs Review items stay in the raw table and are dropped from automatic P/R/F1. Threshold sweeps reuse stored scores.
+- **Framework**: React 19, TypeScript, Vite.
+- **Styling**: Tailwind CSS (Tailwind v4 with `@tailwindcss/vite`).
+- **Icons & Navigation**: `lucide-react`, `react-router-dom`.
+- **Pages**:
+  - `DetectPage`: Progressive detection dashboard. As soon as the answer is generated, it renders. The client then polls `GET /api/runs/{id}` to display newly generated mutations, live verification verdicts, and the final classification.
+  - `ExperimentsPage`: 2×2 research interface for configuring and executing same-model vs. cross-model studies.
+  - `HistoryPage`: Paginated run history with filtering and search capabilities.
+  - `MetaQAPage`: Interactive explanation of MetaQA methodology and scoring tables.
+  - `SettingsPage`: Inspection of active non-secret runtime configuration.
+- **Truthful Status Banners**:
+  - Displays **Live Mode — Local Ollama · Model: gemma4:26b** when running against Ollama.
+  - Displays **Demo / Mock Mode** when running with synthetic test fixtures.
 
-```
-Detection complete
-  → attach reference / label
-  → confusion matrix and F1
-```
+---
 
-## Diagram
+## 2. Backend Architecture
 
-![VeriFact system architecture](architecture.png)
+- **Framework**: FastAPI with Pydantic v2 schemas and validation settings (`pydantic-settings`).
+- **Asynchronous Execution**: Uses FastAPI's `BackgroundTasks` to decouple answer generation from metamorphic testing:
+  1. `POST /api/detect` accepts the question and synchronously invokes `generate_answer()`.
+  2. The initial run is persisted to SQLite with status `answer_ready`.
+  3. The response is returned to the client immediately.
+  4. `_continue_metaqa_analysis()` runs asynchronously on the event loop with its own dedicated database session and LLM client instance.
+- **Stage-by-Stage Callbacks**:
+  - `on_stage(stage)`: Records transition (`generating_mutations`, `verifying_mutations`, `calculating_score`).
+  - `on_mutations_ready(mutations)`: Saves mutation statements to SQLite with status `mutations_ready`.
+  - `on_mutation_verified(position, scored)`: Streams completed verification results into the database as individual mutations finish.
+
+---
+
+## 3. MetaQA Engine (`app.metaqa`)
+
+- **`detector.py`**:
+  - Coordinates answer generation, mutation generation, concurrent verification, and score computation.
+  - Measures high-resolution stage timings (`answer_ms`, `mutation_ms`, `verify_ms`, `total_ms`).
+- **`mutation.py`**:
+  - Extracts 3–4 atomic factual claims using `extract_core_claims()` (falls back to deterministic sentence splitting if the model fails).
+  - Generates balanced synonym (meaning-preserving) and antonym (meaning-reversing) mutations.
+  - Enforces syntactic heuristics: rejects fragments, incomplete sentences, duplicate phrases, questions, and no-op copies.
+  - Partial retry loop: only requests missing mutations across up to 4 rounds rather than throwing away valid ones.
+- **`verifier.py`**:
+  - Sends individual mutated statements to the verifier LLM with the prompt *"Does the answer support this statement?"*.
+  - Strict parsing: parses `YES`, `NO`, or `NOT SURE`. Robust fallback converts ambiguous or unparseable outputs to `NOT SURE`.
+- **`scoring.py`**:
+  - Evaluates each verdict deterministically:
+    - Synonym: `YES` = 0.0, `NO` = 1.0, `NOT SURE` = 0.5
+    - Antonym: `YES` = 1.0, `NO` = 0.0, `NOT SURE` = 0.5
+  - Aggregates the mean contribution score bounded to $[0.0, 1.0]$.
+  - Classifies as **Hallucinated** ($H \ge 0.5$) or **Reliable** ($H < 0.5$).
+
+---
+
+## 4. LLM Abstraction Layer (`app.llm`)
+
+All LLM clients inherit from the abstract base class `LLMClient` (`complete_text` and `complete_json`):
+
+1. **`OllamaClient`** (`app/llm/ollama.py`):
+   - Interfaces directly with native Ollama `/api/chat`.
+   - Forces `think: false` to disable hidden reasoning loops that exhaust token budgets.
+   - Enforces persistent connection pooling and keep-alive (`OLLAMA_KEEP_ALIVE=30m`).
+2. **`OpenAICompatibleClient`** (`app/llm/client.py`):
+   - Calls OpenAI-compatible chat completion endpoints (`/chat/completions`).
+   - Supports exponential backoff and retry handling.
+3. **`MockLLMClient`** (`app/llm/mock.py`):
+   - Returns deterministic, fixture-based responses for tests and CI without external dependencies.
+
+---
+
+## 5. Persistence & Storage (`app.database`, `app.services`)
+
+- **Engine**: SQLite via SQLAlchemy ORM (default path `backend/data/verifact.db`).
+- **Models**:
+  - `Run`: Stores question, generated base answer, generator model, hallucination score, classification, stage timings, and status.
+  - `MutationRecord`: Stores individual mutation statements, mutation type, verifier model, verdict, contribution, and rationale.
+  - `ExperimentRecord` & `ConditionRecord`: Stores 2×2 experiment matrices, frozen mutation hashes, and paired evaluation metrics.
+
+---
+
+## 6. Research Boundary & Future Extensions
+
+- **Zero-Resource Constraint**: The active system operates entirely without live web retrieval, Google Search, Wikipedia, or RAG.
+- **Future Work**: A planned future extension will introduce an external Web Evidence pipeline (source search, claim extraction, and document-level verification). In the current release, this is strictly future work.

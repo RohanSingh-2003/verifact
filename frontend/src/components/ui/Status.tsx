@@ -69,9 +69,9 @@ const verdictStyles = {
 }
 
 const verdictText = {
-  reliable: 'Reliable',
+  reliable: 'Likely reliable',
   uncertain: 'Uncertain',
-  hallucinated: 'Hallucinated',
+  hallucinated: 'Likely hallucinated',
 }
 
 export function VerdictBadge({ verdict, size = 'sm' }: VerdictBadgeProps) {

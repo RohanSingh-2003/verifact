@@ -22,11 +22,18 @@ class Run(Base):
     question: Mapped[str] = mapped_column(Text, nullable=False)
     generator_model: Mapped[str] = mapped_column(String(128), nullable=False)
     base_answer: Mapped[str] = mapped_column(Text, nullable=False)
-    hallucination_score: Mapped[float] = mapped_column(Float, nullable=False)
+    # Placeholder values until MetaQA completes; API maps Incomplete → null.
+    hallucination_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     threshold: Mapped[float] = mapped_column(Float, nullable=False)
-    classification: Mapped[str] = mapped_column(String(32), nullable=False)
-    not_sure_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    classification: Mapped[str] = mapped_column(String(32), nullable=False, default="Incomplete")
+    not_sure_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     llm_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="live")
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="completed")
+    analysis_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    answer_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mutation_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    verify_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    total_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     mutations: Mapped[list["Mutation"]] = relationship(
@@ -50,6 +57,7 @@ class Mutation(Base):
     contribution: Mapped[float] = mapped_column(Float, nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False, default="")
     parse_failed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 

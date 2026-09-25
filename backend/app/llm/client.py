@@ -15,12 +15,10 @@ logger = logging.getLogger("verifact.llm")
 
 JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
 
-logger = logging.getLogger("verifact.llm")
-
-JSON_BLOCK = re.compile(r"\{.*\}", re.DOTALL)
-
 
 class OpenAICompatibleClient(LLMClient):
+    """Chat-completions client for OpenAI-compatible providers (including Ollama /v1)."""
+
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
         self._client = httpx.AsyncClient(
@@ -37,12 +35,14 @@ class OpenAICompatibleClient(LLMClient):
         model: str,
         system_prompt: str,
         user_prompt: str,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         content = await self._chat(
             model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             json_mode=True,
+            max_tokens=max_tokens,
         )
         parsed = parse_json_object(content)
         if parsed is None:
@@ -56,12 +56,14 @@ class OpenAICompatibleClient(LLMClient):
         model: str,
         system_prompt: str,
         user_prompt: str,
+        max_tokens: int | None = None,
     ) -> str:
         return await self._chat(
             model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             json_mode=False,
+            max_tokens=max_tokens,
         )
 
     async def _chat(
@@ -71,16 +73,18 @@ class OpenAICompatibleClient(LLMClient):
         system_prompt: str,
         user_prompt: str,
         json_mode: bool,
+        max_tokens: int | None,
     ) -> str:
         key = self._settings.openai_api_key.strip()
         if not key or key.startswith("replace-with-"):
             raise LLMError("OPENAI_API_KEY is not configured.")
 
         # Temperature is fixed for a run. Hosted APIs may still vary across calls.
+        predict = max_tokens if max_tokens is not None else self._settings.llm_max_output_tokens
         payload: dict[str, Any] = {
             "model": model,
             "temperature": self._settings.llm_temperature,
-            "max_tokens": self._settings.llm_max_output_tokens,
+            "max_tokens": predict,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -94,7 +98,7 @@ class OpenAICompatibleClient(LLMClient):
             try:
                 response = await self._client.post(
                     "/chat/completions",
-                    headers={"Authorization": f"Bearer {self._settings.openai_api_key}"},
+                    headers={"Authorization": f"Bearer {key}"},
                     json=payload,
                 )
                 if response.status_code == 429:

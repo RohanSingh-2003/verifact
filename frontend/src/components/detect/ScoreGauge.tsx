@@ -41,7 +41,7 @@ export function ScoreGauge({ score, threshold, verdict }: ScoreGaugeProps) {
         />
         <span
           className={classNames(
-            'absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white',
+            'absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-surface',
             markerColor[verdict],
           )}
           style={{ left: position }}
@@ -54,7 +54,7 @@ export function ScoreGauge({ score, threshold, verdict }: ScoreGaugeProps) {
       </div>
       <div className="mt-3 grid grid-cols-3 text-[11px] font-medium">
         <span className={verdict === 'reliable' ? labelClass.reliable : 'text-ink-muted'}>
-          Reliable
+          Likely reliable
         </span>
         <span
           className={classNames(
@@ -70,7 +70,7 @@ export function ScoreGauge({ score, threshold, verdict }: ScoreGaugeProps) {
             verdict === 'hallucinated' ? labelClass.hallucinated : 'text-ink-muted',
           )}
         >
-          Hallucinated
+          Likely hallucinated
         </span>
       </div>
     </div>

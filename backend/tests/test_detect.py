@@ -24,30 +24,32 @@ def test_detect_case_a_with_mocked_llm() -> None:
         body = response.json()
         assert body["question"] == "What is the capital of Australia?"
         assert body["base_answer"]["text"] == fake.answer
-        assert len(body["mutations"]) == 10
-        assert body["hallucination_score"] == 0.0
-        assert body["classification"] == "Reliable"
-        assert body["not_sure_rate"] == 0.0
+        assert body["status"] == "answer_ready"
+        assert body["mutations"] == []
+        assert body["hallucination_score"] is None
+        assert body["classification"] is None
         assert body["threshold"] == 0.5
         assert body["llm_mode"] == "mock"
-        assert isinstance(body["hallucination_score"], (int, float))
-        assert isinstance(body["not_sure_rate"], (int, float))
         run_id = body["run_id"]
+
+        # TestClient waits for background tasks; completed state is available via GET.
+        detail = client.get(f"/api/runs/{run_id}")
+        assert detail.status_code == 200
+        reconstructed = detail.json()
+        assert reconstructed["status"] == "completed"
+        assert reconstructed["hallucination_score"] == 0.0
+        assert reconstructed["classification"] == "Reliable"
+        assert reconstructed["not_sure_rate"] == 0.0
+        assert len(reconstructed["mutations"]) == 10
+        assert isinstance(reconstructed["hallucination_score"], (int, float))
+        assert isinstance(reconstructed["not_sure_rate"], (int, float))
 
         listed = client.get("/api/runs")
         assert listed.status_code == 200
         assert listed.json()["total"] >= 1
         assert any(item["id"] == run_id for item in listed.json()["items"])
 
-        detail = client.get(f"/api/runs/{run_id}")
-        assert detail.status_code == 200
-        reconstructed = detail.json()
-        assert reconstructed["run_id"] == run_id
-        assert reconstructed["hallucination_score"] == 0.0
-        assert len(reconstructed["mutations"]) == 10
-        assert [item["mutated_text"] for item in reconstructed["mutations"]] == [
-            item["mutated_text"] for item in body["mutations"]
-        ]
+        assert [item["mutated_text"] for item in reconstructed["mutations"]]
         for item in reconstructed["mutations"]:
             assert item["id"]
             assert item["type"] in {"synonym", "antonym"}
@@ -66,9 +68,11 @@ def test_detect_case_b_hallucinated() -> None:
     try:
         response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
         assert response.status_code == 200
-        body = response.json()
+        run_id = response.json()["run_id"]
+        body = client.get(f"/api/runs/{run_id}").json()
         assert body["hallucination_score"] == 1.0
         assert body["classification"] == "Hallucinated"
+        assert body["status"] == "completed"
     finally:
         app.dependency_overrides.clear()
 
@@ -78,17 +82,16 @@ def test_detect_case_d_mixed_persists_contributions() -> None:
     try:
         response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
         assert response.status_code == 200
-        body = response.json()
+        run_id = response.json()["run_id"]
+        body = client.get(f"/api/runs/{run_id}").json()
         assert body["hallucination_score"] == 0.3
         assert body["classification"] == "Reliable"
         assert body["not_sure_rate"] == 0.2
         contributions = [item["contribution"] for item in body["mutations"]]
         assert contributions == [0.0, 0.0, 1.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.5, 0.0]
-        detail = client.get(f"/api/runs/{body['run_id']}").json()
-        assert [item["contribution"] for item in detail["mutations"]] == contributions
-        assert detail["base_answer"]["model"]
-        assert detail["created_at"]
-        assert any(item["verdict"] == Verdict.NOT_SURE.value for item in detail["mutations"])
+        assert body["base_answer"]["model"]
+        assert body["created_at"]
+        assert any(item["verdict"] == Verdict.NOT_SURE.value for item in body["mutations"])
     finally:
         app.dependency_overrides.clear()
 
@@ -98,7 +101,7 @@ def test_detect_case_e_malformed_verifier() -> None:
     try:
         response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
         assert response.status_code == 200
-        body = response.json()
+        body = client.get(f"/api/runs/{response.json()['run_id']}").json()
         assert all(item["verdict"] == "NOT SURE" for item in body["mutations"])
         assert all(item["parse_failed"] is True for item in body["mutations"])
         assert body["hallucination_score"] == 0.5
@@ -121,7 +124,7 @@ def test_detect_handles_base_answer_failure() -> None:
     try:
         response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
         assert response.status_code == 502
-        assert "language model" in response.json()["detail"].lower()
+        assert "unable to generate an answer" in response.json()["detail"].lower()
         assert "traceback" not in response.json()["detail"].lower()
     finally:
         app.dependency_overrides.clear()
@@ -131,7 +134,19 @@ def test_detect_handles_mutation_generation_failure() -> None:
     client = _client(MockLLMClient(fail_on="mutations"))
     try:
         response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
-        assert response.status_code == 502
+        # Answer is returned immediately; MetaQA failure is recorded on the run.
+        assert response.status_code == 200
+        body = response.json()
+        assert body["base_answer"]["text"]
+        assert body["status"] == "answer_ready"
+        detail = client.get(f"/api/runs/{body['run_id']}").json()
+        assert detail["status"] == "mutation_generation_failed"
+        assert detail["base_answer"]["text"] == body["base_answer"]["text"]
+        assert detail["hallucination_score"] is None
+        assert detail["classification"] is None
+        assert detail["analysis_error"]
+        assert "mutation generator" in detail["analysis_error"].lower()
+        assert "still available" in detail["analysis_error"].lower()
     finally:
         app.dependency_overrides.clear()
 
@@ -175,13 +190,115 @@ def test_detect_timeout_returns_504() -> None:
 def test_detect_database_failure_returns_500() -> None:
     client = _client(MockLLMClient(scenario="reliable"))
     try:
-        with patch("app.api.routes_detect.persist_detection", side_effect=SQLAlchemyError("db down")):
+        with patch("app.api.routes_detect.create_answer_ready_run", side_effect=SQLAlchemyError("db down")):
             response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
         assert response.status_code == 500
         assert "could not be saved" in response.json()["detail"].lower()
         assert "traceback" not in response.json()["detail"].lower()
     finally:
         app.dependency_overrides.clear()
+
+
+def test_detect_returns_answer_before_metaqa_completes() -> None:
+    """POST /api/detect must return the real answer with answer_ready before MetaQA finishes."""
+    client = _client(MockLLMClient(scenario="reliable"))
+    try:
+        response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "answer_ready"
+        assert body["base_answer"]["text"]
+        assert body["timing"]["time_to_answer_ms"] is not None
+        # Background task finishes before TestClient returns; completed via GET.
+        completed = client.get(f"/api/runs/{body['run_id']}").json()
+        assert completed["status"] == "completed"
+        assert len(completed["mutations"]) == 10
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_progressive_mutations_available_during_verification() -> None:
+    """GET /api/runs/{id} must expose mutations as soon as they are generated, before verification ends."""
+    from app.database.db import SessionLocal
+    from app.metaqa.detector import ScoredMutation
+    from app.metaqa.mutation import GeneratedMutation
+    from app.metaqa.scoring import MutationType, Verdict, contribution_score, expected_verdict
+    from app.schemas.detect import RunStatus
+    from app.services import run_service
+
+    db = SessionLocal()
+    try:
+        run = run_service.create_answer_ready_run(
+            db,
+            question="What is the capital of India?",
+            base_answer="New Delhi is the capital of India.",
+            generator_model="mock-model",
+            threshold=0.5,
+            llm_mode="mock",
+            answer_ms=12.0,
+        )
+        db.commit()
+        run_id = run.id
+
+        pending = [
+            GeneratedMutation(
+                type=MutationType.SYNONYM,
+                original_text="New Delhi is the capital of India.",
+                mutated_text="In other words, New Delhi is the capital of India.",
+            ),
+            GeneratedMutation(
+                type=MutationType.ANTONYM,
+                original_text="New Delhi is the capital of India.",
+                mutated_text="New Delhi is not the capital of India.",
+            ),
+        ]
+        run_service.persist_pending_mutations(
+            db,
+            run_id,
+            mutations=pending,
+            verifier_model="mock-verifier",
+            mutation_ms=40.0,
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    client = TestClient(app)
+    mid = client.get(f"/api/runs/{run_id}").json()
+    assert mid["status"] == "mutations_ready"
+    assert mid["hallucination_score"] is None
+    assert mid["classification"] is None
+    assert len(mid["mutations"]) == 2
+    assert all(item["verified"] is False for item in mid["mutations"])
+    assert all(item["verdict"] is None for item in mid["mutations"])
+    assert mid["mutations"][0]["mutated_text"].startswith("In other words")
+    assert mid["mutations"][0]["expected_verdict"] == "YES"
+    assert mid["mutations"][1]["expected_verdict"] == "NO"
+
+    first = pending[0]
+    scored = ScoredMutation(
+        mutation=first,
+        verdict=Verdict.YES,
+        expected=expected_verdict(first.type),
+        contribution=contribution_score(first.type, Verdict.YES),
+        rationale="Consistent",
+        parse_failed=False,
+    )
+    db = SessionLocal()
+    try:
+        run_service.update_run_status(db, run_id, RunStatus.VERIFYING_MUTATIONS)
+        run_service.update_mutation_verification(db, run_id, 0, scored)
+        db.commit()
+    finally:
+        db.close()
+
+    partial = client.get(f"/api/runs/{run_id}").json()
+    assert partial["status"] == "verifying_mutations"
+    assert partial["mutations"][0]["verified"] is True
+    assert partial["mutations"][0]["verdict"] == "YES"
+    assert partial["mutations"][0]["contribution"] == 0.0
+    assert partial["mutations"][1]["verified"] is False
+    assert partial["mutations"][1]["verdict"] is None
 
 
 # ── Regression tests: question-aware mock at API level ─────────────────
@@ -207,6 +324,8 @@ def test_api_different_questions_produce_different_answers() -> None:
             assert body["question"] == q, f"Response question {body['question']!r} != submitted {q!r}"
             answers.append(body["base_answer"]["text"])
             run_ids.append(body["run_id"])
+            completed = client.get(f"/api/runs/{body['run_id']}").json()
+            assert completed["status"] == "completed"
         assert len(set(answers)) == len(questions), f"Expected {len(questions)} unique answers, got {answers}"
         assert len(set(run_ids)) == len(questions), f"Expected {len(questions)} unique run_ids"
     finally:
@@ -253,7 +372,8 @@ def test_api_mutations_reference_actual_answer() -> None:
         body = resp.json()
         base = body["base_answer"]["text"]
         assert "Newton" in base
-        for m in body["mutations"]:
+        completed = client.get(f"/api/runs/{body['run_id']}").json()
+        for m in completed["mutations"]:
             assert m["original_text"] == base, (
                 f"Mutation original_text {m['original_text']!r} != base answer {base!r}"
             )

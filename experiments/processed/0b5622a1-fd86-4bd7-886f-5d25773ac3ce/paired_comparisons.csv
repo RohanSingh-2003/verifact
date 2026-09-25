@@ -1,0 +1,5 @@
+question_id,generator_model,same_model_score,cross_model_score,difference,same_label,cross_label,classification_flip,trial_num
+q1,model-a,0.0,1.0,-1.0,Reliable,Hallucinated,True,1
+q2,model-a,0.0,1.0,-1.0,Reliable,Hallucinated,True,1
+q1,model-b,1.0,0.0,1.0,Hallucinated,Reliable,True,1
+q2,model-b,1.0,0.0,1.0,Hallucinated,Reliable,True,1

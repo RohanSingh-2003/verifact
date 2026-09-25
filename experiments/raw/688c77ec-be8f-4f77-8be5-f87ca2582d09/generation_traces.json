@@ -1,0 +1,722 @@
+[
+  {
+    "generation_id": "1f640eff-45f9-4f2b-be8e-0130f61f41a4",
+    "question_id": "q001",
+    "question": "Who wrote the play Hamlet?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "9a0bfc4d-7a72-438f-9dbe-6b76816fa6a2",
+    "question_id": "q001",
+    "question": "Who wrote the play Hamlet?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "0ce2300a-69fd-43e0-8929-b61e2c13a71d",
+    "question_id": "q002",
+    "question": "Who painted the Mona Lisa?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "311647ed-b7bb-4dd7-b4ea-8cd712def1be",
+    "question_id": "q002",
+    "question": "Who painted the Mona Lisa?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "394798d0-9656-4ef9-9f72-860d6ba766d0",
+    "question_id": "q003",
+    "question": "Who discovered penicillin?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "f5bf7e1d-6800-409c-b566-d77794b4aab7",
+    "question_id": "q003",
+    "question": "Who discovered penicillin?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "5ea28636-6141-4b15-8c2d-d4a6cf2ae25a",
+    "question_id": "q004",
+    "question": "Who was the first person to walk on the Moon?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "d9c1d99e-13a1-4757-be6f-982e134d4095",
+    "question_id": "q004",
+    "question": "Who was the first person to walk on the Moon?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "48f5b3ec-044a-4127-95b5-c596b095c410",
+    "question_id": "q005",
+    "question": "Who proposed the theory of general relativity?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "63c1746e-2c31-4067-bf19-33e567d0b97b",
+    "question_id": "q005",
+    "question": "Who proposed the theory of general relativity?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "45ee0e84-76f3-47e9-afef-757b7a8dab39",
+    "question_id": "q006",
+    "question": "Who is the author of Pride and Prejudice?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "1a6da8b4-d435-4099-a638-699cb8c5aa82",
+    "question_id": "q006",
+    "question": "Who is the author of Pride and Prejudice?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "3ecef915-c555-4a7f-b802-97328bbd5673",
+    "question_id": "q007",
+    "question": "Who developed the polio vaccine widely credited in 1955?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "fda9083f-c7fb-465f-87ac-05a5ab6e2836",
+    "question_id": "q007",
+    "question": "Who developed the polio vaccine widely credited in 1955?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "2538fe00-e707-4775-adb1-75d9dc013dad",
+    "question_id": "q008",
+    "question": "Who composed the Four Seasons concertos?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "48475579-eef3-4006-a3bd-0c5a73f64184",
+    "question_id": "q008",
+    "question": "Who composed the Four Seasons concertos?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "1cb5abda-0018-487c-98ae-f208abb97625",
+    "question_id": "q009",
+    "question": "What is the capital of France?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "f8502c66-b3b4-4a0c-99c2-bb029f6e1f6b",
+    "question_id": "q009",
+    "question": "What is the capital of France?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "33e1e1a2-92ea-4c93-8967-ad144d601792",
+    "question_id": "q010",
+    "question": "What is the capital of Australia?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "fb3dc815-8f4f-4ad5-8e08-1192b3349e2b",
+    "question_id": "q010",
+    "question": "What is the capital of Australia?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "f2562911-18b1-4290-9d62-3da90ded782f",
+    "question_id": "q011",
+    "question": "What is the capital of Japan?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "a950d040-40cf-445f-8e27-ee17a0d15dd2",
+    "question_id": "q011",
+    "question": "What is the capital of Japan?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "da9df105-2c48-4d3b-a1b0-69684c83743a",
+    "question_id": "q012",
+    "question": "Which is generally considered the longest river in the world by most standard references?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "c95b9a9d-15a7-4379-9141-1e1770930849",
+    "question_id": "q012",
+    "question": "Which is generally considered the longest river in the world by most standard references?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "102636a8-eca0-4949-a594-e216d6f056b4",
+    "question_id": "q013",
+    "question": "On which continent is Egypt located?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "a413ae12-d156-47bb-8612-aaf484bf256d",
+    "question_id": "q013",
+    "question": "On which continent is Egypt located?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "b4a77d3c-d046-494e-9d1f-67c15e8d455f",
+    "question_id": "q014",
+    "question": "What is the largest ocean on Earth?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "6c8f307f-c80e-4578-8dae-af8daaf2cc80",
+    "question_id": "q014",
+    "question": "What is the largest ocean on Earth?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "c7c47bc0-1c80-4592-8cf4-2eeb737a371b",
+    "question_id": "q015",
+    "question": "What is the highest mountain above sea level?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "e50b7a36-4eed-48de-8c5c-ccc5241d7ae0",
+    "question_id": "q015",
+    "question": "What is the highest mountain above sea level?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "e034df82-79ed-4eae-8b09-dfb1fa0e0779",
+    "question_id": "q016",
+    "question": "What is the capital of Canada?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "53ac21ad-88cb-4cef-a15c-6267b6919db3",
+    "question_id": "q016",
+    "question": "What is the capital of Canada?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "c58b59aa-fc87-448a-a553-243045018008",
+    "question_id": "q017",
+    "question": "In what year did humans first land on the Moon?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "80ab988e-e78a-43b9-8454-2e991b0a4845",
+    "question_id": "q017",
+    "question": "In what year did humans first land on the Moon?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "8311486d-0a7e-4899-905d-a1a8fa4ab673",
+    "question_id": "q018",
+    "question": "In what year did World War II end?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "ba511d1d-e86f-4700-bdd3-3267a6d8fc5a",
+    "question_id": "q018",
+    "question": "In what year did World War II end?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "08e9c708-e343-48cd-b1cd-7ccb4c07cd0d",
+    "question_id": "q019",
+    "question": "In what year did India become independent?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "ca39d4d4-7f35-4ddb-8127-19109a2a255d",
+    "question_id": "q019",
+    "question": "In what year did India become independent?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "a6fb6730-11c9-49b1-ba6b-bd73ca9fcb40",
+    "question_id": "q020",
+    "question": "In what year did the Berlin Wall fall?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "7d3de400-5d67-4628-85e8-7d1adfdafda2",
+    "question_id": "q020",
+    "question": "In what year did the Berlin Wall fall?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "7b83250c-b4c3-49ec-b156-76ff98d03a4a",
+    "question_id": "q021",
+    "question": "In what year did the Titanic sink?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "4b90ab4c-348a-4e3b-8dcc-05dfda23b7e1",
+    "question_id": "q021",
+    "question": "In what year did the Titanic sink?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "86fbc441-2ae0-40c0-8ee7-5b48e9d426c4",
+    "question_id": "q022",
+    "question": "In what year did the first powered airplane flight by the Wright brothers occur?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "c7c973b3-dce4-4527-83b8-6cc3d0be1a1f",
+    "question_id": "q022",
+    "question": "In what year did the first powered airplane flight by the Wright brothers occur?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "90a53431-5ced-4f92-8c3f-4643d71b58ba",
+    "question_id": "q023",
+    "question": "In what year did the United States Declaration of Independence get adopted?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "53aee778-2fae-45ad-8db0-7643da4e0a6f",
+    "question_id": "q023",
+    "question": "In what year did the United States Declaration of Independence get adopted?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "7cf27d36-cab6-4be2-80b2-1979b207a7d6",
+    "question_id": "q024",
+    "question": "In what year did the Chernobyl nuclear disaster occur?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "c54119c2-a3e7-48b6-b865-d05433cba79c",
+    "question_id": "q024",
+    "question": "In what year did the Chernobyl nuclear disaster occur?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "5845d51e-f3f4-45e1-8bdf-3f765b7cdeca",
+    "question_id": "q025",
+    "question": "How many continents are there on Earth in the conventional seven-continent model?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "9a7c33f5-aacc-4f18-8230-0b8ab9319eff",
+    "question_id": "q025",
+    "question": "How many continents are there on Earth in the conventional seven-continent model?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "ddbb2477-2538-4e2f-a710-3c8f098344a6",
+    "question_id": "q026",
+    "question": "What is the atomic number of carbon?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "5334cf0f-4ff5-470e-8422-10a3f8f03db6",
+    "question_id": "q026",
+    "question": "What is the atomic number of carbon?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "659ed8a0-3a26-48c7-a4e5-549ab90747e6",
+    "question_id": "q027",
+    "question": "How many degrees are in a full circle?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "5e15bfdc-a7d1-49c1-aa43-0ba452f9887f",
+    "question_id": "q027",
+    "question": "How many degrees are in a full circle?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "2a2b8c0f-7e99-41a2-ae56-a8dde540aacc",
+    "question_id": "q028",
+    "question": "How many planets are in the solar system in the current IAU classification?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "32b79811-4c91-4bc7-a62f-c6986f5e1d7d",
+    "question_id": "q028",
+    "question": "How many planets are in the solar system in the current IAU classification?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "72466aca-4400-4814-ad06-c0e130e18844",
+    "question_id": "q029",
+    "question": "What is the boiling point of water at standard sea-level pressure in degrees Celsius?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "a22530d4-90aa-4cec-85c0-72c903640f3e",
+    "question_id": "q029",
+    "question": "What is the boiling point of water at standard sea-level pressure in degrees Celsius?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "d0d23e4e-6984-40f4-9a1d-085ba6dd0343",
+    "question_id": "q030",
+    "question": "How many days are in a non-leap year?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "3017a326-e7c8-4198-8247-f1ff17e8469a",
+    "question_id": "q030",
+    "question": "How many days are in a non-leap year?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "9a4a6b68-2110-49fa-a8c8-782befee2b47",
+    "question_id": "q031",
+    "question": "How many sides does a hexagon have?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "91eb44cf-4862-4b2b-8e13-b33bbae01cee",
+    "question_id": "q031",
+    "question": "How many sides does a hexagon have?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "d37e13f0-10bc-49d7-9ffe-15e2ed03b62e",
+    "question_id": "q032",
+    "question": "What is the speed of light in vacuum, rounded to the nearest thousand kilometres per second?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "bad5e505-e8eb-48ed-a9b9-f6c55f05064a",
+    "question_id": "q032",
+    "question": "What is the speed of light in vacuum, rounded to the nearest thousand kilometres per second?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "242b841a-9dfa-405f-a3c4-0404606889ff",
+    "question_id": "q033",
+    "question": "What is the chemical formula of water?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "db901393-b412-4b85-a7a6-20de5796aeca",
+    "question_id": "q033",
+    "question": "What is the chemical formula of water?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "71521e54-cfc3-44e3-905c-10fec9984db6",
+    "question_id": "q034",
+    "question": "What is the chemical symbol for gold?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "88ef6dd2-07a4-4323-a021-f8a87d18db70",
+    "question_id": "q034",
+    "question": "What is the chemical symbol for gold?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "d4ef87bb-6906-427e-b0d0-0dc27f92a873",
+    "question_id": "q035",
+    "question": "What gas do plants primarily absorb for photosynthesis?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "12c39e8b-7123-4725-a7fd-7af24190c920",
+    "question_id": "q035",
+    "question": "What gas do plants primarily absorb for photosynthesis?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "1c81f394-85d9-4cac-9ea7-c41368356a90",
+    "question_id": "q036",
+    "question": "What is the hardest naturally occurring mineral on the Mohs scale?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "b5746c59-651b-43dd-b2ed-9c5c1521c502",
+    "question_id": "q036",
+    "question": "What is the hardest naturally occurring mineral on the Mohs scale?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "77226cac-2c04-42b2-8579-a168542ebd6b",
+    "question_id": "q037",
+    "question": "What is the primary gas in Earth's atmosphere by volume?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "7ba49914-427b-47e2-8b14-f906bf59756c",
+    "question_id": "q037",
+    "question": "What is the primary gas in Earth's atmosphere by volume?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "542b69b6-8204-4957-8133-112884f95ef3",
+    "question_id": "q038",
+    "question": "What particle in an atom carries a negative electric charge?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "f15f1a71-6962-4446-bdf6-2a701ef3782c",
+    "question_id": "q038",
+    "question": "What particle in an atom carries a negative electric charge?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "0c52c1ca-84d4-4945-ab32-4cdb8ced5ceb",
+    "question_id": "q039",
+    "question": "What process do plants use to convert sunlight into chemical energy?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "7eaaf31d-5e55-4d81-a2db-9b596829917d",
+    "question_id": "q039",
+    "question": "What process do plants use to convert sunlight into chemical energy?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "cab7a71e-39d8-4a71-9cf2-068d9f05bfea",
+    "question_id": "q040",
+    "question": "What is the SI unit of electric current?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "e8316d5f-e435-4cea-a202-23a70e1a43f8",
+    "question_id": "q040",
+    "question": "What is the SI unit of electric current?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  }
+]

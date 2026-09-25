@@ -1,42 +1,63 @@
-# Demo script (about 3 minutes)
+# VeriFact Demonstration Script
 
-Use **Demo / Mock Mode** unless a live key is configured. Say so out loud.
+This script provides a structured 3-to-4 minute walkthrough of VeriFact demonstrating **only features implemented in the current repository**. Do not demonstrate or claim live web search or Tavily integration.
 
-### 0:00–0:20 — Problem
+---
 
-LLMs can generate confident but factually incorrect answers. Checking every claim on the web is a different system. VeriFact asks whether the answer is **internally consistent** under restatement.
+## Preparation Checklist
+- [ ] Backend running (`uvicorn app.main:app --reload --port 8000`)
+- [ ] Frontend running (`npm run dev`) at `http://localhost:5173`
+- [ ] Ollama daemon running with `gemma4:26b` (if demonstrating Live Mode)
+- [ ] If running in Mock Mode, note the amber banner
 
-### 0:20–0:45 — What VeriFact does
+---
 
-VeriFact implements **MetaQA** (an existing metamorphic method). Generate an answer, create synonym and antonym mutations, ask a verifier YES / NO / NOT SURE, average the MetaQA table, classify with threshold 0.5. No search, Wikipedia, or RAG in the detector.
+## Step-by-Step Demonstration Flow
 
-### 0:45–1:20 — Detection demo
+### Step 1: Open the Application & Inspect the Header
+- **Action**: Navigate to `http://localhost:5173`.
+- **Spoken Talking Point**:
+  > *"Welcome to VeriFact. Notice the badge in the top navigation bar. When running in Live Mode, it clearly identifies **Live Mode — Local Ollama · Model: gemma4:26b**. If running in development without a local GPU, it transparently indicates **Demo / Mock Mode** with deterministic test fixtures."*
 
-On **Detect**, enter a factual question (for example, “What is the capital of Australia?”). Show:
+### Step 2: Explain the Problem & MetaQA Methodology
+- **Spoken Talking Point**:
+  > *"When an LLM produces an answer, we cannot simply ask it 'Are you sure?' because of self-confirmation bias. VeriFact uses metamorphic testing: it restates the core claims of an answer into meaning-preserving synonyms and meaning-reversing antonyms to test if the model's knowledge behaves consistently."*
 
-- generated answer
-- hallucination score and HALLUCINATED / Reliable
-- Synonym / Antonym tabs
-- actual vs expected verdicts
-- “Why was this answer flagged?” built from the run, not canned copy
+### Step 3: Enter a Factual Query
+- **Action**: Enter a question into the Detect input box:
+  - Example 1: `"What is the capital of India and why was it chosen?"`
+  - Example 2: `"Who formulated the three laws of motion?"`
+- **Action**: Click **Detect Hallucinations**.
 
-If the banner says Demo / Mock Mode, say the answers are deterministic fixtures.
+### Step 4: Highlight Progressive Answer Display (The "Answer First" Feature)
+- **Action**: Point out that the **Base AI Answer** renders within seconds (`status: answer_ready`).
+- **Spoken Talking Point**:
+  > *"Notice that the user does not have to sit and wait for the entire metamorphic pipeline. Local 26B inference is computationally heavy, so VeriFact displays the generated Gemma answer immediately. Meanwhile, MetaQA analysis continues asynchronously in the background on the exact same run ID."*
 
-### 1:20–2:00 — Research experiment
+### Step 5: Observe Mutation Generation
+- **Action**: As the UI updates, point to the **Generated Mutations** table appearing (`status: generating_mutations` → `mutations_ready`).
+- **Spoken Talking Point**:
+  > *"VeriFact has extracted core factual claims from the answer and generated 6 mutations: 3 synonym mutations and 3 antonym mutations."*
+  > - Point to a **Synonym Mutation**: *"This rephrases the claim. A consistent verifier is expected to say YES."*
+  > - Point to an **Antonym Mutation**: *"This deliberately inverts or negates the claim. A consistent verifier is expected to say NO."*
 
-Open **Experiments**. Show the 2×2:
+### Step 6: Observe Real-Time Verification Results
+- **Action**: Point to the verification badges updating as background polling continues (`status: verifying_mutations`).
+- **Spoken Talking Point**:
+  > *"Each mutated statement is independently evaluated by the verifier model without being told whether it is a synonym or antonym. Notice the verdicts: YES, NO, or NOT SURE. Verifier rationales are also displayed for transparency, though only the verdict affects the score."*
 
-- A→A and B→B = same-model
-- A→B and B→A = cross-model
+### Step 7: Final Score & Classification
+- **Action**: Point to the completed score card (`status: completed`).
+- **Spoken Talking Point**:
+  > *"Once all mutations are verified, VeriFact's mathematical engine deterministically calculates the hallucination score by averaging individual contributions. Because the score is below the 0.5 threshold, this answer is classified as **Reliable** (or if contradictions were detected, **Hallucinated**)."*
 
-Explain that the answer and mutation set are frozen; only verifier identity changes.
+### Step 8: Walk Through the Run History
+- **Action**: Click **History** in the top navigation.
+- **Spoken Talking Point**:
+  > *"All detection runs, base answers, mutation sets, and stage execution timings are stored in a local SQLite database for auditing and research review."*
 
-### 2:00–2:30 — Results
-
-Locked run `58baff20-fb86-4f43-b20e-895a086ceb6b`, 40 pilot questions, **mock**.
-
-Mean scores: A→A 0.0, A→B 1.0, B→A 0.0, B→B 1.0. Difference signs reverse across generators. That is a **verifier-calibration** pattern, not a live-LLM self-verification finding. Hypothesis: **inconclusive** for real models.
-
-### 2:30–3:00 — Limitations and future work
-
-Small dataset, mock client, two placeholder models, prompt-based mutations. Next step is a confirmed live 2×2 with real provider models, without changing MetaQA scoring.
+### Step 9: State the Research Boundary & Planned Future Work
+- **Spoken Talking Point**:
+  > *"To maintain academic rigor, it is vital to note what VeriFact does and does not establish:*
+  > - *MetaQA measures **semantic consistency**, not absolute real-world truth. The current detector is completely **reference-free** and does not use Google, Wikipedia, or external RAG.*
+  > - *As a planned future extension, we intend to introduce an external **Web Evidence** pipeline to corroborate internal MetaQA consistency scores against live web search sources."*

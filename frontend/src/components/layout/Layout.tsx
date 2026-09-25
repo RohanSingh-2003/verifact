@@ -1,8 +1,7 @@
 import { Link, NavLink } from 'react-router-dom'
 import { BookOpen, FlaskConical, History, ScanSearch, Settings } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { classNames } from '../../lib/format'
-import { getHealth } from '../../services/api'
 
 const primaryNav = [
   { to: '/', label: 'Detect', icon: ScanSearch, end: true },
@@ -22,7 +21,10 @@ function Logo({ compact = false }: { compact?: boolean }) {
       className={classNames('flex items-center gap-2.5', compact ? 'justify-center' : '')}
       aria-label="VeriFact home"
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink text-canvas" aria-hidden="true">
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ink text-canvas"
+        aria-hidden="true"
+      >
         <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none">
           <path
             d="M12 3.5c-2.8 1.4-5 1.8-7 1.8v7.1c0 3.8 2.6 6.7 7 8.1 4.4-1.4 7-4.3 7-8.1V5.3c-2 0-4.2-.4-7-1.8z"
@@ -31,17 +33,22 @@ function Logo({ compact = false }: { compact?: boolean }) {
           />
           <path
             d="M8.6 12.2l2.2 2.2 4.6-4.8"
-            stroke="#7eb9a6"
+            stroke="currentColor"
+            className="text-accent"
             strokeWidth="1.7"
             strokeLinecap="round"
             strokeLinejoin="round"
+            style={{ stroke: 'var(--vf-accent)' }}
           />
         </svg>
       </span>
       {compact ? (
         <span className="sr-only">VeriFact</span>
       ) : (
-        <span className="text-[15px] font-semibold tracking-tight text-ink">VeriFact</span>
+        <span className="min-w-0">
+          <span className="block text-[15px] font-semibold tracking-tight text-ink">VeriFact</span>
+          <span className="mt-0.5 block text-[11px] leading-4 text-ink-muted">Verify what AI says.</span>
+        </span>
       )}
     </Link>
   )
@@ -159,16 +166,8 @@ export function MobileNav() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const [mode, setMode] = useState<'unknown' | 'mock' | 'live'>('unknown')
-
-  useEffect(() => {
-    void getHealth()
-      .then((health) => setMode(health.llm_mode === 'live' ? 'live' : 'mock'))
-      .catch(() => setMode('unknown'))
-  }, [])
-
   return (
-    <div className="min-h-dvh md:flex">
+    <div className="min-h-dvh bg-canvas md:flex">
       <div className="hidden lg:block">
         <Sidebar />
       </div>
@@ -178,22 +177,6 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="min-w-0 flex-1">
         <MobileTopBar />
         <div className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 lg:px-10 lg:pt-10 lg:pb-12">
-          {mode === 'mock' ? (
-            <div
-              role="status"
-              className="mb-5 rounded-[var(--radius-sm)] border border-line bg-surface-muted px-3 py-2 text-xs leading-5 text-ink-secondary"
-            >
-              Demo / Mock Mode — responses are deterministic development data, not live model output.
-            </div>
-          ) : null}
-          {mode === 'live' ? (
-            <div
-              role="status"
-              className="mb-5 rounded-[var(--radius-sm)] border border-line bg-surface-muted px-3 py-2 text-xs leading-5 text-ink-secondary"
-            >
-              Live LLM Mode — answers and verifications use the configured provider. API keys stay on the server.
-            </div>
-          ) : null}
           {children}
         </div>
       </div>

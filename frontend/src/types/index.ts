@@ -24,14 +24,44 @@ export type MutationKind = (typeof MutationKind)[keyof typeof MutationKind]
 export const AnalysisStage = {
   Idle: 'idle',
   GeneratingAnswer: 'generating_answer',
+  AnswerReady: 'answer_ready',
   GeneratingMutations: 'generating_mutations',
   VerifyingMutations: 'verifying_mutations',
   CalculatingScore: 'calculating_score',
   Complete: 'complete',
   Error: 'error',
+  AnalysisFailed: 'analysis_failed',
 } as const
 
 export type AnalysisStage = (typeof AnalysisStage)[keyof typeof AnalysisStage]
+
+export const RunStatus = {
+  AnswerReady: 'answer_ready',
+  GeneratingMutations: 'generating_mutations',
+  MutationsReady: 'mutations_ready',
+  VerifyingMutations: 'verifying_mutations',
+  CalculatingScore: 'calculating_score',
+  Completed: 'completed',
+  MutationGenerationFailed: 'mutation_generation_failed',
+  VerificationFailed: 'verification_failed',
+  ScoringFailed: 'scoring_failed',
+  Failed: 'failed',
+} as const
+
+export type RunStatus = (typeof RunStatus)[keyof typeof RunStatus]
+
+export function isAnalysisFailureStatus(status: RunStatus | string | null | undefined): boolean {
+  return (
+    status === RunStatus.Failed ||
+    status === RunStatus.MutationGenerationFailed ||
+    status === RunStatus.VerificationFailed ||
+    status === RunStatus.ScoringFailed
+  )
+}
+
+export function isTerminalRunStatus(status: RunStatus | string | null | undefined): boolean {
+  return status === RunStatus.Completed || isAnalysisFailureStatus(status)
+}
 
 export const ExperimentStatus = {
   Loading: 'loading',
@@ -45,10 +75,11 @@ export interface MutationRecord {
   kind: MutationKind
   original: string
   mutation: string
-  verifier: VerifierResponse
+  verifier: VerifierResponse | null
   expected: VerifierResponse
-  score: number
+  score: number | null
   reasoning: string
+  verified: boolean
 }
 
 export interface AnalysisResult {
@@ -57,21 +88,31 @@ export interface AnalysisResult {
   answer: string
   model: string
   responseTimeMs: number
-  score: number
-  verdict: Verdict
+  score: number | null
+  verdict: Verdict | null
   threshold: number
   createdAt: string
   mutations: MutationRecord[]
   summaryPoints: string[]
   llmMode?: 'mock' | 'live'
+  status: RunStatus
+  analysisError?: string | null
+  timing?: {
+    answerMs?: number | null
+    mutationMs?: number | null
+    verifyMs?: number | null
+    totalMs?: number | null
+    timeToAnswerMs?: number | null
+  }
 }
 
 export interface HistoryRun {
   id: string
   question: string
   model: string
-  score: number
-  verdict: Verdict
+  score: number | null
+  verdict: Verdict | null
+  status: RunStatus
   createdAt: string
 }
 
@@ -267,6 +308,7 @@ export interface AppSettings {
   llmMode: 'mock' | 'live'
   liveReady: boolean
   apiKeyConfigured: boolean
+  llmProvider: string
   generatorModelA: string
   generatorModelB: string
   verifierModelA: string
@@ -357,20 +399,27 @@ export interface EvaluationSummary {
 }
 
 export const ANALYSIS_STAGE_LABEL: Record<
-  Exclude<AnalysisStage, 'idle' | 'complete' | 'error'>,
+  Exclude<AnalysisStage, 'idle' | 'complete' | 'error' | 'analysis_failed' | 'answer_ready'>,
   string
 > = {
-  generating_answer: 'Generating answer...',
-  generating_mutations: 'Generating mutations...',
-  verifying_mutations: 'Verifying mutations...',
-  calculating_score: 'Calculating hallucination score...',
+  generating_answer: 'Asking the AI for an answer...',
+  generating_mutations: 'Creating same-meaning and opposite-meaning tests...',
+  verifying_mutations: 'Checking whether the AI responds consistently...',
+  calculating_score: 'Calculating the hallucination score...',
 }
 
 export const ANALYSIS_STAGES: Array<
-  Exclude<AnalysisStage, 'idle' | 'complete' | 'error'>
+  Exclude<AnalysisStage, 'idle' | 'complete' | 'error' | 'analysis_failed' | 'answer_ready'>
 > = [
   AnalysisStage.GeneratingAnswer,
   AnalysisStage.GeneratingMutations,
   AnalysisStage.VerifyingMutations,
   AnalysisStage.CalculatingScore,
 ]
+
+export const HALLUCINATION_ANALYSIS_STEPS = [
+  { id: 'answer', label: 'Answer generated' },
+  { id: 'mutations', label: 'Creating test mutations' },
+  { id: 'verify', label: 'Verifying mutations' },
+  { id: 'score', label: 'Calculating score' },
+] as const

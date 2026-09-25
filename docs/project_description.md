@@ -1,19 +1,91 @@
-# Project description
+# Project Description: VeriFact
 
-## 50-word version
+## 1. Executive Summary
 
-VeriFact is a MetaQA-based application for detecting fact-conflicting hallucinations in LLM answers. It paraphrases and negates a generated answer, asks a verifier for YES, NO, or NOT SURE, and averages MetaQA contribution scores. A separate 2×2 experiment compares same-model and cross-model verification with frozen mutation sets. Ground truth is used only after detection.
+VeriFact is a research-oriented hallucination detection system that implements the **MetaQA** metamorphic testing methodology to identify **fact-conflicting hallucinations** in Large Language Model (LLM) outputs. Running locally using **Ollama** and **Gemma 4:26b**, VeriFact decouples answer generation from metamorphic verification through an interactive progressive workflow: users view the AI-generated answer immediately, while the system creates semantic mutations, verifies consistency in the background, and deterministically computes a hallucination score.
 
-## 100-word version
+---
 
-VeriFact implements the existing MetaQA metamorphic methodology as an interactive detector and research scaffold. A generator produces a base answer; synonym and antonym mutations are verified without web search, Wikipedia, RAG, embeddings, or external fact-checking APIs. Scores follow the MetaQA table (synonym YES=0/NO=1; antonym YES=1/NO=0; NOT SURE=0.5) and a 0.5 threshold. VeriFact also runs a 2×2 study: each answer and mutation set is generated once and judged by two verifiers, isolating verifier identity. Evaluation metrics and Wilcoxon tests use stored outputs. The repository’s completed 40-question 2×2 is mock-mode; live LLM findings are not claimed.
+## 2. Problem Statement
 
-## 250-word version
+Large Language Models (LLMs) frequently generate answers that appear authoritative and syntactically flawless, yet contain subtle or overt factual errors—commonly known as **hallucinations**.
 
-Fact-conflicting hallucinations are fluent LLM answers that contradict established facts. VeriFact (“Verify what AI says”) is a software implementation of MetaQA, an existing metamorphic detection method. It does not claim to have invented MetaQA. The system generates a candidate answer, produces meaning-preserving and meaning-reversing restatements, and asks a verifier whether each restatement holds. Parsed verdicts become numeric contributions, the hallucination score is their mean, and scores at or above a threshold (default 0.5) are labeled Hallucinated. Verifier rationales are stored for explanation and do not enter the score.
+In high-stakes domains (medicine, law, education, technical research), identifying whether an AI-generated answer is factually dependable is critical. However, automated hallucination detection faces major hurdles:
+1. **Self-Confirmation Bias**: Asking an LLM whether its own answer is true typically results in affirmative sycophancy. The model tends to reinforce its own errors.
+2. **Computational Expense of External Search**: Continually querying external search engines or vector databases incurs latency, financial cost, rate limits, and vulnerability to outdated or noisy search indices.
+3. **Reference-Free Verification Need**: In many environments, an external reference or ground-truth document is unavailable at query time.
 
-The detector is zero-resource: it does not retrieve Google, Wikipedia, RAG corpora, vector databases, embeddings, or fact-checking APIs. References exist only in a post-detection evaluation layer, where answers can be labeled Reliable, Hallucinated, or Needs Review.
+---
 
-The research question is whether using the same model as generator and verifier produces systematically different scores than a different verifier, after accounting for verifier calibration. The experiment is a 2×2 of generators A/B and verifiers A/B. For each question the answer and mutation set are frozen; only verifier identity changes. Analysis reports condition means, NOT SURE rates, classification flips, paired Wilcoxon tests, and a threshold sweep on stored scores.
+## 3. The VeriFact Solution: MetaQA-Based Detection
 
-The locked repository experiment (`58baff20-fb86-4f43-b20e-895a086ceb6b`, 40 pilot questions) ran in mock mode with placeholder models `model-a` and `model-b`. Those results demonstrate the pipeline and a verifier-calibration confound; they are not live-model findings. The live-LLM hypothesis remains inconclusive until a confirmed live run is stored.
+VeriFact addresses this problem through **metamorphic testing**. Instead of asking the model for self-validation or requiring external databases, VeriFact tests the **semantic consistency** of the model's knowledge under controlled linguistic mutations:
+
+```text
+The Problem: LLM generates fluent but fact-conflicting statements
+                              ↓
+The Failure of Direct Checking: Asking "Are you right?" triggers self-confirmation bias
+                              ↓
+The VeriFact Approach: Probe internal consistency using metamorphic mutations
+                              ↓
+Step 1: Extract atomic core claims from the base answer
+                              ↓
+Step 2: Generate synonym (meaning-preserving) & antonym (meaning-reversing) mutations
+                              ↓
+Step 3: Ask the verifier whether each statement is supported (YES / NO / NOT SURE)
+                              ↓
+Step 4: Deterministically score inconsistencies using the MetaQA matrix
+                              ↓
+Step 5: Classify answer as Reliable or Hallucinated against a calibrated threshold
+```
+
+---
+
+## 4. Methodology Deep-Dive
+
+### Mutation Generation
+From the generated answer, VeriFact isolates 3–4 core factual claims. For each claim, it generates:
+- **Synonym Mutations**: Rephrased assertions that preserve the truth value of the original claim. A consistent model must agree (`YES`).
+- **Antonym Mutations**: Controlled inversions or negations that contradict the original claim. A consistent model must reject (`NO`).
+
+### Independent Verification
+The verifier evaluates each mutated statement without knowing whether it is a synonym or an antonym, and without access to the expected verdict. Allowed outputs are strictly `YES`, `NO`, or `NOT SURE`.
+
+### Deterministic Scoring
+Scoring is performed by VeriFact’s mathematical engine—not by prompting an LLM to evaluate itself:
+- **Synonym Contribution**: `YES` = 0.0 (consistent), `NO` = 1.0 (inconsistent), `NOT SURE` = 0.5.
+- **Antonym Contribution**: `YES` = 1.0 (inconsistent), `NO` = 0.0 (consistent), `NOT SURE` = 0.5.
+- **Aggregate Hallucination Score**: Arithmetic mean of contributions:
+  $$H = \frac{1}{N}\sum_{i=1}^N c_i \quad \in [0.0, 1.0]$$
+- **Classification**: With default threshold $\theta = 0.5$:
+  - $H \ge 0.5 \implies$ **Hallucinated**
+  - $H < 0.5 \implies$ **Reliable**
+
+---
+
+## 5. Local Ollama & Gemma 4:26b Implementation
+
+- **Hardware Autonomy**: VeriFact integrates directly with local **Ollama** instances (`http://localhost:11434`), executing Google's **Gemma 4:26b** model.
+- **Reasoning Control (`think: false`)**: Gemma thinking models spend substantial token budgets on internal reasoning traces. VeriFact configures the native Ollama `/api/chat` client with `think: false` to guarantee well-formed, deterministic JSON outputs within concise token limits.
+- **Progressive UI Architecture**: Because 26B inference can take tens of seconds locally, VeriFact's progressive design presents the generated answer immediately upon completion (`answer_ready`), then streams mutation generation and verification progress in the background on the same run.
+- **Mock Mode for Development**: Full deterministic mock support allows running the complete suite of 162 automated backend unit tests and fast UI demonstrations without requiring GPU resources.
+
+---
+
+## 6. Current Limitations
+
+1. **Semantic Consistency vs. Objective Reality**: MetaQA evaluates whether the model contradicts itself. If a model consistently believes and reinforces a factual error under both synonym and antonym transformations, the score will reflect high consistency.
+2. **Local Inference Latency**: Running multiple verifications on 26B models requires capable GPU resources or patient CPU execution.
+3. **Mutation Generation Fragility**: Prompt-based mutation generation may occasionally yield sentence fragments or duplicates; VeriFact filters these with heuristics and retry rounds, but generation quality remains model-dependent.
+
+---
+
+## 7. Planned Future Extension: External Web Evidence
+
+A planned future version of VeriFact will introduce an external **Web Evidence** pipeline:
+- Extract factual assertions from the base answer.
+- Query external search APIs (e.g., Tavily or SerpAPI) for reputable sources.
+- Extract relevant snippets and evaluate claims as **SUPPORTED**, **CONTRADICTED**, or **INSUFFICIENT EVIDENCE**.
+- Contrast internal metamorphic consistency scores against external retrieval evidence.
+
+*(Note: In the current repository release, the system is strictly reference-free, and external search features are not implemented.)*

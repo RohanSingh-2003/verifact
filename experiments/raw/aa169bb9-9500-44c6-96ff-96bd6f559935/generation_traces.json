@@ -1,0 +1,38 @@
+[
+  {
+    "generation_id": "2eacb90a-9b89-4bd6-827a-f901881827e3",
+    "question_id": "q1",
+    "question": "What is the capital of France?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "fc1ee9d5-d7e8-416a-93a5-9a5022ffffdd",
+    "question_id": "q1",
+    "question": "What is the capital of France?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "dd510299-a18a-4eee-bbbf-c2ddbe6f88cb",
+    "question_id": "q2",
+    "question": "What is the capital of Japan?",
+    "generator_model": "model-a",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  },
+  {
+    "generation_id": "3bb923b4-f1fe-4af1-896d-87105975069c",
+    "question_id": "q2",
+    "question": "What is the capital of Japan?",
+    "generator_model": "model-b",
+    "base_answer": "",
+    "mutation_set_hash": "",
+    "conditions": []
+  }
+]

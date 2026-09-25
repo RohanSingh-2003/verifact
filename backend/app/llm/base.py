@@ -24,6 +24,7 @@ class LLMClient(ABC):
         model: str,
         system_prompt: str,
         user_prompt: str,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         """Return a parsed JSON object from the model."""
 
@@ -34,5 +35,6 @@ class LLMClient(ABC):
         model: str,
         system_prompt: str,
         user_prompt: str,
+        max_tokens: int | None = None,
     ) -> str:
         """Return plain text from the model."""

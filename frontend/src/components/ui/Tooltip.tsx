@@ -29,7 +29,7 @@ export function Tooltip({ content, children }: TooltipProps) {
       {children}
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-30 w-max max-w-64 -translate-x-1/2 rounded-[var(--radius-sm)] bg-ink px-2.5 py-1.5 text-xs leading-4 text-white opacity-0 shadow-[var(--shadow-float)] transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
+        className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-30 w-max max-w-64 -translate-x-1/2 rounded-[var(--radius-sm)] bg-ink px-2.5 py-1.5 text-xs leading-4 text-canvas opacity-0 shadow-[var(--shadow-float)] transition-opacity group-hover/tooltip:opacity-100 group-focus-within/tooltip:opacity-100"
       >
         {content}
       </span>

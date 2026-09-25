@@ -1,0 +1,37 @@
+{
+  "experiment_id": "aa169bb9-9500-44c6-96ff-96bd6f559935",
+  "experiment_name": "Verifier comparison",
+  "dataset": "mini",
+  "dataset_version": "1.0",
+  "generator_models": [
+    "model-a",
+    "model-b"
+  ],
+  "verifier_models": [
+    "model-a",
+    "model-b"
+  ],
+  "synonym_count": 5,
+  "antonym_count": 5,
+  "threshold": 0.5,
+  "trials": 1,
+  "timestamp": "2026-09-24T15:38:35.830917+00:00",
+  "completed_at": "2026-09-24T15:38:35.848645+00:00",
+  "mode": "mock",
+  "status": "completed",
+  "llm": {
+    "provider": "openai_compatible",
+    "temperature": 0.0,
+    "max_output_tokens": 800,
+    "timeout_seconds": 300.0,
+    "max_retries": 1,
+    "verify_concurrency": 5,
+    "prompt_bundle": "metaqa-v1",
+    "answer_prompt": "answer-v2",
+    "claim_prompt": "claim-v1",
+    "mutation_prompt": "mutation-v3",
+    "verify_prompt": "verify-v1",
+    "reproducibility_note": "Live hosted LLM APIs are not bit-reproducible even at temperature 0. Mock mode is deterministic."
+  },
+  "research_question": "Does using the same LLM as both answer generator and mutation verifier produce systematically different hallucination scores compared with using a different LLM as verifier, after controlling for verifier calibration?"
+}

@@ -53,9 +53,23 @@ def _ensure_sqlite_columns() -> None:
     run_cols = _sqlite_column_names("runs")
     if run_cols and "llm_mode" not in run_cols:
         statements.append("ALTER TABLE runs ADD COLUMN llm_mode VARCHAR(16) DEFAULT 'live'")
+    if run_cols and "status" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN status VARCHAR(32) DEFAULT 'completed'")
+    if run_cols and "analysis_error" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN analysis_error TEXT DEFAULT ''")
+    if run_cols and "answer_ms" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN answer_ms FLOAT")
+    if run_cols and "mutation_ms" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN mutation_ms FLOAT")
+    if run_cols and "verify_ms" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN verify_ms FLOAT")
+    if run_cols and "total_ms" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN total_ms FLOAT")
     mutation_cols = _sqlite_column_names("mutations")
     if mutation_cols and "parse_failed" not in mutation_cols:
         statements.append("ALTER TABLE mutations ADD COLUMN parse_failed BOOLEAN DEFAULT 0")
+    if mutation_cols and "verified" not in mutation_cols:
+        statements.append("ALTER TABLE mutations ADD COLUMN verified BOOLEAN DEFAULT 1")
     if mutation_cols and "position" not in mutation_cols:
         statements.append("ALTER TABLE mutations ADD COLUMN position INTEGER DEFAULT 0")
     exp_cols = _sqlite_column_names("experiments")

@@ -52,6 +52,7 @@ async def verify_mutation(
     question: str,
     answer: str,
     statement: str,
+    max_tokens: int | None = None,
 ) -> VerifierResult:
     try:
         payload = await llm.complete_json(
@@ -62,6 +63,7 @@ async def verify_mutation(
                 answer=answer,
                 statement=statement,
             ),
+            max_tokens=max_tokens,
         )
     except LLMError:
         logger.warning("Verifier call failed; recording NOT SURE.")

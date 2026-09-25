@@ -41,8 +41,8 @@ export function HistoryPage() {
     const needle = query.trim().toLowerCase()
     return runs.filter((run) => {
       const matchesQuery = !needle || run.question.toLowerCase().includes(needle)
-      const matchesVerdict = verdictFilter === 'all' || run.verdict === verdictFilter
-      return matchesQuery && matchesVerdict
+      if (verdictFilter === 'all') return matchesQuery
+      return matchesQuery && run.verdict === verdictFilter
     })
   }, [query, runs, verdictFilter])
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any, Literal
 
 from app.llm.base import LLMClient, LLMError
@@ -72,64 +73,168 @@ def _builtin_answer(question: str) -> str:
     return f"[MOCK] No deterministic answer configured for this question: {question}"
 
 
-# ── Dynamic mutation generation ────────────────────────────────────────
+# ── Dynamic claim + mutation generation ────────────────────────────────
+
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 _SYNONYM_TEMPLATES: list[str] = [
-    "In other words, {answer}",
-    "To put it differently, {answer}",
-    "Stated another way, {answer}",
-    "That is to say, {answer}",
-    "Put simply, {answer}",
+    "In other words, it is accurate that {claim}.",
+    "To put it differently, the claim holds that {claim}.",
+    "Stated another way, {claim}.",
+    "That is to say, {claim}.",
+    "Put simply, it means that {claim}.",
 ]
 
 _ANTONYM_TEMPLATES: list[str] = [
-    "It is not the case that {answer}",
-    "Contrary to popular belief, {answer} is incorrect.",
-    "The opposite is true: {answer} is wrong.",
-    "This is false: {answer}",
-    "Actually, {answer} is a misconception.",
+    "It is not the case that {claim}.",
+    "Contrary to that claim, {claim} is incorrect.",
+    "The opposite is true: {claim} is wrong.",
+    "This is false: {claim}.",
+    "Actually, {claim} is a misconception.",
 ]
 
 
+def _split_claim_sentences(answer: str, max_claims: int = 4) -> list[str]:
+    cleaned = " ".join(answer.split()).strip()
+    if not cleaned:
+        return []
+    parts = _SENTENCE_SPLIT_RE.split(cleaned)
+    claims: list[str] = []
+    seen: set[str] = set()
+    for part in parts:
+        text = part.strip()
+        if not text:
+            continue
+        if text[-1] not in ".!?":
+            text = f"{text}."
+        key = text.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        claims.append(text)
+        if len(claims) >= max_claims:
+            break
+    if not claims and cleaned:
+        short = cleaned if cleaned[-1] in ".!?" else f"{cleaned}."
+        claims.append(short)
+    return claims
+
+
+def _claims_payload(answer: str, max_claims: int = 4) -> list[dict[str, str]]:
+    return [
+        {"id": f"claim_{index}", "text": text}
+        for index, text in enumerate(_split_claim_sentences(answer, max_claims=max_claims), start=1)
+    ]
+
+
 def _generate_dynamic_mutations(
-    answer: str,
+    claims: list[str],
     synonym_count: int,
     antonym_count: int,
+    *,
+    synonym_offset: int = 0,
+    antonym_offset: int = 0,
 ) -> list[dict[str, str]]:
-    """Generate deterministic mutations from the actual base answer text."""
-    answer_clean = answer.rstrip(".")
+    """Generate deterministic mutations distributed across core claims."""
+    if not claims:
+        claims = [ORIGINAL]
     mutations: list[dict[str, str]] = []
     for i in range(synonym_count):
-        template = _SYNONYM_TEMPLATES[i % len(_SYNONYM_TEMPLATES)]
+        claim = claims[(i + synonym_offset) % len(claims)]
+        claim_clean = claim.rstrip(".")
+        template = _SYNONYM_TEMPLATES[(i + synonym_offset) % len(_SYNONYM_TEMPLATES)]
         mutations.append({
             "type": MutationType.SYNONYM.value,
-            "original_text": answer,
-            "mutated_text": template.format(answer=answer_clean),
+            "original_text": claim,
+            "mutated_text": template.format(claim=claim_clean),
         })
     for i in range(antonym_count):
-        template = _ANTONYM_TEMPLATES[i % len(_ANTONYM_TEMPLATES)]
+        claim = claims[(i + antonym_offset) % len(claims)]
+        claim_clean = claim.rstrip(".")
+        template = _ANTONYM_TEMPLATES[(i + antonym_offset) % len(_ANTONYM_TEMPLATES)]
         mutations.append({
             "type": MutationType.ANTONYM.value,
-            "original_text": answer,
-            "mutated_text": template.format(answer=answer_clean),
+            "original_text": claim,
+            "mutated_text": template.format(claim=claim_clean),
         })
     return mutations
 
 
-def _extract_base_answer(user_prompt: str) -> str:
-    """Extract the base answer from a mutation-generation prompt."""
-    marker = "Base answer:"
+def _extract_answer_from_claim_prompt(user_prompt: str) -> str:
+    marker = "Answer:"
     if marker not in user_prompt:
         return ""
     remainder = user_prompt.split(marker, 1)[1]
     lines: list[str] = []
     for line in remainder.splitlines():
         stripped = line.strip()
-        if stripped.startswith("Create exactly"):
+        if stripped.casefold().startswith("extract "):
             break
         if stripped:
             lines.append(stripped)
     return " ".join(lines)
+
+
+def _extract_claims_from_mutation_prompt(user_prompt: str) -> list[str]:
+    marker = "Core claims"
+    if marker not in user_prompt:
+        return []
+    remainder = user_prompt.split(marker, 1)[1]
+    lines = remainder.splitlines()
+    claims: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        lower = stripped.casefold()
+        if lower.startswith("create exactly") or lower.startswith("generate only"):
+            break
+        if lower.startswith("already accepted"):
+            break
+        if not stripped:
+            # Blank line after the claim list ends the block (before rules / accepted section).
+            if claims:
+                break
+            continue
+        # Numbered list: "1. claim text"
+        if stripped[0].isdigit() and "." in stripped[:4]:
+            claims.append(stripped.split(".", 1)[1].strip())
+        elif stripped.startswith("-"):
+            claims.append(stripped.lstrip("- ").strip())
+    return [item for item in claims if item]
+
+
+_MUTATION_COUNT_RE = re.compile(
+    r"Create exactly\s+(\d+)\s+synonym mutations and\s+(\d+)\s+antonym mutations",
+    re.IGNORECASE,
+)
+_FILL_SYN_RE = re.compile(r"exactly\s+(\d+)\s+synonym mutation", re.IGNORECASE)
+_FILL_ANT_RE = re.compile(r"exactly\s+(\d+)\s+antonym mutation", re.IGNORECASE)
+_MAX_CLAIMS_RE = re.compile(r"Extract\s+(\d+)\s+important factual claims", re.IGNORECASE)
+
+
+def _extract_mutation_counts(user_prompt: str) -> tuple[int, int]:
+    match = _MUTATION_COUNT_RE.search(user_prompt)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    syn_match = _FILL_SYN_RE.search(user_prompt)
+    ant_match = _FILL_ANT_RE.search(user_prompt)
+    if syn_match or ant_match:
+        syn_n = int(syn_match.group(1)) if syn_match else 0
+        ant_n = int(ant_match.group(1)) if ant_match else 0
+        return syn_n, ant_n
+    return 5, 5
+
+
+def _extract_max_claims(user_prompt: str) -> int:
+    match = _MAX_CLAIMS_RE.search(user_prompt)
+    if not match:
+        return 4
+    return int(match.group(1))
+
+
+def _is_claim_extraction_prompt(system_prompt: str, user_prompt: str) -> bool:
+    if "extract a small set of important factual claims" in system_prompt.casefold():
+        return True
+    return "extract " in user_prompt.casefold() and "important factual claims" in user_prompt.casefold()
 
 
 class MockLLMClient(LLMClient):
@@ -146,6 +251,7 @@ class MockLLMClient(LLMClient):
         fail_verify_indices: set[int] | None = None,
         include_duplicates: bool = False,
         include_malformed_items: bool = False,
+        incomplete_first_mutation_batch: bool = False,
         answers_by_question: dict[str, str] | None = None,
         scenarios_by_question: dict[str, str] | None = None,
         answers_by_model: dict[str, dict[str, str]] | None = None,
@@ -163,6 +269,7 @@ class MockLLMClient(LLMClient):
         self.fail_verify_indices = set(fail_verify_indices or set())
         self.include_duplicates = include_duplicates
         self.include_malformed_items = include_malformed_items
+        self.incomplete_first_mutation_batch = incomplete_first_mutation_batch
         self.answers_by_question = dict(answers_by_question or {})
         self.scenarios_by_question = dict(scenarios_by_question or {})
         self.answers_by_model = {key: dict(value) for key, value in (answers_by_model or {}).items()}
@@ -170,7 +277,9 @@ class MockLLMClient(LLMClient):
         self.mutations_by_model = {key: list(value) for key, value in (mutations_by_model or {}).items()}
         self._verify_index = 0
         self._current_question = ""
+        self._last_claims: list[str] = []
         self.answer_calls = 0
+        self.claim_calls = 0
         self.mutation_calls = 0
         self.verify_calls = 0
         self.captured_system_prompts: list[str] = []
@@ -183,7 +292,15 @@ class MockLLMClient(LLMClient):
                 return index
         return None
 
-    async def complete_text(self, *, model: str, system_prompt: str, user_prompt: str) -> str:
+    async def complete_text(
+        self,
+        *,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int | None = None,
+    ) -> str:
+        del max_tokens  # Mock responses are deterministic; token caps are ignored.
         self.captured_system_prompts.append(system_prompt)
         self.captured_user_prompts.append(user_prompt)
         if self.fail_on == "answer":
@@ -211,7 +328,9 @@ class MockLLMClient(LLMClient):
         model: str,
         system_prompt: str,
         user_prompt: str,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
+        del max_tokens
         self.captured_system_prompts.append(system_prompt)
         self.captured_user_prompts.append(user_prompt)
         question = extract_question(user_prompt)
@@ -253,27 +372,91 @@ class MockLLMClient(LLMClient):
             verdict, rationale = _mock_verdict_for_scenario(effective_scenario, is_antonym, index)
             return {"verdict": verdict, "rationale": rationale}
 
+        if _is_claim_extraction_prompt(system_prompt, user_prompt):
+            self.claim_calls += 1
+            if self.fail_on == "claims":
+                raise LLMError("mock claim extraction failure")
+            answer_text = _extract_answer_from_claim_prompt(user_prompt) or self.answer
+            max_claims = _extract_max_claims(user_prompt)
+            # Prefer unique original_text values from fixture mutations so later
+            # mutation payloads remain valid against the allowed-claim set.
+            fixture_mutations: list[dict[str, str]] | None = None
+            if model in self.mutations_by_model:
+                fixture_mutations = self.mutations_by_model[model]
+            elif self._explicit_mutations:
+                fixture_mutations = self.mutations
+            if fixture_mutations is not None:
+                seen: set[str] = set()
+                claims: list[dict[str, str]] = []
+                for item in fixture_mutations:
+                    text = (item.get("original_text") or "").strip()
+                    if not text or text.casefold() in seen:
+                        continue
+                    seen.add(text.casefold())
+                    claims.append({"id": f"claim_{len(claims) + 1}", "text": text})
+                    if len(claims) >= max_claims:
+                        break
+                if claims:
+                    self._last_claims = [item["text"] for item in claims]
+                    return {"claims": claims}
+            claims = _claims_payload(answer_text, max_claims=max_claims)
+            self._last_claims = [item["text"] for item in claims]
+            return {"claims": claims}
+
         if self.fail_on == "mutations":
             raise LLMError("mock mutation failure")
         self.mutation_calls += 1
 
         # If explicit mutations were provided (tests) or model-specific mutations
-        # exist, use them. Otherwise generate dynamic mutations from the actual
-        # base answer found in the prompt.
+        # exist, use them. Otherwise generate dynamic mutations from core claims.
         if model in self.mutations_by_model:
             payload: list[dict[str, Any]] = list(self.mutations_by_model[model])
         elif self._explicit_mutations:
             payload = list(self.mutations)
         else:
-            base_answer = _extract_base_answer(user_prompt)
-            if base_answer:
-                payload = _generate_dynamic_mutations(base_answer, 5, 5)
+            claims = _extract_claims_from_mutation_prompt(user_prompt) or self._last_claims
+            syn_n, ant_n = _extract_mutation_counts(user_prompt)
+            syn_offset = 0
+            ant_offset = 0
+            # Simulate an incomplete first batch so fill rounds can complete the set.
+            if self.incomplete_first_mutation_batch:
+                if self.mutation_calls == 1:
+                    self.mutations = []
+                    if ant_n > 0:
+                        ant_n = max(0, ant_n - 1)
+                else:
+                    syn_offset = sum(
+                        1 for item in self.mutations if item.get("type") == MutationType.SYNONYM.value
+                    )
+                    ant_offset = sum(
+                        1 for item in self.mutations if item.get("type") == MutationType.ANTONYM.value
+                    )
+            if claims:
+                payload = _generate_dynamic_mutations(
+                    claims,
+                    syn_n,
+                    ant_n,
+                    synonym_offset=syn_offset,
+                    antonym_offset=ant_offset,
+                )
                 # Update self.mutations so _mutation_index works during verification
-                self.mutations = payload
+                if self.incomplete_first_mutation_batch:
+                    combined = list(self.mutations) + payload
+                    seen_texts: set[str] = set()
+                    deduped: list[dict[str, str]] = []
+                    for item in combined:
+                        text = item.get("mutated_text", "")
+                        if text in seen_texts:
+                            continue
+                        seen_texts.add(text)
+                        deduped.append(item)
+                    self.mutations = deduped
+                else:
+                    self.mutations = payload
             else:
                 payload = list(self.mutations)
 
-        if self.include_malformed_items:
+        if self.include_malformed_items and self.mutation_calls == 1:
             payload = [
                 {"type": "paraphrase", "original_text": "", "mutated_text": ""},
                 {"type": "synonym", "original_text": ORIGINAL, "mutated_text": "   "},
@@ -354,18 +537,28 @@ def extract_question(user_prompt: str) -> str:
     if "Question:" not in user_prompt:
         return ""
     remainder = user_prompt.split("Question:", 1)[1]
+    stop_prefixes = (
+        "base answer:",
+        "candidate answer:",
+        "statement to judge:",
+        "core claims",
+        "answer:",
+        "write a concise factual answer.",
+        "answer the question directly",
+        "create exactly",
+        "extract ",
+    )
     lines: list[str] = []
     for line in remainder.splitlines():
         stripped = line.strip()
-        if stripped in {
-            "Base answer:",
-            "Candidate answer:",
-            "Statement to judge:",
-            "Write a concise factual answer.",
-        }:
+        if not stripped:
+            if lines:
+                # Blank line after the question body ends the question block.
+                break
+            continue
+        if stripped.casefold().startswith(stop_prefixes):
             break
-        if stripped:
-            lines.append(stripped)
+        lines.append(stripped)
     return " ".join(lines)
 
 

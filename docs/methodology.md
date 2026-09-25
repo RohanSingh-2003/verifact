@@ -1,80 +1,121 @@
 # VeriFact Methodology
 
-## 1. Problem Definition
+## 1. Problem Definition & The Limits of Self-Reflection
 
-Large language models can produce fluent answers that conflict with established facts. This project treats **fact-conflicting hallucination** as a generated answer that is inconsistent with a known factual reference (for example, naming the wrong capital, person, date, or quantity). VeriFact does not try to score stylistic quality or open-ended opinion. It implements a reference-free consistency check at detection time and, separately, may compare the already-generated answer with a reference during evaluation.
+Large Language Models (LLMs) can generate fluent, grammatical text that contradicts established facts—a phenomenon termed **fact-conflicting hallucination**.
 
-## 2. MetaQA
+When attempting to detect hallucinations without external ground-truth datasets, a common intuition is to prompt the LLM directly: *"Is the above statement true?"* However, empirical research and software testing show that this approach is ineffective due to:
+- **Self-Confirmation Bias**: Models exhibit high confidence in their own previous completions.
+- **Sycophancy**: If a false premise is already embedded in the conversation context, models tend to confirm and elaborate upon the falsehood rather than dispute it.
+- **Superficial Fluency**: Direct self-checking fails to distinguish between well-grounded knowledge and plausible-sounding fabulations.
 
-VeriFact implements the **MetaQA** metamorphic hallucination-detection methodology. MetaQA is an existing approach: it probes whether an answer remains consistent under meaning-preserving and meaning-reversing restatements. VeriFact does **not** claim to have invented MetaQA.
+---
 
-- **MetaQA** = the existing metamorphic detection methodology (mutation types, YES/NO/NOT SURE verification, contribution table, averaged score, threshold classification).
-- **VeriFact** = a software implementation of that methodology, plus an interactive UI, evaluation layer, and a controlled 2×2 experiment on same-model versus cross-model verification.
+## 2. The MetaQA Metamorphic Testing Principle
+
+VeriFact implements **MetaQA**, a metamorphic testing methodology designed to evaluate hallucination by testing **internal consistency under semantic perturbation**:
+
+Instead of directly asking if an answer is correct, MetaQA tests whether the model behaves coherently when the core claims of its answer are restated in meaning-preserving and meaning-reversing forms.
+
+- **MetaQA** refers to the theoretical metamorphic testing method (claim extraction, synonym/antonym mutations, independent verification, and deterministic score aggregation).
+- **VeriFact** is the software framework that implements this methodology into an interactive progressive web application, local Ollama engine, and controlled 2×2 experiment harness.
+
+---
 
 ## 3. Base Answer Generation
 
-Given a user or dataset question, the generator LLM is asked for a concise factual answer. The detector stores the question, generator model, raw answer text, generation parameters, and timestamp. Ground-truth reference answers are **not** included in this prompt. If generation fails after the configured retries, the item is marked failed; mock output is not substituted in live mode.
+Given a factual user query, the generator model (`gemma4:26b` in live Ollama mode) produces a concise factual answer. 
+
+- Ground-truth references are **never** provided to the prompt.
+- In the interactive Detect pipeline, answer generation is decoupled from metamorphic analysis: the answer is stored and returned immediately to the frontend (`status: answer_ready`), allowing the user to read the AI's response while downstream verification proceeds asynchronously on the same run.
+
+---
 
 ## 4. Metamorphic Mutation Generation
 
-From the base answer, a mutation LLM produces two families of restatements:
+To ensure reliable, focused testing, VeriFact does not attempt to rewrite an entire multi-sentence answer in a single prompt. Instead, it extracts **3–4 atomic core factual claims** (`CoreClaim`) and generates paired mutations from those claims:
 
-- **Synonym mutations** — meaning-preserving paraphrases of the original statement. A consistent verifier is expected to accept them (YES).
-- **Antonym / negation mutations** — meaning-reversing restatements. A consistent verifier is expected to reject them (NO).
+### Synonym Mutations (Meaning-Preserving)
+- **Definition**: A restatement that preserves the semantic meaning and factual assertions of the original claim using different vocabulary, voice, or sentence structure.
+- **Purpose**: Tests whether the model recognizes its own assertion when stated in alternate words.
+- **Expected Verifier Verdict**: `YES` (Supported)
 
-Default counts are 5 synonym and 5 antonym mutations (10 total). The collector rejects malformed items, duplicates, and no-op copies (mutated text identical to the original). Expected verdicts are derived in code and are not sent to the verifier.
+### Antonym Mutations (Meaning-Reversing)
+- **Definition**: A restatement that deliberately inverts, negates, or alters key factual entities (names, dates, locations, quantities, relationships) to contradict the original claim.
+- **Purpose**: Tests whether the model rejects a statement that directly conflicts with what it previously asserted.
+- **Expected Verifier Verdict**: `NO` (Not Supported)
 
-## 5. Mutation Verification
+### Mutation Counts: Detect vs. Experiments
+VeriFact explicitly differentiates between interactive user detection and research experiments:
+- **Interactive Detect**: Uses **3 synonym + 3 antonym = 6 mutations** (`SYNONYM_COUNT=3`, `ANTONYM_COUNT=3`) to maintain responsive latency on local 26B parameter hardware.
+- **Research Experiments**: Default to **5 synonym + 5 antonym = 10 mutations** (`ExperimentRunRequest`), generating a frozen mutation set once per question cell to evaluate same-model versus cross-model verifier consistency.
 
-Each mutated statement is verified independently. The verifier receives the question, the candidate answer, and the mutated statement. It does not receive mutation type, expected verdict, or any external evidence. The allowed labels are:
+### Syntactic & Semantic Heuristic Gates
+Every candidate mutation is validated by strict heuristic filters before being accepted:
+- Must be a complete declarative sentence (minimum 5 words, maximum 35 words).
+- Cannot be an interrogative or end with a question mark.
+- Cannot contain explanatory prefixes (e.g., *"Synonym mutation:"*, *"This means that"*).
+- Cannot be a no-op identical copy of the original claim.
+- If mutations are missing, VeriFact executes partial retry rounds (up to 4 rounds) requesting only the deficit count.
 
-- **YES** — the mutated statement is supported given the candidate answer
-- **NO** — the mutated statement is not supported
-- **NOT SURE** — the verifier cannot decide, or the output cannot be parsed
+---
 
-Malformed verifier text maps to NOT SURE with `parse_failed=True`.
+## 5. Independent Mutation Verification
 
-## 6. MetaQA Scoring
+Each accepted mutation is submitted independently to the verifier LLM:
+- **Prompt Isolation**: The verifier receives the original question, candidate answer, and the single mutated statement.
+- **Zero Information Leakage**: The verifier is **never told** whether the statement is a synonym or an antonym, nor what verdict is expected.
+- **Verdict Vocabulary**:
+  - `YES`: The statement is supported by the candidate answer.
+  - `NO`: The statement is not supported by (or contradicts) the candidate answer.
+  - `NOT SURE`: The verifier cannot determine support, or returned ambiguous text.
+- **Robust Parser**: If the verifier output contains malformed formatting, it safely parses to `NOT SURE` with `parse_failed=True`.
 
-Each valid mutation contributes a numeric score:
+---
 
-| Mutation Type | YES | NO | NOT SURE |
-| --- | --- | --- | --- |
-| Synonym | 0 | 1 | 0.5 |
-| Antonym | 1 | 0 | 0.5 |
+## 6. Deterministic MetaQA Scoring
 
-## 7. Hallucination Score
+Scoring is computed entirely in Python code—not by prompting an LLM to evaluate the run.
 
-Let \(c_i\) be the contribution of mutation \(i\) and \(n\) the number of valid mutations:
+### 1. Contribution Matrix
+Each mutation $i$ receives a contribution score $c_i \in [0.0, 1.0]$ based on its mutation type and observed verifier verdict:
 
-\[
-\text{hallucination\_score} = \frac{1}{n}\sum_{i=1}^{n} c_i
-\]
+| Mutation Type | Observed: `YES` | Observed: `NO` | Observed: `NOT SURE` |
+| :--- | :---: | :---: | :---: |
+| **Synonym** (Expected: `YES`) | **0.0** (Consistent) | **1.0** (Inconsistent) | **0.5** (Uncertain) |
+| **Antonym** (Expected: `NO`) | **1.0** (Inconsistent) | **0.0** (Consistent) | **0.5** (Uncertain) |
 
-The implementation rounds to four decimals and clamps the mean to \([0, 1]\).
+### 2. Hallucination Score
+The aggregate hallucination score $H$ is the arithmetic mean of all individual mutation contributions $c_i$:
 
-## 8. Threshold Classification
+$$H = \frac{1}{N} \sum_{i=1}^N c_i \quad \text{clamped to } [0.0, 1.0] \text{ and rounded to 4 decimals}$$
 
-With default threshold \(\theta = 0.5\):
+### 3. Classification
+Given calibrated threshold $\theta$ (default $\theta = 0.5$):
 
-- score \(\ge \theta\) → **Hallucinated**
-- score \(< \theta\) → **Reliable**
+$$\text{Classification} = \begin{cases} \mathbf{Hallucinated} & \text{if } H \ge \theta \\ \mathbf{Reliable} & \text{if } H < \theta \end{cases}$$
 
-A later F1 sweep over stored scores is an experimental diagnostic. It does not automatically replace the production threshold.
+- Verifier rationales are stored for user inspection and explainability; they never influence the mathematical score.
+- Classification names are strictly **Reliable** or **Hallucinated**.
 
-## 9. Zero-Resource Constraint
+---
 
-The core detector does not retrieve external evidence and does not use:
+## 7. Important Research Boundary: Semantic Consistency vs. Real-World Truth
 
-- Google
-- Wikipedia
-- RAG
-- vector databases
-- embeddings
-- external fact-checking APIs
+> [!IMPORTANT]
+> **Academic Integrity Notice:**
+> MetaQA evaluates the **semantic self-consistency** of an LLM's generated output under controlled perturbations.
+>
+> It does **not** independently prove that an answer is factual in the physical world. If a model generates an internally consistent fictional story and consistently rejects antonym inversions of that fiction, MetaQA will record high consistency ($H = 0.0$).
+>
+> VeriFact's detector is strictly **reference-free** (zero-resource) and does not consult external databases or search indices during detection.
 
-External references are used only for evaluation/ground truth, after detection has finished.
+---
 
-## 10. Explainability
+## 8. Future Extensions (Planned Work)
 
-The UI and stored traces show each mutation, the verifier verdict, the contribution, and the verifier rationale. **Rationales do not affect the score.** Only the parsed YES / NO / NOT SURE label enters the MetaQA table.
+External fact retrieval is planned as a future extension:
+- Extracting individual factual assertions.
+- Querying search providers (such as Tavily or SerpAPI) for primary web sources.
+- Evaluating evidence support levels (**SUPPORTED**, **CONTRADICTED**, **INSUFFICIENT EVIDENCE**).
+- Merging metamorphic internal consistency scores with external source confidence.

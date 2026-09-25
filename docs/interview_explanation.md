@@ -1,55 +1,78 @@
-# Interview explanation
+# Interview & Oral Defense Guide
 
-Answers match the implementation and the frozen mock 2×2 (`58baff20-fb86-4f43-b20e-895a086ceb6b`). Do not present mock scores as live LLM behavior.
+This guide provides crisp, technically rigorous, and verbally natural answers to common interview, oral examination, and project evaluation questions regarding VeriFact.
 
-## 30-second explanation
+---
 
-VeriFact is a research app that implements MetaQA: it restates an LLM answer with synonyms and antonyms, asks a verifier YES/NO/NOT SURE, and turns that into a hallucination score. I also built a 2×2 experiment so the same mutations can be judged by the generator’s own model versus a different verifier.
+## Elevator Pitches
 
-## 60-second explanation
+### 30-Second Explanation
+> "VeriFact is a hallucination detection framework for Large Language Models. Instead of naively asking an LLM if its own answer is correct—which fails due to self-confirmation bias—VeriFact uses MetaQA metamorphic testing. It generates meaning-preserving (synonym) and meaning-reversing (antonym) mutations of the answer's core claims, asks a verifier whether each statement is supported, and deterministically computes a hallucination score. It runs locally using Ollama and Gemma 4:26b, with a progressive architecture that displays the AI answer immediately while running background verification on the same run."
 
-Fact-conflicting hallucinations are wrong facts said fluently. VeriFact does not look up Wikipedia. It tests consistency. Synonym mutations should be accepted; antonym mutations should be rejected. The average of those contributions is the score; 0.5 is the default threshold. The research question is whether same-model verification scores differently from cross-model verification after you account for how strict each verifier is. We freeze the answer and mutations so the only intended change is verifier identity.
+### 60-Second Explanation
+> "Large Language Models often produce confident, fluent statements that are factually wrong. VeriFact addresses this without needing external search engines or vector databases by probing metamorphic consistency.
+> 
+> When a user asks a question, Gemma 4:26b generates a base answer that the user sees immediately. In the background, VeriFact extracts 3–4 core claims and generates paired mutations: synonyms (which a consistent model should accept) and antonyms (which a consistent model should reject). An independent verifier labels each mutation YES, NO, or NOT SURE. VeriFact's mathematical engine averages these contributions into a 0.0-to-1.0 hallucination score, classifying the output as Reliable or Hallucinated at threshold 0.5. Everything runs locally on Ollama without API costs, and a separate 2×2 study scaffold evaluates same-model versus cross-model verifier behaviors."
 
-## 2-minute technical explanation
+### 2-Minute Technical Explanation
+> "The technical stack consists of a React 19 and Vite frontend, a FastAPI backend, and an SQLite database for run and experiment persistence. 
+> 
+> In traditional pipelines, detection latency on 26B models blocks the user. VeriFact solves this with a progressive lifecycle: `POST /api/detect` produces the answer and returns an `answer_ready` status in seconds. FastAPI's `BackgroundTasks` continues MetaQA analysis on the event loop, transitioning through `generating_mutations`, `verifying_mutations`, `calculating_score`, and `completed`. The client polls `GET /api/runs/{id}` to progressively render mutation rows and live verdicts.
+> 
+> Mutation verification runs concurrently with bounded semaphores (`VERIFY_CONCURRENCY=3`). Verifier outputs parse into YES, NO, or NOT SURE (fallback on parse error). Synonym YES gives 0 contribution, NO gives 1.0; antonym YES gives 1.0, NO gives 0; NOT SURE gives 0.5. The mean determines whether the answer is Reliable (<0.5) or Hallucinated (≥0.5).
+> 
+> In addition to interactive detection, VeriFact includes a 2×2 experiment runner (A→A, A→B, B→A, B→B) with frozen mutation sets to evaluate verifier calibration. The repository's frozen pilot lock demonstrates pipeline mechanics in mock mode, while live interactive detection runs independently via local Ollama."
 
-Stack: React/TypeScript UI, FastAPI, SQLite, OpenAI-compatible or mock LLM client. Detection: generate → mutate → verify concurrently with a bound → MetaQA table → classify. Evaluation labels the already-generated answer against a reference and never injects that reference into prompts. The 2×2 stores a mutation-set hash and fails an item if A and B did not see the same texts. Statistics: paired Wilcoxon on same-minus-cross scores, alpha 0.05. The frozen repository run is mock: verifier A always scores 0, verifier B always scores 1, so the live hypothesis is inconclusive.
+---
 
-## Why MetaQA?
+## Detailed Question & Answer Index
 
-It gives a reference-free, mutation-level audit trail. VeriFact implements it; it does not replace retrieval-based fact checking.
+### 1. What is VeriFact?
+**Answer**: VeriFact is a reference-free framework and web application that detects fact-conflicting hallucinations in LLM-generated answers using MetaQA metamorphic testing.
 
-## Why synonym mutations?
+### 2. What problem does it solve?
+**Answer**: It solves the problem of detecting factual hallucinations in LLMs without requiring external search engines, RAG pipelines, or direct self-reflection prompts that suffer from confirmation bias and sycophancy.
 
-A consistent answer should survive paraphrase. Unexpected NO on a synonym raises the score.
+### 3. What is MetaQA?
+**Answer**: MetaQA is a metamorphic testing methodology for question answering. It tests whether an answer maintains semantic consistency when perturbed into meaning-preserving (synonym) and meaning-reversing (antonym) restatements.
 
-## Why antonym mutations?
+### 4. What is a mutation?
+**Answer**: A mutation is a controlled transformation of a factual claim extracted from the generated answer. It tests how the model behaves under controlled semantic variations.
 
-A consistent answer should not support a negated or inverted claim. Unexpected YES on an antonym raises the score.
+### 5. Why synonym mutations?
+**Answer**: A synonym mutation rephrases the claim while preserving its meaning. A consistent model must recognize that the rephrased claim is supported (`YES`). If it answers `NO`, it indicates fragile knowledge and scores as an inconsistency ($c_i = 1.0$).
 
-## Why NOT SURE?
+### 6. Why antonym mutations?
+**Answer**: An antonym mutation inverts or contradicts the claim. A consistent model must reject the contradiction (`NO`). If it answers `YES`, it has agreed with contradictory assertions of its own claim, indicating severe hallucination ($c_i = 1.0$).
 
-The verifier may be unable to decide, or the parse may fail. NOT SURE contributes 0.5 and is tracked as a diagnostic. Rationales do not enter the score.
+### 7. How does verification work?
+**Answer**: Each mutated statement is sent to the verifier LLM with the original question and answer. Crucially, the verifier is never told whether the statement is a synonym or an antonym, nor what verdict is expected. The verifier outputs `YES`, `NO`, or `NOT SURE`.
 
-## Why zero-resource?
+### 8. How is the hallucination score calculated?
+**Answer**: It is the arithmetic mean of individual mutation contributions:
+- Synonym: `YES` = 0.0, `NO` = 1.0, `NOT SURE` = 0.5
+- Antonym: `YES` = 1.0, `NO` = 0.0, `NOT SURE` = 0.5
+- Aggregate score: $H = \frac{1}{N} \sum c_i \in [0.0, 1.0]$.
+If $H \ge 0.5$, the answer is classified as **Hallucinated**; otherwise **Reliable**.
 
-The research target is metamorphic consistency, not evidence retrieval. Mixing search into the detector would change the method.
+### 9. Why did you use Gemma 4:26b?
+**Answer**: Gemma 4:26b offers strong open-weights reasoning and factual capabilities that can be executed locally on workstation hardware, providing high generative quality without proprietary cloud APIs.
 
-## Why 2×2 instead of only A→A vs A→B?
+### 10. Why Ollama?
+**Answer**: Ollama provides a reliable local runtime for model weights, handles GPU offloading, and exposes standard API endpoints. We use its native `/api/chat` with `think: false` to ensure concise JSON outputs without wasting tokens on hidden reasoning loops.
 
-A→A vs A→B confounds pairing with verifier B’s strictness. The four cells separate generator, verifier, and same-versus-cross.
+### 11. Why local inference?
+**Answer**: Local inference guarantees complete data privacy, eliminates ongoing API costs, avoids third-party rate limits, and allows offline reproducible research.
 
-## Why fixed mutation sets?
+### 12. Does MetaQA prove real-world factual correctness?
+**Answer**: No. MetaQA evaluates **semantic self-consistency**. If a model generates an internally consistent fictional story and consistently rejects contradictions to that story, MetaQA measures high consistency. It detects contradictions, not physical truth.
 
-If mutations are regenerated per verifier, score changes can come from different paraphrases. Freezing the set isolates verifier identity.
+### 13. What are the limitations of the current system?
+**Answer**: 
+1. 26B inference is compute-intensive locally.
+2. An internally consistent but universally false hallucination can receive a low score.
+3. Mutation generation quality depends on the LLM's instruction-following ability.
+4. The system is currently an academic prototype, not a commercial fact-checker.
 
-## Why Wilcoxon?
-
-Paired per-question scores need not be normal. Wilcoxon signed-rank is the primary test; n<20 is labeled exploratory.
-
-## What did the experiment find?
-
-In the frozen **mock** 40-question run, scores followed verifier identity (0 vs 1) and same-minus-cross had opposite signs for the two generators. That does not support a general same-model effect after calibration. Live LLMs were not measured.
-
-## What are the limitations?
-
-Mock lock, n=40, two placeholder models, prompt-only mutation quality, string-based ground-truth matching, stochastic live APIs if used later.
+### 14. What is the next planned feature?
+**Answer**: The next planned extension is an external **Web Evidence** pipeline to extract atomic claims, retrieve live web sources, and verify claims as **SUPPORTED**, **CONTRADICTED**, or **INSUFFICIENT EVIDENCE**, contrasting external verification with internal MetaQA consistency.

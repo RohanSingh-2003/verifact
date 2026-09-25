@@ -9,7 +9,7 @@ interface AnalysisSummaryProps {
 export function AnalysisSummary({ result }: AnalysisSummaryProps) {
   return (
     <section className="panel p-5 sm:p-6">
-      <h2 className="text-base font-semibold tracking-tight text-ink">Why was this answer flagged?</h2>
+      <h2 className="text-base font-semibold tracking-tight text-ink">Why this result?</h2>
       <ul className="mt-4 space-y-2.5">
         {result.summaryPoints.map((point) => (
           <li key={point} className="flex gap-3 text-sm leading-6 text-ink-secondary">
@@ -29,14 +29,20 @@ export function AnalysisSummary({ result }: AnalysisSummaryProps) {
         <div>
           <dt className="text-meta">Score</dt>
           <dd className="mt-1.5 text-sm font-medium tabular-nums text-ink">
-            {formatScore(result.score)}
+            {result.score != null ? formatScore(result.score) : '—'}
           </dd>
         </div>
         <div>
           <dt className="text-meta">Decision</dt>
           <dd className="mt-1.5">
-            <VerdictBadge verdict={result.verdict} />
-            <span className="sr-only">{verdictLabel(result.verdict)}</span>
+            {result.verdict ? (
+              <>
+                <VerdictBadge verdict={result.verdict} />
+                <span className="sr-only">{verdictLabel(result.verdict)}</span>
+              </>
+            ) : (
+              <span className="text-sm text-ink-muted">Pending</span>
+            )}
           </dd>
         </div>
       </dl>

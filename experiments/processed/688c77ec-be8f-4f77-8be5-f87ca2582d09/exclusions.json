@@ -1,0 +1,642 @@
+[
+  {
+    "question_id": "q001",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.013210+00:00"
+  },
+  {
+    "question_id": "q001",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.015291+00:00"
+  },
+  {
+    "question_id": "q002",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.017490+00:00"
+  },
+  {
+    "question_id": "q002",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.019836+00:00"
+  },
+  {
+    "question_id": "q003",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.021739+00:00"
+  },
+  {
+    "question_id": "q003",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.024282+00:00"
+  },
+  {
+    "question_id": "q004",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.027067+00:00"
+  },
+  {
+    "question_id": "q004",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.030674+00:00"
+  },
+  {
+    "question_id": "q005",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.032700+00:00"
+  },
+  {
+    "question_id": "q005",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.035495+00:00"
+  },
+  {
+    "question_id": "q006",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.037493+00:00"
+  },
+  {
+    "question_id": "q006",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.039639+00:00"
+  },
+  {
+    "question_id": "q007",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.042653+00:00"
+  },
+  {
+    "question_id": "q007",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.044744+00:00"
+  },
+  {
+    "question_id": "q008",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.046761+00:00"
+  },
+  {
+    "question_id": "q008",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.050708+00:00"
+  },
+  {
+    "question_id": "q009",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.054086+00:00"
+  },
+  {
+    "question_id": "q009",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.057387+00:00"
+  },
+  {
+    "question_id": "q010",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.061112+00:00"
+  },
+  {
+    "question_id": "q010",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.065387+00:00"
+  },
+  {
+    "question_id": "q011",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.069622+00:00"
+  },
+  {
+    "question_id": "q011",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.072454+00:00"
+  },
+  {
+    "question_id": "q012",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.074638+00:00"
+  },
+  {
+    "question_id": "q012",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.076895+00:00"
+  },
+  {
+    "question_id": "q013",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.079156+00:00"
+  },
+  {
+    "question_id": "q013",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.083598+00:00"
+  },
+  {
+    "question_id": "q014",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.088407+00:00"
+  },
+  {
+    "question_id": "q014",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.092449+00:00"
+  },
+  {
+    "question_id": "q015",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.096871+00:00"
+  },
+  {
+    "question_id": "q015",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.099792+00:00"
+  },
+  {
+    "question_id": "q016",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.103790+00:00"
+  },
+  {
+    "question_id": "q016",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.107728+00:00"
+  },
+  {
+    "question_id": "q017",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.111584+00:00"
+  },
+  {
+    "question_id": "q017",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.115906+00:00"
+  },
+  {
+    "question_id": "q018",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.119201+00:00"
+  },
+  {
+    "question_id": "q018",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.121942+00:00"
+  },
+  {
+    "question_id": "q019",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.125421+00:00"
+  },
+  {
+    "question_id": "q019",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.130362+00:00"
+  },
+  {
+    "question_id": "q020",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.133063+00:00"
+  },
+  {
+    "question_id": "q020",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.135737+00:00"
+  },
+  {
+    "question_id": "q021",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.139811+00:00"
+  },
+  {
+    "question_id": "q021",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.144555+00:00"
+  },
+  {
+    "question_id": "q022",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.147001+00:00"
+  },
+  {
+    "question_id": "q022",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.151679+00:00"
+  },
+  {
+    "question_id": "q023",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.153993+00:00"
+  },
+  {
+    "question_id": "q023",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.158148+00:00"
+  },
+  {
+    "question_id": "q024",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.161381+00:00"
+  },
+  {
+    "question_id": "q024",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.165954+00:00"
+  },
+  {
+    "question_id": "q025",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.169668+00:00"
+  },
+  {
+    "question_id": "q025",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.173729+00:00"
+  },
+  {
+    "question_id": "q026",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.176468+00:00"
+  },
+  {
+    "question_id": "q026",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.180852+00:00"
+  },
+  {
+    "question_id": "q027",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.183745+00:00"
+  },
+  {
+    "question_id": "q027",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.187457+00:00"
+  },
+  {
+    "question_id": "q028",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.191544+00:00"
+  },
+  {
+    "question_id": "q028",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.194940+00:00"
+  },
+  {
+    "question_id": "q029",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.197876+00:00"
+  },
+  {
+    "question_id": "q029",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.200545+00:00"
+  },
+  {
+    "question_id": "q030",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.203060+00:00"
+  },
+  {
+    "question_id": "q030",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.205448+00:00"
+  },
+  {
+    "question_id": "q031",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.208003+00:00"
+  },
+  {
+    "question_id": "q031",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.210018+00:00"
+  },
+  {
+    "question_id": "q032",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.212429+00:00"
+  },
+  {
+    "question_id": "q032",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.214604+00:00"
+  },
+  {
+    "question_id": "q033",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.216553+00:00"
+  },
+  {
+    "question_id": "q033",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.219670+00:00"
+  },
+  {
+    "question_id": "q034",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.222868+00:00"
+  },
+  {
+    "question_id": "q034",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.229190+00:00"
+  },
+  {
+    "question_id": "q035",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.231501+00:00"
+  },
+  {
+    "question_id": "q035",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.234031+00:00"
+  },
+  {
+    "question_id": "q036",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.236190+00:00"
+  },
+  {
+    "question_id": "q036",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.238219+00:00"
+  },
+  {
+    "question_id": "q037",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.240513+00:00"
+  },
+  {
+    "question_id": "q037",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.242915+00:00"
+  },
+  {
+    "question_id": "q038",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.244835+00:00"
+  },
+  {
+    "question_id": "q038",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.249235+00:00"
+  },
+  {
+    "question_id": "q039",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.251456+00:00"
+  },
+  {
+    "question_id": "q039",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.253669+00:00"
+  },
+  {
+    "question_id": "q040",
+    "generator_model": "model-a",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.255865+00:00"
+  },
+  {
+    "question_id": "q040",
+    "generator_model": "model-b",
+    "trial_num": 1,
+    "reason": "llm_failure: Mutation generator did not return the required mutation set.",
+    "excluded_by": "experiment_runner",
+    "timestamp": "2026-09-24T15:38:36.258875+00:00"
+  }
+]

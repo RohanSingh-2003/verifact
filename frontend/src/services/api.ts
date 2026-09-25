@@ -7,15 +7,34 @@ import type {
   ExperimentDetail,
   GenerationTrace,
   HistoryRun,
+  RunStatus,
 } from '../types'
-import { ANALYSIS_STAGES, AnalysisStage as Stage } from '../types'
+import { AnalysisStage as Stage, RunStatus as RunStatusValue, isAnalysisFailureStatus, isTerminalRunStatus } from '../types'
 import { mapDetectResponse, mapRunSummary } from './mappers'
 import type { DetectApiResponse, RunListResponse } from './mappers'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') ?? ''
+const POLL_INTERVAL_MS = 1200
+const POLL_TIMEOUT_MS = 15 * 60 * 1000
 
 export interface DetectRunOptions {
   onStage?: (stage: AnalysisStage) => void
+  onPartialResult?: (result: AnalysisResult) => void
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms))
+}
+
+function statusToStage(status: RunStatus): AnalysisStage {
+  if (status === RunStatusValue.AnswerReady) return Stage.AnswerReady
+  if (status === RunStatusValue.GeneratingMutations) return Stage.GeneratingMutations
+  if (status === RunStatusValue.MutationsReady) return Stage.VerifyingMutations
+  if (status === RunStatusValue.VerifyingMutations) return Stage.VerifyingMutations
+  if (status === RunStatusValue.CalculatingScore) return Stage.CalculatingScore
+  if (isAnalysisFailureStatus(status)) return Stage.AnalysisFailed
+  if (status === RunStatusValue.Completed) return Stage.Complete
+  return Stage.GeneratingMutations
 }
 
 async function readApiError(response: Response): Promise<string> {
@@ -62,24 +81,41 @@ export async function detectRun(
   }
 
   options.onStage?.(Stage.GeneratingAnswer)
-  let stageIndex = 0
-  const timer = window.setInterval(() => {
-    stageIndex = Math.min(stageIndex + 1, ANALYSIS_STAGES.length - 1)
-    options.onStage?.(ANALYSIS_STAGES[stageIndex])
-  }, 1600)
-
   const started = Date.now()
-  try {
-    const response = await apiFetch('/api/detect', {
-      method: 'POST',
-      body: JSON.stringify({ question: trimmed }),
-    })
-    options.onStage?.(Stage.CalculatingScore)
-    const payload = (await response.json()) as DetectApiResponse
-    return mapDetectResponse(payload, Date.now() - started)
-  } finally {
-    window.clearInterval(timer)
+  const response = await apiFetch('/api/detect', {
+    method: 'POST',
+    body: JSON.stringify({ question: trimmed }),
+  })
+  const payload = (await response.json()) as DetectApiResponse
+  let result = mapDetectResponse(payload, Date.now() - started)
+  options.onPartialResult?.(result)
+  options.onStage?.(statusToStage(result.status))
+
+  if (isTerminalRunStatus(result.status)) {
+    return result
   }
+
+  const deadline = Date.now() + POLL_TIMEOUT_MS
+  while (Date.now() < deadline) {
+    await sleep(POLL_INTERVAL_MS)
+    const polled = await getRun(result.id)
+    if (!polled) {
+      throw new Error('The analysis run could not be found while waiting for MetaQA results.')
+    }
+    result = {
+      ...polled,
+      responseTimeMs: result.responseTimeMs,
+    }
+    options.onPartialResult?.(result)
+    options.onStage?.(statusToStage(result.status))
+    if (result.status === RunStatusValue.Completed) {
+      return result
+    }
+    if (isAnalysisFailureStatus(result.status)) {
+      return result
+    }
+  }
+  throw new Error('Hallucination analysis timed out. The AI answer is still available on this run.')
 }
 
 export async function getRun(id: string): Promise<AnalysisResult | null> {
@@ -286,9 +322,23 @@ export async function exportEvaluationSweepCsv(id: string): Promise<void> {
   await downloadCsv(`/api/evaluations/${id}/export/sweep`, `verifact-evaluation-sweep-${id.slice(0, 8)}.csv`)
 }
 
-export async function getHealth(): Promise<{ status: string; llm_mode: 'mock' | 'live' }> {
+export async function getHealth(): Promise<{
+  status: string
+  llm_mode: 'mock' | 'live'
+  llm_provider?: string
+  live_ready?: boolean
+  generator_model?: string
+  verifier_model?: string
+}> {
   const response = await apiFetch('/api/health')
-  return (await response.json()) as { status: string; llm_mode: 'mock' | 'live' }
+  return (await response.json()) as {
+    status: string
+    llm_mode: 'mock' | 'live'
+    llm_provider?: string
+    live_ready?: boolean
+    generator_model?: string
+    verifier_model?: string
+  }
 }
 
 export async function getSettings(): Promise<AppSettings> {
@@ -297,6 +347,7 @@ export async function getSettings(): Promise<AppSettings> {
     llm_mode: 'mock' | 'live'
     live_ready: boolean
     api_key_configured: boolean
+    llm_provider?: string
     generator_model: string
     verifier_model: string
     generator_model_a: string
@@ -316,6 +367,7 @@ export async function getSettings(): Promise<AppSettings> {
     llmMode: payload.llm_mode,
     liveReady: payload.live_ready,
     apiKeyConfigured: payload.api_key_configured,
+    llmProvider: payload.llm_provider ?? 'openai_compatible',
     generatorModelA: payload.generator_model_a,
     generatorModelB: payload.generator_model_b,
     verifierModelA: payload.verifier_model_a,

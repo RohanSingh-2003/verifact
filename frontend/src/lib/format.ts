@@ -1,6 +1,7 @@
 import type { MutationKind, Verdict, VerifierResponse } from '../types'
 
-export function formatScore(score: number, digits = 2) {
+export function formatScore(score: number | null | undefined, digits = 2) {
+  if (score == null || Number.isNaN(score)) return '—'
   return score.toFixed(digits)
 }
 
@@ -54,15 +55,26 @@ export function formatTimestamp(iso: string) {
 }
 
 export function verdictLabel(verdict: Verdict) {
-  if (verdict === 'reliable') return 'Reliable'
+  if (verdict === 'reliable') return 'Likely reliable'
   if (verdict === 'uncertain') return 'Uncertain'
-  return 'Hallucinated'
+  return 'Likely hallucinated'
 }
 
 export function verdictDescription(verdict: Verdict) {
-  if (verdict === 'reliable') return 'Low likelihood of fact-conflicting hallucination'
-  if (verdict === 'uncertain') return 'Inconclusive evidence of fact-conflicting hallucination'
-  return 'High likelihood of fact-conflicting hallucination'
+  if (verdict === 'reliable') {
+    return 'The mutation tests were mostly consistent with the expected behavior.'
+  }
+  if (verdict === 'uncertain') {
+    return 'The mutation tests did not produce a clear consistency pattern.'
+  }
+  return 'The mutation tests showed behavior that is inconsistent with the expected pattern.'
+}
+
+export function formatModelDisplay(model: string | null | undefined) {
+  if (!model) return null
+  const match = model.match(/^gemma4:(.+)$/i)
+  if (match) return `Gemma 4:${match[1].toUpperCase()}`
+  return model
 }
 
 export function verifierLabel(value: VerifierResponse) {
@@ -75,8 +87,49 @@ export function mutationKindLabel(kind: MutationKind) {
   return kind === 'synonym' ? 'Synonym' : 'Antonym'
 }
 
-export function unexpectedMutation(verifier: VerifierResponse, expected: VerifierResponse) {
+export function unexpectedMutation(
+  verifier: VerifierResponse | null | undefined,
+  expected: VerifierResponse,
+) {
+  if (verifier == null) return false
   return verifier !== expected
+}
+
+export function mutationMeaningLabel(kind: MutationKind) {
+  return kind === 'synonym'
+    ? 'Same meaning — the wording was changed while the factual claim remains the same.'
+    : 'Opposite meaning — the mutation contradicts the original claim.'
+}
+
+export function mutationExpectationLabel(kind: MutationKind) {
+  return kind === 'synonym'
+    ? 'The mutation preserves the original claim, so the verifier is expected to accept it.'
+    : 'The mutation contradicts the original claim, so the verifier is expected to reject it.'
+}
+
+/** Deterministic UI copy only — does not affect MetaQA scoring. */
+export function mutationInterpretation(
+  kind: MutationKind,
+  verifier: VerifierResponse | null | undefined,
+  expected: VerifierResponse,
+): string {
+  if (verifier == null) {
+    return 'Waiting for the verifier result for this mutation.'
+  }
+  if (verifier === 'not_sure') {
+    return kind === 'synonym'
+      ? 'The verifier was uncertain about a mutation that should preserve the original meaning.'
+      : 'The verifier was uncertain about a mutation that should contradict the original claim.'
+  }
+  const matches = verifier === expected
+  if (kind === 'synonym') {
+    return matches
+      ? 'The verifier accepted the mutation as consistent with the original claim.'
+      : 'The verifier rejected a mutation that should preserve the original meaning.'
+  }
+  return matches
+    ? 'The verifier rejected the contradiction as expected.'
+    : 'The verifier accepted a mutation that should contradict the original claim.'
 }
 
 export function classNames(...parts: Array<string | false | null | undefined>) {

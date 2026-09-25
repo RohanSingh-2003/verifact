@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react'
 import type { HistoryRun, Verdict } from '../../types'
-import { Verdict as VerdictValue } from '../../types'
+import { RunStatus, Verdict as VerdictValue, isAnalysisFailureStatus } from '../../types'
 import { classNames, formatDate } from '../../lib/format'
 import { ScoreMeter } from '../detect/ScoreGauge'
 import { EmptyState, VerdictBadge } from '../ui/Status'
@@ -16,8 +16,8 @@ interface HistoryTableProps {
 
 const filters: Array<{ value: Verdict | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
-  { value: VerdictValue.Reliable, label: 'Reliable' },
-  { value: VerdictValue.Hallucinated, label: 'Hallucinated' },
+  { value: VerdictValue.Reliable, label: 'Likely reliable' },
+  { value: VerdictValue.Hallucinated, label: 'Likely hallucinated' },
 ]
 
 export function HistoryTable({
@@ -55,7 +55,7 @@ export function HistoryTable({
               className={classNames(
                 'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
                 verdictFilter === filter.value
-                  ? 'bg-ink text-white'
+                  ? 'bg-ink text-canvas'
                   : 'bg-surface-muted text-ink-secondary hover:text-ink',
               )}
             >
@@ -111,10 +111,22 @@ export function HistoryTable({
                     <td className="max-w-[22rem] truncate px-4 py-3 text-ink">{run.question}</td>
                     <td className="px-4 py-3 text-ink-secondary">{run.model}</td>
                     <td className="px-4 py-3">
-                      <ScoreMeter score={run.score} verdict={run.verdict} />
+                      {run.status === RunStatus.Completed && run.score != null && run.verdict ? (
+                        <ScoreMeter score={run.score} verdict={run.verdict} />
+                      ) : isAnalysisFailureStatus(run.status) ? (
+                        <span className="text-xs text-hallucinated">Analysis failed</span>
+                      ) : (
+                        <span className="text-xs text-ink-muted">Analyzing…</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
-                      <VerdictBadge verdict={run.verdict} />
+                      {run.verdict ? (
+                        <VerdictBadge verdict={run.verdict} />
+                      ) : (
+                        <span className="text-xs text-ink-muted">
+                          {isAnalysisFailureStatus(run.status) ? 'Incomplete' : 'In progress'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-ink-secondary">{formatDate(run.createdAt)}</td>
                   </tr>
@@ -133,8 +145,14 @@ export function HistoryTable({
                 >
                   <p className="text-sm leading-6 text-ink">{run.question}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                    <VerdictBadge verdict={run.verdict} />
-                    <ScoreMeter score={run.score} verdict={run.verdict} />
+                    {run.verdict ? <VerdictBadge verdict={run.verdict} /> : null}
+                    {run.score != null && run.verdict ? (
+                      <ScoreMeter score={run.score} verdict={run.verdict} />
+                    ) : (
+                      <span className="text-xs text-ink-muted">
+                        {isAnalysisFailureStatus(run.status) ? 'Analysis failed' : 'Analyzing…'}
+                      </span>
+                    )}
                     <span className="text-xs text-ink-muted">{run.model}</span>
                     <span className="text-xs text-ink-muted">{formatDate(run.createdAt)}</span>
                   </div>

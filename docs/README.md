@@ -1,23 +1,33 @@
-# Documentation index
+# Documentation Index
 
-Start here: [final_results_lock.md](final_results_lock.md).
+This directory contains in-depth documentation detailing the methodology, software architecture, experimental results, and operational procedures for VeriFact.
 
-The locked 2×2 (`58baff20-fb86-4f43-b20e-895a086ceb6b`) is **DEMO / MOCK DATA**. There is no stored live-model experiment.
+For initial installation and quick-start instructions, refer to the root [README.md](../README.md).
 
-| Document | Contents |
-| --- | --- |
-| [methodology.md](methodology.md) | MetaQA detector |
-| [experiment_methodology.md](experiment_methodology.md) | 2×2 design and statistics |
-| [results.md](results.md) | Frozen numbers |
-| [discussion.md](discussion.md) | Interpretation and limitations |
-| [architecture.md](architecture.md) | Software architecture |
-| [figures.md](figures.md) | Figure index |
-| [tables/](tables/) | Paper-ready tables |
-| [limitations.md](limitations.md) | Research limitations |
-| [demo_script.md](demo_script.md) | ~3 minute walkthrough |
-| [interview_explanation.md](interview_explanation.md) | 30s / 60s / 2 min |
-| [viva_questions.md](viva_questions.md) | Defense Q&A |
-| [resume_bullets.md](resume_bullets.md) | Resume text |
-| [release_notes.md](release_notes.md) | v1.0.0 |
-| [final_release_checklist.md](final_release_checklist.md) | Release gate |
-| [screenshots/](screenshots/) | Capture notes (no fabricated images) |
+---
+
+## Core Documentation
+
+| Document | Purpose |
+| :--- | :--- |
+| **[architecture.md](architecture.md)** | Full software architecture, component topology, FastAPI background execution, and LLM clients. |
+| **[methodology.md](methodology.md)** | Theoretical explanation of MetaQA, claim extraction, mutation types, scoring formulas, and zero-resource boundary. |
+| **[project_description.md](project_description.md)** | Short, medium, and comprehensive project descriptions tailored for evaluators, professors, and visitors. |
+| **[interview_explanation.md](interview_explanation.md)** | 30-second, 60-second, and 2-minute elevator pitches plus detailed Q&A for oral examination. |
+| **[demo_script.md](demo_script.md)** | Step-by-step 3-minute walkthrough demonstrating only implemented features. |
+| **[limitations.md](limitations.md)** | Honest discussion of system constraints, consistency vs. truth, hardware demands, and verifier fragility. |
+| **[release_notes.md](release_notes.md)** | Version 1.0.0 milestones, completed features, and planned future extensions. |
+
+---
+
+## Research & Evaluation Documents
+
+| Document | Purpose |
+| :--- | :--- |
+| **[final_results_lock.md](final_results_lock.md)** | Research artifact lock for the frozen 40-question mock study (`58baff20-fb86-4f43-b20e-895a086ceb6b`). |
+| **[experiment_methodology.md](experiment_methodology.md)** | Detailed specification of the 2×2 same-model vs. cross-model design, fixed mutation controls, and Wilcoxon testing. |
+| **[results.md](results.md)** | Detailed statistical analysis of the frozen 2×2 study and verifier calibration confounds. |
+| **[discussion.md](discussion.md)** | In-depth scientific interpretation of experimental findings and self-verification hypotheses. |
+| **[research_audit.md](research_audit.md)** | Internal research integrity and reproducibility audit. |
+| **[viva_questions.md](viva_questions.md)** | Supplementary viva voce defense questions and model answers. |
+| **[resume_bullets.md](resume_bullets.md)** | Curated project highlights for resumes and professional portfolios. |

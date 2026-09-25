@@ -1,0 +1,11 @@
+category,generator_model,n,same_model_mean,cross_model_mean,score_difference,flip_rate,insufficient_data,note
+date,model-a,8,0.0,1.0,-1.0,1.0,False,
+date,model-b,8,1.0,0.0,1.0,1.0,False,
+general_fact,model-a,8,0.0,1.0,-1.0,1.0,False,
+general_fact,model-b,8,1.0,0.0,1.0,1.0,False,
+location,model-a,8,0.0,1.0,-1.0,1.0,False,
+location,model-b,8,1.0,0.0,1.0,1.0,False,
+named_entity,model-a,8,0.0,1.0,-1.0,1.0,False,
+named_entity,model-b,8,1.0,0.0,1.0,1.0,False,
+numeric,model-a,8,0.0,1.0,-1.0,1.0,False,
+numeric,model-b,8,1.0,0.0,1.0,1.0,False,

@@ -26,12 +26,14 @@ class InstrumentedLLMClient(LLMClient):
         model: str,
         system_prompt: str,
         user_prompt: str,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         try:
             result = await self.inner.complete_json(
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
+                max_tokens=max_tokens,
             )
         except LLMError:
             self.failed += 1
@@ -45,12 +47,14 @@ class InstrumentedLLMClient(LLMClient):
         model: str,
         system_prompt: str,
         user_prompt: str,
+        max_tokens: int | None = None,
     ) -> str:
         try:
             result = await self.inner.complete_text(
                 model=model,
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
+                max_tokens=max_tokens,
             )
         except LLMError:
             self.failed += 1

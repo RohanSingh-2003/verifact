@@ -33,7 +33,13 @@ def create_app() -> FastAPI:
     if settings.llm_mode == "mock":
         logger.warning("LLM_MODE=mock; using deterministic MockLLMClient (development only)")
     else:
-        logger.info("starting VeriFact llm_mode=%s", settings.llm_mode)
+        logger.info(
+            "starting VeriFact llm_mode=%s llm_provider=%s generator=%s verifier=%s",
+            settings.llm_mode,
+            settings.llm_provider,
+            settings.generator_model,
+            settings.verifier_model,
+        )
 
     application = FastAPI(
         title="VeriFact",

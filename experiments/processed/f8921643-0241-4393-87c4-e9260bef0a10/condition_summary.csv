@@ -1,0 +1,5 @@
+generator_model,verifier_model,pair_type,label,n,mean_score,median_score,stdev,ci95_low,ci95_high,reliable_count,hallucinated_count,reliable_rate,hallucinated_rate,not_sure_rate,precision,recall,f1,accuracy
+model-a,model-a,same,A → A,1,0.0,0.0,0.0,,,1,0,1.0,0.0,0.0,0.0,0.0,0.0,0.0
+model-a,model-b,cross,A → B,1,1.0,1.0,0.0,,,0,1,0.0,1.0,0.0,1.0,1.0,1.0,1.0
+model-b,model-a,cross,B → A,1,0.0,0.0,0.0,,,1,0,1.0,0.0,0.0,0.0,0.0,0.0,0.0
+model-b,model-b,same,B → B,1,1.0,1.0,0.0,,,0,1,0.0,1.0,0.0,1.0,1.0,1.0,1.0

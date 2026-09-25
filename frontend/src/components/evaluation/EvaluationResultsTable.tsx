@@ -42,7 +42,7 @@ export function EvaluationResultsTable({ results }: EvaluationResultsTableProps)
               onClick={() => setOutcome(value)}
               className={classNames(
                 'rounded-full px-3 py-1.5 text-xs font-medium',
-                outcome === value ? 'bg-ink text-white' : 'bg-surface-muted text-ink-secondary hover:text-ink',
+                outcome === value ? 'bg-ink text-canvas' : 'bg-surface-muted text-ink-secondary hover:text-ink',
               )}
             >
               {value === 'all' ? 'All' : value}
@@ -58,7 +58,7 @@ export function EvaluationResultsTable({ results }: EvaluationResultsTableProps)
             onClick={() => setCategory(value)}
             className={classNames(
               'rounded-full px-3 py-1.5 text-xs font-medium',
-              category === value ? 'bg-ink text-white' : 'bg-surface-muted text-ink-secondary hover:text-ink',
+              category === value ? 'bg-ink text-canvas' : 'bg-surface-muted text-ink-secondary hover:text-ink',
             )}
           >
             {value === 'all' ? 'All categories' : value.replace('_', ' ')}

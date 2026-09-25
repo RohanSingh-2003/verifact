@@ -39,6 +39,7 @@ from app.llm.instrumented import InstrumentedLLMClient
 from app.llm.mock import DEFAULT_MUTATIONS, SCENARIO_VERDICTS, MockLLMClient
 from app.llm.prompts import (
     ANSWER_PROMPT_VERSION,
+    CLAIM_PROMPT_VERSION,
     MUTATION_PROMPT_VERSION,
     PROMPT_BUNDLE_VERSION,
     VERIFY_PROMPT_VERSION,
@@ -102,6 +103,8 @@ def validate_request(payload: ExperimentRunRequest, settings: Settings) -> None:
     if not 0.0 <= payload.threshold <= 1.0:
         raise ExperimentConfigError("Threshold must be between 0 and 1.")
     if settings.llm_mode == "live" and not settings.api_key_configured:
+        if settings.is_ollama:
+            raise ExperimentConfigError("Live Ollama mode is not ready. Check OLLAMA_BASE_URL and model settings.")
         raise ExperimentConfigError("Live experiments require a configured OPENAI_API_KEY.")
     if settings.llm_mode == "live":
         mock_ids = {"model-a", "model-b", "model_a", "model_b"}
@@ -170,6 +173,7 @@ async def run_experiment(
             "verify_concurrency": settings.verify_concurrency,
             "prompt_bundle": PROMPT_BUNDLE_VERSION,
             "answer_prompt": ANSWER_PROMPT_VERSION,
+            "claim_prompt": CLAIM_PROMPT_VERSION,
             "mutation_prompt": MUTATION_PROMPT_VERSION,
             "verify_prompt": VERIFY_PROMPT_VERSION,
             "reproducibility_note": (
@@ -331,7 +335,12 @@ async def _run_generator_cell(
 ) -> str | None:
     generation: ExperimentGeneration | None = None
     try:
-        answer = await generate_answer(llm, example.question, generator)
+        answer = await generate_answer(
+            llm,
+            example.question,
+            generator,
+            max_tokens=settings.llm_answer_max_tokens,
+        )
         mutations = await generate_mutations(
             llm,
             model=generator,
@@ -339,6 +348,8 @@ async def _run_generator_cell(
             answer=answer.text,
             synonym_count=synonym_count,
             antonym_count=antonym_count,
+            max_tokens=settings.llm_mutation_max_tokens,
+            claim_max_tokens=settings.llm_claim_max_tokens,
         )
         generation = ExperimentGeneration(
             experiment_id=experiment.id,
@@ -375,6 +386,7 @@ async def _run_generator_cell(
                 mutations=mutations,
                 verifier_model=verifier,
                 concurrency=settings.verify_concurrency,
+                max_tokens=settings.llm_verify_max_tokens,
             )
             verified_texts = [item.mutation.mutated_text for item in scored]
             if verified_texts != stored_texts:

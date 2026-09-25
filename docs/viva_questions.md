@@ -63,10 +63,10 @@ React + Vite + TypeScript UI; FastAPI; SQLite traces; generator/verifier LLM cli
 Local, auditable traces for a research prototype. Not a claim of production scale.
 
 21. **API design?**  
-`POST /api/detect`, run history, `/api/experiments/*`, `/api/evaluations/*`, `/api/settings` without secrets.
+`POST /api/detect` returns the answer early (`answer_ready`) and continues MetaQA in the background; the UI polls `GET /api/runs/{id}`. Also: run history, `/api/experiments/*`, `/api/evaluations/*`, `/api/settings` without secrets.
 
 22. **How would this scale?**  
-Batching, more concurrency, a stronger store, and live cost controls already exist as confirm gates. The MetaQA table would stay the same.
+Batching, more concurrency, a stronger store, and live cost controls already exist as confirm gates. FastAPI `BackgroundTasks` suit this local prototype but are not a durable distributed queue. The MetaQA table would stay the same.
 
 23. **Why freeze mutation sets?**  
 So verifier identity is the intended paired difference.

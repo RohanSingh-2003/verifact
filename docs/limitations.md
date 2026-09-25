@@ -1,41 +1,54 @@
-# Research limitations
+# Limitations & System Boundaries
 
-VeriFact is a controlled MetaQA implementation for studying same-model versus cross-model verification. The results of any single run are empirical observations under that run’s models, prompts, dataset, and mutation configuration. They do not establish a universal self-verification bias.
+This document provides an honest, technical accounting of the constraints, assumptions, and failure modes of VeriFact.
 
-The frozen repository 2×2 (`58baff20-fb86-4f43-b20e-895a086ceb6b`) is **DEMO / MOCK DATA**. See `docs/final_results_lock.md`. Mock outputs must not be presented as live-model findings.
+---
 
-## Dataset size
+## 1. Consistency vs. Real-World Factual Truth
 
-The bundled pilot set is small (on the order of 40 items). Wilcoxon tests and confidence intervals on this scale are sensitive to sample size. Runs with fewer than 20 paired questions are labeled exploratory and should not be treated as confirmatory.
+The primary methodological limitation of MetaQA is that it measures **internal semantic consistency**, not physical reality:
+- If a language model generates a completely fictional claim (e.g., *"The Moon was manufactured in 1968"*) and coherently maintains that assertion under synonym paraphrases while rejecting antonym negations, MetaQA will record zero inconsistency ($H = 0.0$).
+- Conversely, if a model states a factually true answer but becomes confused and inconsistent during mutation verification, MetaQA will penalize it with a high hallucination score.
+- The current system is strictly **reference-free** (zero-resource) and does not consult external databases or search indices during detection.
 
-## Model dependence
+---
 
-Generator and verifier behavior is model-specific. A difference observed for one pair of models may not appear for another pair, another provider, or a later snapshot of the same model name.
+## 2. Local 26B Inference Latency
 
-## Mutation-generation dependence
+Executing a 26-billion parameter model (`gemma4:26b`) locally is computationally demanding:
+- On consumer hardware lacking dedicated high-VRAM GPUs, running the full MetaQA sequence (generating the base answer, generating 6 mutations, and executing 6 separate verifier calls) can take several minutes.
+- While VeriFact's progressive architecture mitigates perceived latency by showing the answer immediately, total end-to-end analysis time remains bounded by hardware throughput.
+- Cold model loads require significant initialization time on the first query after daemon launch.
 
-Synonym and antonym quality depends on the mutation prompt and the generator. Weak, duplicated, or off-target mutations change the hallucination score independently of verifier identity. The 2×2 design holds mutations fixed across verifiers, but it does not remove mutation-quality error.
+---
 
-## Verifier calibration
+## 3. Mutation Generation Dependence
 
-Verifiers differ in strictness. The four condition means (A→A, A→B, B→A, B→B) must be reported together. Averaging only the diagonal versus only the off-diagonal confounds self-verification with verifier calibration.
+The quality of MetaQA testing is directly coupled to the model's ability to produce high-quality semantic variations:
+- Models may occasionally generate sentence fragments, duplicate assertions, or fail to accurately invert a claim's polarity.
+- Although VeriFact applies multi-round retries, syntax heuristics, and length bounds, low-quality mutations can introduce noise into the final score.
+- Core claim extraction can miss nuanced subordinate clauses in long, multi-paragraph answers.
 
-## Stochasticity of LLM APIs
+---
 
-Live completions are not bit-reproducible. Temperature is fixed at 0 in the OpenAI-compatible client, but hosted APIs may still vary. Mock mode is deterministic and is for development only. Do not present mock outputs as research findings.
+## 4. Verifier Judgment Fragility
 
-## Prompt sensitivity
+The verifier LLM may struggle with subtle semantic distinctions:
+- Highly technical, mathematical, or double-negated sentences can confuse the verifier.
+- Verifiers occasionally return explanatory text rather than the requested JSON structure. While VeriFact's fallback logic captures these as `NOT SURE` (0.5 contribution), frequent parsing failures reduce discrimination between reliable and hallucinated text.
 
-Answer, mutation, and verifier prompts can shift scores. The verifier is not told the expected MetaQA verdict or mutation type, but it does receive the question, candidate answer, and mutated statement. Prompt wording remains a source of variation.
+---
 
-## MetaQA limitations
+## 5. Web Evidence is Future Work
 
-MetaQA is a metamorphic consistency check, not an external fact lookup. It does not retrieve Wikipedia, search the web, or consult a ground-truth database during detection. A consistent but false generator-verifier pair can receive a low hallucination score. Conversely, a factually correct answer can score high if the verifier is inconsistent.
+- External search integration (e.g., Tavily, Google, Bing, Wikipedia retrieval) is **not implemented** in the current release.
+- VeriFact cannot verify claims against live real-time events or newly broken news occurring after the LLM's training cutoff.
+- Any future evidence-grounded verification remains a planned extension.
 
-## Ground-truth matching
+---
 
-Automatic labels used after detection rely on curated labels or normalized string matching against a reference answer. Matching is not perfect semantic evaluation. Ambiguous items are marked Needs Review and excluded from precision, recall, F1, and accuracy.
+## 6. Research Prototype Status
 
-## Causal claims
-
-A small 2×2 experiment can measure a paired score difference for the selected setup. It cannot by itself prove that “self-verification bias” is a general property of large language models, nor can it isolate every alternative explanation (prompt form, mutation artifacts, verifier calibration, dataset composition).
+- VeriFact is an academic research prototype designed to investigate metamorphic testing and same-model versus cross-model verifier behaviors.
+- It is not a commercial, production-hardened fact-checking platform and should not be used as the sole arbiter of truth in safety-critical medical, legal, or financial applications.
+- Background tasks run via FastAPI's in-process `BackgroundTasks` rather than a distributed, persistent message queue (e.g., Celery/Redis). Restarting the backend service during an active detection will terminate in-flight background analyses.

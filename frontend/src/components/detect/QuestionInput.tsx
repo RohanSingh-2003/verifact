@@ -1,8 +1,6 @@
-import { useId } from 'react'
+import { useEffect, useId, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
-
-const MAX_CHARS = 500
 
 interface QuestionInputProps {
   value: string
@@ -20,12 +18,27 @@ export function QuestionInput({
   disabled = false,
 }: QuestionInputProps) {
   const id = useId()
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const canSubmit = !loading && !disabled && Boolean(value.trim())
+
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const next = Math.min(el.scrollHeight, 320)
+    el.style.height = `${Math.max(next, 112)}px`
+  }, [value])
+
+  function handleSubmit() {
+    if (!canSubmit) return
+    onSubmit()
+  }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-      event.preventDefault()
-      if (!loading && value.trim()) onSubmit()
-    }
+    if (event.key !== 'Enter') return
+    if (event.shiftKey) return
+    event.preventDefault()
+    handleSubmit()
   }
 
   return (
@@ -34,35 +47,28 @@ export function QuestionInput({
         Question
       </label>
       <textarea
+        ref={textareaRef}
         id={id}
         value={value}
-        maxLength={MAX_CHARS}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Ask anything... (e.g., What is the capital of India?)"
         rows={4}
-        className="mt-2 w-full resize-none bg-transparent text-[16px] leading-7 text-ink placeholder:text-ink-muted/80 focus:outline-none disabled:opacity-60"
+        className="mt-2 max-h-80 min-h-28 w-full resize-none overflow-y-auto bg-transparent text-[16px] leading-7 text-ink placeholder:text-ink-muted/80 focus:outline-none disabled:opacity-60"
       />
 
-      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-xs text-ink-muted">
-            {value.length}/{MAX_CHARS}
-          </span>
-          <span className="hidden text-xs text-ink-muted sm:inline">⌘/Ctrl + Enter</span>
-        </div>
-
+      <div className="mt-4 flex justify-end">
         <button
           type="button"
-          onClick={onSubmit}
-          disabled={loading || !value.trim()}
+          onClick={handleSubmit}
+          disabled={!canSubmit}
           aria-busy={loading}
           className="btn-primary w-full sm:w-auto"
         >
           {loading ? (
             <>
-              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-canvas/30 border-t-canvas" />
               Analyzing
             </>
           ) : (

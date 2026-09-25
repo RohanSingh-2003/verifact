@@ -10,8 +10,8 @@ Frozen 2×2 is mock. Do not cite live-model accuracy.
 
 ### Software-engineering-focused
 
-- Built VeriFact v1.0.0: React/TypeScript/Vite UI, FastAPI, SQLite traces, OpenAI-compatible and mock LLM clients, pytest + ruff + frontend build CI.
-- Shipped explainable mutation analysis (synonym/antonym tabs, actual vs expected verdicts) and a research dashboard bound to stored experiment APIs, not hardcoded findings.
+- Built VeriFact v1.0.0: React/TypeScript/Vite UI, FastAPI, SQLite traces, Ollama / OpenAI-compatible / mock LLM clients, pytest + ruff + frontend build CI.
+- Shipped progressive Detect (answer first, then mutations / verdicts / score on one `run_id`) with explainable mutation analysis and a research dashboard bound to stored experiment APIs.
 - Added live-run cost gates, resume-safe experiment cells, and CSV/config exports under `experiments/`.
 
 ### AI/ML-focused
