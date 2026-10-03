@@ -14,6 +14,22 @@ class LLMTimeoutError(LLMError):
     """Raised when the provider request times out."""
 
 
+class LLMConnectionError(LLMError):
+    """Raised when connecting to the LLM host fails (e.g. daemon not running)."""
+
+
+class LLMModelNotFoundError(LLMError):
+    """Raised when the requested model is not found/installed on the provider."""
+
+
+class LLMEmptyResponseError(LLMError):
+    """Raised when the provider returns an empty response."""
+
+
+class LLMMalformedResponseError(LLMError):
+    """Raised when the provider response cannot be parsed or is malformed."""
+
+
 class LLMClient(ABC):
     """Provider-agnostic language model client used by MetaQA."""
 

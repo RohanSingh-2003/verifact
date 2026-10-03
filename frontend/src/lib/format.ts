@@ -70,11 +70,26 @@ export function verdictDescription(verdict: Verdict) {
   return 'The mutation tests showed behavior that is inconsistent with the expected pattern.'
 }
 
-export function formatModelDisplay(model: string | null | undefined) {
+export function formatModelDisplay(model: string | null | undefined): string | null {
   if (!model) return null
-  const match = model.match(/^gemma4:(.+)$/i)
-  if (match) return `Gemma 4:${match[1].toUpperCase()}`
+  const gemmaMatch = model.match(/^gemma4:(.+)$/i)
+  if (gemmaMatch) return `Gemma 4:${gemmaMatch[1].toUpperCase()}`
+  const gemma3Match = model.match(/^gemma3:(.+)$/i)
+  if (gemma3Match) return `Gemma 3:${gemma3Match[1].toUpperCase()}`
+  const geminiMatch = model.match(/^gemini-(\d+(?:\.\d+)?)-([a-z0-9_-]+)$/i)
+  if (geminiMatch) {
+    const capitalizedType = geminiMatch[2].charAt(0).toUpperCase() + geminiMatch[2].slice(1)
+    return `Gemini ${geminiMatch[1]} ${capitalizedType}`
+  }
   return model
+}
+
+export function formatProviderDisplay(provider: string | null | undefined, model?: string): string {
+  if (model?.toLowerCase().includes('gemini')) return 'Google Gemini'
+  if (!provider) return ''
+  if (provider === 'ollama') return 'Ollama'
+  if (provider === 'openai_compatible') return 'OpenAI Compatible'
+  return provider.charAt(0).toUpperCase() + provider.slice(1)
 }
 
 export function verifierLabel(value: VerifierResponse) {

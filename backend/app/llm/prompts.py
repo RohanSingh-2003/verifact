@@ -57,88 +57,73 @@ Return JSON only:
   ]
 }}"""
 
-MUTATION_SYSTEM = """You generate metamorphic mutations of short factual CLAIMS for MetaQA.
+MUTATION_SYSTEM = """You generate metamorphic mutations of factual claims for MetaQA.
 You must not use tools, retrieval, browsing, or external evidence.
-Do not invent facts outside the provided claims and question context.
+Do not invent facts outside the provided answer and question context.
 
-Mutate the CORE CLAIMS only — never rewrite or mutate the full long answer.
+Synonym mutations: complete sentences that preserve the factual meaning of the answer.
+Antonym mutations: complete sentences that directly contradict the factual meaning of the answer.
 
-Synonym mutations: paraphrase a claim with substantially the SAME meaning.
-Antonym mutations: write a complete sentence that CLEARLY CONTRADICTS a claim.
-Preserve scope and qualifiers (some, certain, generally, reported, approximately).
-
-Hard rules for EVERY mutated_text:
-- Complete grammatical sentence (subject + predicate).
-- Concise: about 10–30 words (never a paragraph).
-- Never a phrase/fragment/keyword/heading/question.
-- Never labels, explanations, or meta-commentary.
-- Never YES/NO/NOT SURE or scoring rules.
-- original_text MUST be copied exactly from one of the provided core claims.
-Return JSON only."""
+Hard rules for EVERY mutation:
+- Complete grammatical sentence (~10–30 words).
+- Never a phrase, fragment, heading, or question.
+- Never labels, explanations, or commentary.
+- Return JSON only."""
 
 MUTATION_USER = """Question:
 {question}
 
-Core claims (mutate these; do not mutate a full multi-paragraph answer):
-{claims_block}
+Answer:
+{answer}
 
-Create exactly {synonym_count} synonym mutations and {antonym_count} antonym mutations.
-Distribute them across the claims when possible (cover multiple claims).
-
-Rules:
-- original_text must exactly match one core claim.
-- mutated_text must be a short complete sentence (~10–30 words).
-- Synonyms preserve meaning; antonyms clearly contradict.
-- Preserve qualifiers from the claim.
-- Invalid: "structural stability", "capital transfer", "Strong construction.", "India's capital".
+Generate exactly {synonym_count} concise synonym mutations and {antonym_count} concise antonym mutations based on the answer.
 
 Return JSON only:
 {{
-  "mutations": [
-    {{
-      "type": "synonym" | "antonym",
-      "original_text": "exact core claim text",
-      "mutated_text": "short complete mutated sentence"
-    }}
+  "synonym_mutations": [
+    "complete sentence preserving meaning"
+  ],
+  "antonym_mutations": [
+    "complete sentence contradicting meaning"
   ]
 }}"""
 
 MUTATION_FILL_USER = """Question:
 {question}
 
-Core claims (mutate these; do not mutate a full multi-paragraph answer):
-{claims_block}
+Answer:
+{answer}
 
-Already accepted mutations (do NOT repeat these mutated_text values):
+Already accepted mutations (do NOT repeat these):
 {accepted_block}
 
 Generate ONLY the missing mutations:
 - exactly {synonym_count} synonym mutation(s)
 - exactly {antonym_count} antonym mutation(s)
 
-Rules:
-- original_text must exactly match one core claim.
-- mutated_text must be a short complete sentence (~10–30 words).
-- Synonyms preserve meaning; antonyms clearly contradict.
-- Preserve qualifiers from the claim.
-- Do not regenerate mutations that are already accepted.
-
 Return JSON only:
 {{
-  "mutations": [
-    {{
-      "type": "synonym" | "antonym",
-      "original_text": "exact core claim text",
-      "mutated_text": "short complete mutated sentence"
-    }}
+  "synonym_mutations": [
+    "complete sentence"
+  ],
+  "antonym_mutations": [
+    "complete sentence"
   ]
 }}"""
 
-VERIFY_SYSTEM = """You judge whether a statement is consistent with a correct resolution of the given question.
+VERIFY_SYSTEM = """You are the verification component of a MetaQA-style metamorphic hallucination detector.
+Determine whether the candidate statement preserves or contradicts the factual claim expressed in the candidate answer.
+
 Use only the supplied question, candidate answer, and statement.
-Do not use tools, retrieval, browsing, or external evidence.
-Do not assume a preferred answer beyond what the question asks.
-Respond with JSON only."""
+Do not use external knowledge, browsing, retrieval, tools, or external evidence.
+Do not independently fact-check the statement against the real world; evaluate strictly against the supplied candidate answer.
+
+Verdicts:
+- YES: the statement preserves the factual meaning of the candidate answer.
+- NO: the statement contradicts the factual meaning of the candidate answer.
+- NOT SURE: the relationship between the statement and the candidate answer cannot be determined reliably.
+
+Return JSON only."""
 
 VERIFY_USER = """Question:
 {question}
@@ -149,7 +134,7 @@ Candidate answer:
 Statement to judge:
 {statement}
 
-Is the statement a consistent, correct resolution of the question?
+Is the statement a consistent preservation or contradiction of the factual meaning of the candidate answer?
 Return JSON only (no markdown):
 {{
   "verdict": "YES" | "NO" | "NOT SURE",

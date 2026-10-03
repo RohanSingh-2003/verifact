@@ -63,6 +63,153 @@ export function isTerminalRunStatus(status: RunStatus | string | null | undefine
   return status === RunStatus.Completed || isAnalysisFailureStatus(status)
 }
 
+export const EvidenceVerdict = {
+  Supported: 'SUPPORTED',
+  Contradicted: 'CONTRADICTED',
+  InsufficientEvidence: 'INSUFFICIENT_EVIDENCE',
+} as const
+
+export type EvidenceVerdict = (typeof EvidenceVerdict)[keyof typeof EvidenceVerdict]
+
+export const WebEvidenceStatus = {
+  Pending: 'pending',
+  ClassifyingQuestion: 'classifying_question',
+  ExtractingClaims: 'extracting_claims',
+  SearchingWeb: 'searching_web',
+  VerifyingEvidence: 'verifying_evidence',
+  Completed: 'completed',
+  Unavailable: 'unavailable',
+  Failed: 'failed',
+} as const
+
+export type WebEvidenceStatus = (typeof WebEvidenceStatus)[keyof typeof WebEvidenceStatus]
+
+export function isWebEvidenceTerminal(status: WebEvidenceStatus | string | null | undefined): boolean {
+  return (
+    status === WebEvidenceStatus.Completed ||
+    status === WebEvidenceStatus.Unavailable ||
+    status === WebEvidenceStatus.Failed
+  )
+}
+
+export const OverallStatus = {
+  Running: 'running',
+  Completed: 'completed',
+  Partial: 'partial',
+  Failed: 'failed',
+} as const
+
+export type OverallStatus = (typeof OverallStatus)[keyof typeof OverallStatus]
+
+/** Keep polling while either MetaQA or Web Evidence is non-terminal. */
+export function analysisStillRunning(analysis: {
+  status: RunStatus | string | null | undefined
+  webEvidence?: { status?: WebEvidenceStatus | string | null } | null
+}): boolean {
+  const metaqaDone = isTerminalRunStatus(analysis.status)
+  const webDone = isWebEvidenceTerminal(analysis.webEvidence?.status)
+  return !(metaqaDone && webDone)
+}
+
+export interface WebSourceRecord {
+  title: string
+  url: string
+  domain: string
+  snippet: string
+  publishedAt?: string | null
+  relevanceScore?: number | null
+  sourceType?: string
+  questionType?: string | null
+  evidenceSummary?: string | null
+}
+
+export interface WebClaimRecord {
+  id: string
+  text: string
+  searchQuery: string
+  verdict: EvidenceVerdict
+  reason: string
+  usedFallback?: boolean
+  sources: WebSourceRecord[]
+}
+
+export interface WebEvidenceResult {
+  status: WebEvidenceStatus
+  error?: string | null
+  searchesUsed: number
+  sourcesFound: number
+  questionType?: string | null
+  questionTypeLabel?: string | null
+  questionTypeConfidence?: number | null
+  sourceStrategyLabels: string[]
+  freshnessRequired: boolean
+  usedFallbackSearch: boolean
+  totalClaims: number
+  supportedClaims: number
+  contradictedClaims: number
+  insufficientClaims: number
+  consistencyScore?: number | null
+  consistencyVerdict?: string | null
+  consistencyVerdictLabel?: string | null
+  claims: WebClaimRecord[]
+}
+
+export const SignalRelationship = {
+  Agree: 'AGREE',
+  Disagree: 'DISAGREE',
+  BothConcerning: 'BOTH_CONCERNING',
+  WebInsufficient: 'WEB_INSUFFICIENT',
+  MetaqaUnavailable: 'METAQA_UNAVAILABLE',
+  WebUnavailable: 'WEB_UNAVAILABLE',
+  BothUnavailable: 'BOTH_UNAVAILABLE',
+  Pending: 'PENDING',
+} as const
+
+export type SignalRelationship = (typeof SignalRelationship)[keyof typeof SignalRelationship]
+
+export interface VerificationSummary {
+  ready: boolean
+  metaqaSignal: string
+  metaqaLabel: string
+  metaqaScore: number | null
+  metaqaClassification: string | null
+  metaqaInterpretation: string
+  webSignal: string
+  webLabel: string
+  webInterpretation: string
+  webTotalClaims: number
+  webSupported: number
+  webContradicted: number
+  webInsufficient: number
+  webConsistencyScore?: number | null
+  webConsistencyVerdict?: string | null
+  webConsistencyVerdictLabel?: string | null
+  relationship: SignalRelationship | string
+  relationshipLabel: string
+  relationshipDetail: string
+  attentionClaims: WebClaimRecord[]
+  // Overall VeriFact Assessment
+  overallVerdict?: OverallVerdict | string | null
+  overallLabel?: string | null
+  overallExplanation?: string
+  metaqaSummaryText?: string
+  webSummaryText?: string
+  combinedRiskScore?: number | null
+  webRiskScore?: number | null
+  overallNote?: string
+}
+
+export const OverallVerdict = {
+  LikelyReliable: 'LIKELY_RELIABLE',
+  PotentiallyHallucinated: 'POTENTIALLY_HALLUCINATED',
+  NeedsVerification: 'NEEDS_VERIFICATION',
+  InsufficientEvidence: 'INSUFFICIENT_EVIDENCE',
+  Unavailable: 'UNAVAILABLE',
+  Pending: 'PENDING',
+} as const
+
+export type OverallVerdict = (typeof OverallVerdict)[keyof typeof OverallVerdict]
+
 export const ExperimentStatus = {
   Loading: 'loading',
   Completed: 'completed',
@@ -80,6 +227,7 @@ export interface MutationRecord {
   score: number | null
   reasoning: string
   verified: boolean
+  parseFailed?: boolean
 }
 
 export interface AnalysisResult {
@@ -94,15 +242,29 @@ export interface AnalysisResult {
   createdAt: string
   mutations: MutationRecord[]
   summaryPoints: string[]
-  llmMode?: 'mock' | 'live'
   status: RunStatus
+  overallStatus?: OverallStatus
   analysisError?: string | null
+  webEvidence?: WebEvidenceResult | null
+  verificationSummary?: VerificationSummary | null
   timing?: {
     answerMs?: number | null
     mutationMs?: number | null
     verifyMs?: number | null
     totalMs?: number | null
     timeToAnswerMs?: number | null
+    answerGenerationMs?: number | null
+    metaqaTotalMs?: number | null
+    metaqaMutationGenerationMs?: number | null
+    metaqaVerificationMs?: number | null
+    webTotalMs?: number | null
+    webClaimExtractionMs?: number | null
+    webSearchMs?: number | null
+    webVerificationMs?: number | null
+    totalAnalysisMs?: number | null
+    numberOfTavilySearches?: number | null
+    numberOfWebClaims?: number | null
+    numberOfOllamaCalls?: number | null
   }
 }
 
@@ -305,7 +467,6 @@ export interface AppSettings {
   threshold: number
   generatorModel: string
   verifierModel: string
-  llmMode: 'mock' | 'live'
   liveReady: boolean
   apiKeyConfigured: boolean
   llmProvider: string
@@ -317,6 +478,31 @@ export interface AppSettings {
   synonymCount: number
   antonymCount: number
   frozenExperimentId: string
+  mutationModel: string
+  effectiveMutationModel: string
+  effectiveVerifierModel: string
+  geminiVerifierModel: string
+  geminiVerifierReady: boolean
+  tavilySearchDepth: string
+  webMaxClaims: number
+  webMaxSearches: number
+  webResultsPerClaim: number
+  webEvidenceEnabled: boolean
+  webEvidenceReady: boolean
+}
+
+export interface SystemHealth {
+  status: string
+  llm_provider?: string
+  live_ready?: boolean
+  generator_model?: string
+  verifier_model?: string
+  web_evidence_ready?: boolean
+  web_evidence_enabled?: boolean
+  gemini_verifier_enabled?: boolean
+  gemini_verifier_ready?: boolean
+  gemini_verifier_model?: string
+  database_connected?: boolean
 }
 
 export type EvalOutcome = 'TP' | 'TN' | 'FP' | 'FN' | 'Needs Review'
@@ -368,7 +554,7 @@ export interface EvaluationDetail {
   total_examples: number
   completed_examples: number
   review_examples: number
-  llm_mode: 'mock' | 'live' | string
+  llm_mode: string
   demo_data: boolean
   created_at: string
   completed_at: string | null
@@ -417,9 +603,25 @@ export const ANALYSIS_STAGES: Array<
   AnalysisStage.CalculatingScore,
 ]
 
-export const HALLUCINATION_ANALYSIS_STEPS = [
-  { id: 'answer', label: 'Answer generated' },
+export const METAQA_ANALYSIS_STEPS = [
   { id: 'mutations', label: 'Creating test mutations' },
   { id: 'verify', label: 'Verifying mutations' },
   { id: 'score', label: 'Calculating score' },
+  { id: 'complete', label: 'MetaQA analysis complete' },
+] as const
+
+export const WEB_EVIDENCE_STEPS = [
+  { id: 'type', label: 'Question type identified' },
+  { id: 'claims', label: 'Claims identified' },
+  { id: 'search', label: 'Searching recommended sources' },
+  { id: 'verify', label: 'Verifying evidence' },
+  { id: 'complete', label: 'Evidence analysis complete' },
+] as const
+
+/** @deprecated Use METAQA_ANALYSIS_STEPS instead */
+export const HALLUCINATION_ANALYSIS_STEPS = [
+  { id: 'mutations', label: 'Creating test mutations' },
+  { id: 'verify', label: 'Verifying mutations' },
+  { id: 'score', label: 'Calculating score' },
+  { id: 'complete', label: 'MetaQA analysis complete' },
 ] as const

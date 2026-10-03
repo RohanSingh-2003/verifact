@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import json
+
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -10,10 +14,16 @@ from app.schemas.detect import (
     DetectResponse,
     DetectTiming,
     MutationOut,
+    OverallStatus,
     RunListResponse,
     RunStatus,
     RunSummary,
 )
+from app.schemas.verification_summary import VerificationSummaryOut
+from app.schemas.web_evidence import WebClaimOut, WebEvidenceOut, WebSourceOut
+from app.services.overall_status import derive_overall_status
+from app.services.verification_summary import build_verification_summary
+from app.web_evidence.types import EvidenceVerdict, WebEvidenceResult, WebEvidenceStatus
 
 
 INCOMPLETE_CLASSIFICATION = "Incomplete"
@@ -28,8 +38,12 @@ CLAIM_EXTRACTION_ERROR = (
     "The generated answer is still available above."
 )
 VERIFICATION_ERROR = (
-    "Hallucination analysis could not be completed because mutation verification failed. "
-    "The generated answer and any mutations above are still available."
+    "MetaQA analysis is unavailable because mutation verification did not complete. "
+    "The generated answer remains available. Web Evidence may still finish independently."
+)
+PARTIAL_VERIFICATION_NOTE = (
+    "MetaQA partially completed: {verified} of {expected} mutations verified. "
+    "Score uses only completed verification results."
 )
 SCORING_ERROR = (
     "Hallucination analysis could not be completed while calculating the score. "
@@ -53,13 +67,19 @@ def classify_analysis_failure(
     lower = message.casefold()
     stage_value = (stage or "").casefold()
 
-    if "claim extractor" in lower or "claim extraction" in lower:
-        return RunStatus.MUTATION_GENERATION_FAILED, CLAIM_EXTRACTION_ERROR
-    if "mutation generator" in lower or "required mutation set" in lower:
-        return RunStatus.MUTATION_GENERATION_FAILED, MUTATION_GENERATION_ERROR
-    if "mock mutation failure" in lower:
-        return RunStatus.MUTATION_GENERATION_FAILED, MUTATION_GENERATION_ERROR
-    if "verif" in lower or stage_value == RunStatus.VERIFYING_MUTATIONS.value:
+    if "gemini" in lower or "verif" in lower or stage_value == RunStatus.VERIFYING_MUTATIONS.value:
+        if "429" in lower or "rate" in lower or "quota" in lower:
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 429 (rate limit)"
+        if "503" in lower or "unavailable" in lower or "high demand" in lower:
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 503 (service unavailable)"
+        if "401" in lower or "403" in lower or "unauthorized" in lower:
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 401/403 (unauthorized). Check GEMINI_API_KEY."
+        if "400" in lower or "bad request" in lower or "invalid" in lower:
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 400 (invalid request)."
+        if "timeout" in lower:
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API request timed out."
+        if "gemini" in lower:
+            return RunStatus.VERIFICATION_FAILED, "Gemini verification unavailable. Check GEMINI_API_KEY configuration."
         return RunStatus.VERIFICATION_FAILED, VERIFICATION_ERROR
     if "score" in lower or stage_value == RunStatus.CALCULATING_SCORE.value:
         return RunStatus.SCORING_FAILED, SCORING_ERROR
@@ -80,6 +100,8 @@ def persist_detection(db: Session, result: DetectionResult) -> DetectResponse:
         id=new_id(),
         question=result.question,
         generator_model=result.generator_model,
+        mutation_generator_model=result.generator_model,
+        mutation_verifier_model=result.verifier_model,
         base_answer=result.base_answer.text,
         hallucination_score=result.hallucination_score,
         threshold=result.threshold,
@@ -124,7 +146,7 @@ def create_answer_ready_run(
     base_answer: str,
     generator_model: str,
     threshold: float,
-    llm_mode: str,
+    llm_mode: str = "live",
     answer_ms: float | None = None,
 ) -> Run:
     run = Run(
@@ -139,12 +161,125 @@ def create_answer_ready_run(
         llm_mode=llm_mode,
         status=RunStatus.ANSWER_READY.value,
         analysis_error="",
+        web_evidence_status=WebEvidenceStatus.PENDING.value,
+        web_evidence_error="",
+        web_evidence_json="",
         answer_ms=answer_ms,
     )
     db.add(run)
     db.flush()
     db.refresh(run)
     return run
+
+
+def update_web_evidence_status(db: Session, run_id: str, status: WebEvidenceStatus) -> None:
+    run = db.get(Run, run_id)
+    if run is None:
+        return
+    run.web_evidence_status = status.value
+    db.flush()
+
+
+def persist_web_evidence_result(db: Session, run_id: str, result: WebEvidenceResult) -> None:
+    """Store Web Evidence payload without touching MetaQA fields or base_answer."""
+    run = db.get(Run, run_id)
+    if run is None:
+        return
+    run.web_evidence_status = result.status.value
+    run.web_evidence_error = (result.error or "").strip()
+    run.web_evidence_json = json.dumps(result.to_dict(), ensure_ascii=False)
+    db.flush()
+
+
+def web_evidence_from_run(run: Run) -> WebEvidenceOut | None:
+    status_raw = getattr(run, "web_evidence_status", None) or WebEvidenceStatus.PENDING.value
+    try:
+        status = WebEvidenceStatus(status_raw)
+    except ValueError:
+        status = WebEvidenceStatus.PENDING
+
+    payload: dict | None = None
+    raw_json = getattr(run, "web_evidence_json", "") or ""
+    if raw_json.strip():
+        try:
+            loaded = json.loads(raw_json)
+            if isinstance(loaded, dict):
+                payload = loaded
+        except json.JSONDecodeError:
+            payload = None
+
+    if payload is None:
+        error = getattr(run, "web_evidence_error", "") or None
+        return WebEvidenceOut(
+            status=status,
+            error=error or None,
+            claims=[],
+        )
+
+    claims_out: list[WebClaimOut] = []
+    for item in payload.get("claims") or []:
+        if not isinstance(item, dict):
+            continue
+        verdict_raw = str(item.get("verdict") or EvidenceVerdict.INSUFFICIENT_EVIDENCE.value)
+        try:
+            verdict = EvidenceVerdict(verdict_raw)
+        except ValueError:
+            verdict = EvidenceVerdict.INSUFFICIENT_EVIDENCE
+        sources = []
+        for source in item.get("sources") or []:
+            if not isinstance(source, dict):
+                continue
+            url = str(source.get("url") or "").strip()
+            if not url:
+                continue
+            sources.append(
+                WebSourceOut(
+                    title=str(source.get("title") or url),
+                    url=url,
+                    domain=str(source.get("domain") or ""),
+                    snippet=str(source.get("snippet") or ""),
+                    published_at=source.get("published_at"),
+                    relevance_score=source.get("relevance_score"),
+                    source_type=str(source.get("source_type") or "GENERAL"),
+                    question_type=source.get("question_type"),
+                )
+            )
+        claims_out.append(
+            WebClaimOut(
+                id=str(item.get("id") or f"claim_{len(claims_out) + 1}"),
+                text=str(item.get("text") or ""),
+                search_query=str(item.get("search_query") or ""),
+                verdict=verdict,
+                reason=str(item.get("reason") or ""),
+                used_fallback=bool(item.get("used_fallback")),
+                sources=sources,
+            )
+        )
+
+    return WebEvidenceOut(
+        status=status,
+        error=payload.get("error") or (getattr(run, "web_evidence_error", "") or None),
+        searches_used=int(payload.get("searches_used") or 0),
+        sources_found=int(payload.get("sources_found") or 0),
+        question_type=payload.get("question_type"),
+        question_type_label=payload.get("question_type_label"),
+        question_type_confidence=payload.get("question_type_confidence"),
+        source_strategy_labels=list(payload.get("source_strategy_labels") or []),
+        freshness_required=bool(payload.get("freshness_required")),
+        used_fallback_search=bool(payload.get("used_fallback_search")),
+        total_claims=int(payload.get("total_claims") or len(claims_out)),
+        supported_claims=int(payload.get("supported_claims") or 0),
+        contradicted_claims=int(payload.get("contradicted_claims") or 0),
+        insufficient_claims=int(payload.get("insufficient_claims") or 0),
+        consistency_score=(
+            float(payload["consistency_score"])
+            if payload.get("consistency_score") is not None
+            else None
+        ),
+        consistency_verdict=payload.get("consistency_verdict"),
+        consistency_verdict_label=payload.get("consistency_verdict_label"),
+        claims=claims_out,
+    )
 
 
 def update_run_status(db: Session, run_id: str, status: RunStatus) -> None:
@@ -207,12 +342,12 @@ def update_mutation_verification(
         return
     for item in run.mutations:
         if item.position == position:
-            item.verdict = scored.verdict.value
+            item.verdict = scored.verdict.value if scored.verdict is not None else ""
             item.expected_verdict = scored.expected.value
-            item.contribution = scored.contribution
+            item.contribution = scored.contribution if not scored.unavailable else 0.0
             item.rationale = scored.rationale
-            item.parse_failed = scored.parse_failed
-            item.verified = True
+            item.parse_failed = scored.parse_failed or scored.unavailable
+            item.verified = not scored.unavailable and not scored.parse_failed and scored.verdict is not None
             break
     db.flush()
 
@@ -232,8 +367,16 @@ def complete_run_analysis(
     run.threshold = result.threshold
     run.classification = result.classification.value
     run.not_sure_rate = result.not_sure_rate
+    run.mutation_generator_model = result.generator_model
+    run.mutation_verifier_model = result.verifier_model
     run.status = RunStatus.COMPLETED.value
-    run.analysis_error = ""
+    if result.metaqa_completion == "partial" and result.expected_count:
+        run.analysis_error = PARTIAL_VERIFICATION_NOTE.format(
+            verified=result.verified_count,
+            expected=result.expected_count,
+        )
+    else:
+        run.analysis_error = ""
     if result.timing is not None:
         run.answer_ms = result.timing.answer_ms
         run.mutation_ms = result.timing.mutation_ms
@@ -244,6 +387,8 @@ def complete_run_analysis(
     by_position = {item.position: item for item in run.mutations}
     for index, scored in enumerate(result.mutations):
         existing = by_position.get(index)
+        is_verified = not scored.unavailable and not scored.parse_failed and scored.verdict is not None
+        verdict_str = scored.verdict.value if scored.verdict is not None else ""
         if existing is None:
             run.mutations.append(
                 Mutation(
@@ -252,12 +397,12 @@ def complete_run_analysis(
                     original_text=scored.mutation.original_text,
                     mutated_text=scored.mutation.mutated_text,
                     verifier_model=result.verifier_model,
-                    verdict=scored.verdict.value,
+                    verdict=verdict_str,
                     expected_verdict=scored.expected.value,
-                    contribution=scored.contribution,
+                    contribution=scored.contribution if is_verified else 0.0,
                     rationale=scored.rationale,
-                    parse_failed=scored.parse_failed,
-                    verified=True,
+                    parse_failed=scored.parse_failed or scored.unavailable,
+                    verified=is_verified,
                     position=index,
                 )
             )
@@ -266,12 +411,12 @@ def complete_run_analysis(
             existing.original_text = scored.mutation.original_text
             existing.mutated_text = scored.mutation.mutated_text
             existing.verifier_model = result.verifier_model
-            existing.verdict = scored.verdict.value
+            existing.verdict = verdict_str
             existing.expected_verdict = scored.expected.value
-            existing.contribution = scored.contribution
+            existing.contribution = scored.contribution if is_verified else 0.0
             existing.rationale = scored.rationale
-            existing.parse_failed = scored.parse_failed
-            existing.verified = True
+            existing.parse_failed = scored.parse_failed or scored.unavailable
+            existing.verified = is_verified
     db.flush()
     db.refresh(run)
     return run
@@ -362,7 +507,7 @@ def _to_run_summary(run: Run) -> RunSummary:
 def _mutation_out(item: Mutation) -> MutationOut:
     from app.metaqa.scoring import Verdict as VerdictEnum
 
-    verified = bool(getattr(item, "verified", True)) and bool(item.verdict)
+    verified = bool(getattr(item, "verified", True)) and bool(item.verdict) and not bool(item.parse_failed)
     verdict = None
     contribution: float | None = None
     if verified:
@@ -381,11 +526,12 @@ def _mutation_out(item: Mutation) -> MutationOut:
         type=item.type,
         original_text=item.original_text,
         mutated_text=item.mutated_text,
+        verifier_model=getattr(item, "verifier_model", None),
         verdict=verdict,
         expected_verdict=expected,
         contribution=contribution,
-        rationale=item.rationale if verified else "",
-        parse_failed=bool(item.parse_failed) if verified else False,
+        rationale=item.rationale or ("Verification failed" if not verified else ""),
+        parse_failed=bool(item.parse_failed) or not verified,
         verified=verified,
     )
 
@@ -404,30 +550,85 @@ def to_detect_response(run: Run) -> DetectResponse:
         RunStatus.SCORING_FAILED,
         RunStatus.FAILED,
     } or bool(run.mutations)
+    web_evidence = web_evidence_from_run(run)
+    raw_json = getattr(run, "web_evidence_json", "") or ""
+    web_timing: dict = {}
+    if raw_json.strip():
+        try:
+            loaded = json.loads(raw_json)
+            if isinstance(loaded, dict) and isinstance(loaded.get("timing"), dict):
+                web_timing = loaded["timing"]
+        except (json.JSONDecodeError, TypeError, KeyError):
+            web_timing = {}
+
+    from app.llm.ollama import get_ollama_call_count
+
+    ollama_count = get_ollama_call_count()
+    web_total = web_timing.get("web_total_ms")
+    metaqa_total = run.total_ms if complete else None
+    answer_ms = run.answer_ms
+    tot_analysis = None
+    if answer_ms is not None:
+        branches = [b for b in (metaqa_total, web_total) if b is not None]
+        if branches:
+            tot_analysis = round(answer_ms + max(branches), 1)
+
     timing = DetectTiming(
         answer_ms=run.answer_ms,
         mutation_ms=run.mutation_ms,
         verify_ms=run.verify_ms if complete else None,
         total_ms=run.total_ms if complete else None,
         time_to_answer_ms=run.answer_ms,
+        answer_generation_ms=run.answer_ms,
+        metaqa_total_ms=metaqa_total,
+        metaqa_mutation_generation_ms=run.mutation_ms,
+        metaqa_verification_ms=run.verify_ms if complete else None,
+        web_total_ms=web_timing.get("web_total_ms"),
+        web_claim_extraction_ms=web_timing.get("web_claim_extraction_ms"),
+        web_search_ms=web_timing.get("web_search_ms"),
+        web_verification_ms=web_timing.get("web_verification_ms"),
+        total_analysis_ms=tot_analysis or web_timing.get("total_analysis_ms"),
+        number_of_tavily_searches=web_evidence.searches_used if web_evidence else 0,
+        number_of_web_claims=len(web_evidence.claims) if web_evidence else 0,
+        number_of_ollama_calls=ollama_count if ollama_count > 0 else None,
+    )
+    classification = (
+        Classification(run.classification)
+        if complete and run.classification in Classification._value2member_map_
+        else None
+    )
+    score = run.hallucination_score if complete else None
+    summary_payload = build_verification_summary(
+        status=status,
+        classification=classification,
+        score=score,
+        threshold=run.threshold,
+        web_evidence=web_evidence,
+    )
+    web_status = web_evidence.status if web_evidence is not None else None
+    overall = derive_overall_status(
+        status,
+        web_status,
+        has_answer=bool((run.base_answer or "").strip()),
     )
     return DetectResponse(
         run_id=run.id,
         question=run.question,
         base_answer=BaseAnswerOut(text=run.base_answer, model=run.generator_model),
+        mutation_generator_model=getattr(run, "mutation_generator_model", None) or run.generator_model,
+        mutation_verifier_model=getattr(run, "mutation_verifier_model", None),
         mutations=[_mutation_out(item) for item in run.mutations] if include_mutations else [],
         # Never invent a score/classification when analysis did not complete.
-        hallucination_score=run.hallucination_score if complete else None,
+        hallucination_score=score,
         threshold=run.threshold,
-        classification=(
-            Classification(run.classification)
-            if complete and run.classification in Classification._value2member_map_
-            else None
-        ),
+        classification=classification,
         not_sure_rate=run.not_sure_rate if complete else None,
         llm_mode=run.llm_mode or "live",
         status=status,
+        overall_status=OverallStatus(overall.value),
         analysis_error=run.analysis_error or None,
+        web_evidence=web_evidence,
+        verification_summary=VerificationSummaryOut.model_validate(summary_payload),
         created_at=run.created_at,
         timing=timing,
     )

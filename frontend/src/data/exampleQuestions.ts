@@ -1,5 +1,5 @@
-// EXAMPLE_QUESTIONS is the only client-side sample data used by Detect.
-// Detection scores, classifications, and experiment results come from the API.
+// EXAMPLE_QUESTIONS contains standard sample prompts for the Detect interface.
+// Factual answers and verification findings are generated dynamically by active AI services.
 
 export const EXAMPLE_QUESTIONS = [
   'What is the capital of India?',

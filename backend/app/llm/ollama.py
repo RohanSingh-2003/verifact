@@ -14,6 +14,42 @@ from app.llm.client import parse_json_object
 logger = logging.getLogger("verifact.llm.ollama")
 
 
+
+_OLLAMA_CALL_COUNTER: int = 0
+_SEMAPHORE: asyncio.Semaphore | None = None
+_SEMAPHORE_LIMIT: int = 1
+
+
+def get_ollama_call_count() -> int:
+    return _OLLAMA_CALL_COUNTER
+
+
+def reset_ollama_call_count() -> None:
+    global _OLLAMA_CALL_COUNTER
+    _OLLAMA_CALL_COUNTER = 0
+
+
+def increment_ollama_call_count() -> int:
+    global _OLLAMA_CALL_COUNTER
+    _OLLAMA_CALL_COUNTER += 1
+    return _OLLAMA_CALL_COUNTER
+
+
+def get_ollama_semaphore(limit: int = 1) -> asyncio.Semaphore:
+    global _SEMAPHORE, _SEMAPHORE_LIMIT
+    safe_limit = max(1, limit)
+    if _SEMAPHORE is None or _SEMAPHORE_LIMIT != safe_limit:
+        _SEMAPHORE = asyncio.Semaphore(safe_limit)
+        _SEMAPHORE_LIMIT = safe_limit
+    return _SEMAPHORE
+
+
+class OllamaConcurrencyLimiter:
+    @staticmethod
+    def get_semaphore(limit: int = 1) -> asyncio.Semaphore:
+        return get_ollama_semaphore(limit)
+
+
 def native_ollama_base_url(settings: Settings) -> str:
     """Derive http://host:11434 from OLLAMA_BASE_URL (which may end with /v1)."""
     url = settings.ollama_base_url.strip().rstrip("/")
@@ -65,6 +101,8 @@ class OllamaClient(LLMClient):
         if parsed is None:
             logger.warning("Failed to parse JSON from Ollama model %s: %s", model, content[:500])
             raise LLMError("Model returned malformed JSON.")
+        if isinstance(parsed, dict):
+            parsed["_raw"] = content
         return parsed
 
     async def complete_text(
@@ -110,56 +148,73 @@ class OllamaClient(LLMClient):
         if json_mode:
             payload["format"] = "json"
 
-        last_error: Exception | None = None
-        for attempt in range(self._settings.llm_max_retries + 1):
-            try:
-                response = await self._client.post("/api/chat", json=payload)
-                if response.status_code == 429:
-                    last_error = LLMRateLimitError("Ollama rate-limited the request.")
+        concurrency = getattr(self._settings, "ollama_max_concurrency", 1)
+        sem = get_ollama_semaphore(concurrency)
+        async with sem:
+            increment_ollama_call_count()
+            last_error: Exception | None = None
+            for attempt in range(self._settings.llm_max_retries + 1):
+                try:
+                    response = await self._client.post("/api/chat", json=payload)
+                    if response.status_code == 429:
+                        last_error = LLMRateLimitError("Ollama rate-limited the request.")
+                        if attempt >= self._settings.llm_max_retries:
+                            raise last_error
+                        await asyncio.sleep(min(2**attempt, 20))
+                        continue
+                    if response.status_code >= 500:
+                        last_error = LLMError(f"Ollama returned HTTP {response.status_code}.")
+                        logger.error("Ollama HTTP %s for model %s", response.status_code, model)
+                        if attempt >= self._settings.llm_max_retries:
+                            raise last_error
+                        await asyncio.sleep(min(2**attempt, 20))
+                        continue
+                    if response.status_code >= 400:
+                        logger.error(
+                            "Ollama HTTP %s for model %s: %s",
+                            response.status_code,
+                            model,
+                            response.text[:500],
+                        )
+                        raise LLMError(f"Ollama returned HTTP {response.status_code}.")
+                    data = response.json()
+                    message = data.get("message") or {}
+                    content = message.get("content")
+                    if not isinstance(content, str) or not content.strip():
+                        raise LLMError("Ollama returned an empty completion.")
+                    return content.strip()
+                except httpx.TimeoutException as exc:
+                    last_error = LLMTimeoutError("Ollama request timed out.")
+                    logger.warning("Ollama timeout for model %s (attempt %s)", model, attempt + 1)
                     if attempt >= self._settings.llm_max_retries:
-                        raise last_error
+                        raise last_error from exc
                     await asyncio.sleep(min(2**attempt, 20))
-                    continue
-                if response.status_code >= 500:
-                    last_error = LLMError(f"Ollama returned HTTP {response.status_code}.")
-                    logger.error("Ollama HTTP %s for model %s", response.status_code, model)
+                except LLMRateLimitError:
+                    raise
+                except LLMError as exc:
+                    if "HTTP 4" in str(exc) and "HTTP 429" not in str(exc):
+                        raise
+                    last_error = exc
                     if attempt >= self._settings.llm_max_retries:
-                        raise last_error
+                        raise
                     await asyncio.sleep(min(2**attempt, 20))
-                    continue
-                if response.status_code >= 400:
-                    logger.error(
-                        "Ollama HTTP %s for model %s: %s",
-                        response.status_code,
-                        model,
-                        response.text[:500],
+                except httpx.ConnectError as exc:
+                    base_url = native_ollama_base_url(self._settings)
+                    last_error = LLMError(
+                        f"Cannot connect to Ollama at {base_url}. "
+                        "Is the Ollama daemon running? Start it with 'ollama serve'."
                     )
-                    raise LLMError(f"Ollama returned HTTP {response.status_code}.")
-                data = response.json()
-                message = data.get("message") or {}
-                content = message.get("content")
-                if not isinstance(content, str) or not content.strip():
-                    raise LLMError("Ollama returned an empty completion.")
-                return content.strip()
-            except httpx.TimeoutException as exc:
-                last_error = LLMTimeoutError("Ollama request timed out.")
-                logger.warning("Ollama timeout for model %s (attempt %s)", model, attempt + 1)
-                if attempt >= self._settings.llm_max_retries:
-                    raise last_error from exc
-                await asyncio.sleep(min(2**attempt, 20))
-            except LLMRateLimitError:
-                raise
-            except LLMError as exc:
-                if "HTTP 4" in str(exc) and "HTTP 429" not in str(exc):
-                    raise
-                last_error = exc
-                if attempt >= self._settings.llm_max_retries:
-                    raise
-                await asyncio.sleep(min(2**attempt, 20))
-            except (httpx.HTTPError, KeyError, TypeError, json.JSONDecodeError) as exc:
-                last_error = LLMError("Ollama request failed.")
-                logger.exception("Ollama call failed for model %s", model)
-                if attempt >= self._settings.llm_max_retries:
-                    raise last_error from exc
-                await asyncio.sleep(min(2**attempt, 20))
-        raise last_error or LLMError("Ollama request failed.")
+                    logger.error(
+                        "Ollama connection refused for model %s at %s (attempt %s)",
+                        model, base_url, attempt + 1,
+                    )
+                    if attempt >= self._settings.llm_max_retries:
+                        raise last_error from exc
+                    await asyncio.sleep(min(2**attempt, 20))
+                except (httpx.HTTPError, KeyError, TypeError, json.JSONDecodeError) as exc:
+                    last_error = LLMError("Ollama request failed.")
+                    logger.exception("Ollama call failed for model %s", model)
+                    if attempt >= self._settings.llm_max_retries:
+                        raise last_error from exc
+                    await asyncio.sleep(min(2**attempt, 20))
+            raise last_error or LLMError("Ollama request failed.")

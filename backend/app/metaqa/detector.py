@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from app.config import Settings
-from app.llm.base import LLMClient, LLMError
+from app.llm.base import LLMClient, LLMError, LLMTimeoutError
 from app.llm.prompts import ANSWER_SYSTEM, ANSWER_USER
 from app.metaqa.mutation import GeneratedMutation, generate_mutations
 from app.metaqa.scoring import (
@@ -24,6 +24,10 @@ from app.metaqa.verifier import VerifierResult, verify_mutation
 logger = logging.getLogger("verifact.detector")
 
 
+class MetaqaVerificationUnavailable(LLMError):
+    """Raised when no mutation verifications completed successfully."""
+
+
 @dataclass(frozen=True)
 class BaseAnswer:
     text: str
@@ -33,11 +37,12 @@ class BaseAnswer:
 @dataclass(frozen=True)
 class ScoredMutation:
     mutation: GeneratedMutation
-    verdict: Verdict
+    verdict: Verdict | None
     expected: Verdict
     contribution: float
     rationale: str
     parse_failed: bool = False
+    unavailable: bool = False
 
 
 @dataclass(frozen=True)
@@ -62,12 +67,30 @@ class DetectionResult:
     not_sure_rate: float
     generator_model: str
     verifier_model: str
-    llm_mode: str
+    llm_mode: str = "live"
     timing: StageTiming | None = field(default=None)
+    metaqa_completion: str = "complete"  # complete | partial
+    verified_count: int = 0
+    expected_count: int = 0
 
 
-def score_mutation(mutation: GeneratedMutation, result: VerifierResult) -> ScoredMutation:
+def score_mutation(
+    mutation: GeneratedMutation,
+    result: VerifierResult,
+    *,
+    unavailable: bool = False,
+) -> ScoredMutation:
     expected = expected_verdict(mutation.type)
+    if unavailable or result.parse_failed or result.verdict is None:
+        return ScoredMutation(
+            mutation=mutation,
+            verdict=result.verdict,
+            expected=expected,
+            contribution=0.0,
+            rationale=result.rationale or result.error or "Mutation verification did not complete.",
+            parse_failed=True,
+            unavailable=True,
+        )
     contribution = contribution_score(mutation.type, result.verdict)
     return ScoredMutation(
         mutation=mutation,
@@ -75,7 +98,8 @@ def score_mutation(mutation: GeneratedMutation, result: VerifierResult) -> Score
         expected=expected,
         contribution=contribution,
         rationale=result.rationale,
-        parse_failed=result.parse_failed,
+        parse_failed=False,
+        unavailable=False,
     )
 
 
@@ -119,10 +143,9 @@ async def run_detection(
     syn_n = synonym_count if synonym_count is not None else settings.synonym_count
     ant_n = antonym_count if antonym_count is not None else settings.antonym_count
     logger.info(
-        "run started generator=%s verifier=%s llm_mode=%s question_len=%s mutations=%s+%s concurrency=%s",
+        "run started generator=%s verifier=%s question_len=%s mutations=%s+%s concurrency=%s",
         generator,
         verifier,
-        settings.llm_mode,
         len(cleaned_question),
         syn_n,
         ant_n,
@@ -182,7 +205,14 @@ async def run_metaqa_analysis(
     """
     cleaned_question = question.strip()
     generator = settings.require_model(generator_model or settings.generator_model)
-    verifier = settings.require_model(verifier_model or settings.verifier_model)
+    mutation_model = settings.require_model(
+        generator_model or settings.effective_mutation_model
+    )
+    verifier = (
+        verifier_model or settings.effective_verifier_model
+        if verifier_llm is not None
+        else settings.require_model(verifier_model or settings.verifier_model)
+    )
     verifier_client = verifier_llm or llm
     syn_n = synonym_count if synonym_count is not None else settings.synonym_count
     ant_n = antonym_count if antonym_count is not None else settings.antonym_count
@@ -194,7 +224,7 @@ async def run_metaqa_analysis(
     mutation_started = time.perf_counter()
     mutations = await generate_mutations(
         llm,
-        model=generator,
+        model=mutation_model,
         question=cleaned_question,
         answer=answer.text,
         synonym_count=syn_n,
@@ -212,13 +242,19 @@ async def run_metaqa_analysis(
         on_stage("verifying_mutations")
 
     verify_started = time.perf_counter()
+    # Use Gemini-specific concurrency when cross-model verification is active
+    verify_concurrency = (
+        settings.gemini_verify_concurrency
+        if verifier_llm is not None
+        else settings.verify_concurrency
+    )
     scored = await verify_mutations(
         verifier_client,
         question=cleaned_question,
         answer=answer.text,
         mutations=mutations,
         verifier_model=verifier,
-        concurrency=settings.verify_concurrency,
+        concurrency=verify_concurrency,
         max_tokens=settings.llm_verify_max_tokens,
         on_result=on_mutation_verified,
     )
@@ -228,14 +264,42 @@ async def run_metaqa_analysis(
         on_stage("calculating_score")
 
     total_ms = (time.perf_counter() - started) * 1000
-    malformed = sum(1 for item in scored if item.parse_failed)
-    if malformed:
-        logger.warning("malformed verdict count=%s of %s", malformed, len(scored))
-    contributions = [item.contribution for item in scored]
-    verdicts = [item.verdict for item in scored]
+    usable = [
+        item for item in scored
+        if not item.unavailable and not item.parse_failed and item.verdict is not None
+    ]
+    expected_count = len(scored)
+    verified_count = len(usable)
+    if verified_count == 0:
+        logger.error(
+            "metaqa verification unavailable verified=0 expected=%s verify_ms=%.0f",
+            expected_count,
+            verify_ms,
+        )
+        underlying = [item.rationale for item in scored if item.rationale]
+        detail = f": {underlying[0]}" if underlying else ""
+        raise MetaqaVerificationUnavailable(
+            f"Mutation verification did not complete for any of {expected_count} mutations{detail}."
+        )
+
+    contributions = [item.contribution for item in usable]
+    verdicts = [item.verdict for item in usable if item.verdict is not None]
+    scoring_started = time.perf_counter()
     score = aggregate_score(contributions)
     classification = classify(score, settings.threshold)
-    rate = not_sure_rate(verdicts)
+    rate = not_sure_rate(verdicts) if verdicts else 0.0
+    scoring_ms = (time.perf_counter() - scoring_started) * 1000
+    completion = "complete" if verified_count == expected_count else "partial"
+    verifier_label = "Gemini" if verifier_llm is not None else "Ollama"
+    logger.info(
+        "MetaQA stage timings — Answer generation: %.1fs, Mutation generation: %.1fs, "
+        "%s verification: %.1fs, MetaQA scoring: %.1fms",
+        answer_ms / 1000,
+        mutation_ms / 1000,
+        verifier_label,
+        verify_ms / 1000,
+        scoring_ms,
+    )
     timing = StageTiming(
         answer_ms=round(answer_ms, 1),
         mutation_ms=round(mutation_ms, 1),
@@ -246,16 +310,22 @@ async def run_metaqa_analysis(
         verify_concurrency=settings.verify_concurrency,
     )
     logger.info(
-        "metaqa completed score=%s classification=%s not_sure_rate=%s mutations=%s "
-        "timing_ms answer=%.0f mutation=%.0f verify=%.0f total=%.0f",
+        "metaqa completed completion=%s score=%s classification=%s not_sure_rate=%s "
+        "verified=%s/%s timing_ms answer=%.0f mutation=%.0f verify=%.0f total=%.0f "
+        "answer_generation_ms=%.0f mutation_generation_ms=%.0f metaqa_verification_ms=%.0f",
+        completion,
         score,
         classification.value,
         rate,
-        len(scored),
+        verified_count,
+        expected_count,
         timing.answer_ms,
         timing.mutation_ms,
         timing.verify_ms,
         timing.total_ms,
+        timing.answer_ms,
+        timing.mutation_ms,
+        timing.verify_ms,
     )
     return DetectionResult(
         question=cleaned_question,
@@ -269,6 +339,9 @@ async def run_metaqa_analysis(
         verifier_model=verifier,
         llm_mode=settings.llm_mode,
         timing=timing,
+        metaqa_completion=completion,
+        verified_count=verified_count,
+        expected_count=expected_count,
     )
 
 
@@ -283,7 +356,9 @@ async def verify_mutations(
     max_tokens: int | None = None,
     on_result: Callable[[int, ScoredMutation], None] | None = None,
 ) -> list[ScoredMutation]:
-    semaphore = asyncio.Semaphore(concurrency)
+    """Verify mutations with a bounded semaphore. One failure never cancels siblings."""
+    limit = max(1, int(concurrency))
+    semaphore = asyncio.Semaphore(limit)
     results: list[ScoredMutation | None] = [None] * len(mutations)
 
     async def _one(index: int, mutation: GeneratedMutation) -> ScoredMutation:
@@ -297,10 +372,38 @@ async def verify_mutations(
                     statement=mutation.mutated_text,
                     max_tokens=max_tokens,
                 )
-            except Exception:
-                logger.exception("verification failed; recording NOT SURE")
-                result = VerifierResult(verdict=Verdict.NOT_SURE, rationale="", parse_failed=True)
-            scored = score_mutation(mutation, result)
+                unavailable = result.parse_failed or result.verdict is None
+                scored = score_mutation(mutation, result, unavailable=unavailable)
+            except LLMTimeoutError:
+                logger.warning(
+                    "verification timed out mutation_index=%s; marking unavailable",
+                    index,
+                )
+                scored = score_mutation(
+                    mutation,
+                    VerifierResult(
+                        verdict=None,
+                        rationale="Mutation verification timed out.",
+                        parse_failed=True,
+                        error="Timeout",
+                    ),
+                    unavailable=True,
+                )
+            except Exception as exc:
+                logger.exception(
+                    "verification failed mutation_index=%s; marking unavailable",
+                    index,
+                )
+                scored = score_mutation(
+                    mutation,
+                    VerifierResult(
+                        verdict=None,
+                        rationale=f"Mutation verification failed: {exc}",
+                        parse_failed=True,
+                        error=str(exc),
+                    ),
+                    unavailable=True,
+                )
             results[index] = scored
             if on_result is not None:
                 on_result(index, scored)
@@ -308,5 +411,11 @@ async def verify_mutations(
 
     await asyncio.gather(*[_one(index, item) for index, item in enumerate(mutations)])
     scored = [item for item in results if item is not None]
-    logger.info("verification completed count=%s concurrency=%s", len(scored), concurrency)
+    available = sum(1 for item in scored if not item.unavailable)
+    logger.info(
+        "verification completed available=%s/%s concurrency=%s",
+        available,
+        len(scored),
+        limit,
+    )
     return scored

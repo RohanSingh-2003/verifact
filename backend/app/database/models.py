@@ -21,6 +21,8 @@ class Run(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     question: Mapped[str] = mapped_column(Text, nullable=False)
     generator_model: Mapped[str] = mapped_column(String(128), nullable=False)
+    mutation_generator_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    mutation_verifier_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
     base_answer: Mapped[str] = mapped_column(Text, nullable=False)
     # Placeholder values until MetaQA completes; API maps Incomplete → null.
     hallucination_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -30,6 +32,10 @@ class Run(Base):
     llm_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="live")
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="completed")
     analysis_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # Web Evidence (independent parallel pipeline; JSON payload for Phase 1).
+    web_evidence_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
+    web_evidence_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    web_evidence_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
     answer_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     mutation_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     verify_ms: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -152,20 +152,47 @@ class OpenAICompatibleClient(LLMClient):
         raise last_error or LLMError("LLM provider request failed.")
 
 
+def strip_markdown_fences(raw: str) -> str:
+    cleaned = raw.strip()
+    fence_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned, re.IGNORECASE)
+    if fence_match:
+        return fence_match.group(1).strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    return cleaned.strip()
+
+
 def parse_json_object(raw: str) -> dict[str, Any] | None:
-    text = raw.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?", "", text).strip()
-        text = re.sub(r"```$", "", text).strip()
+    text = strip_markdown_fences(raw)
     try:
         value = json.loads(text)
-        return value if isinstance(value, dict) else None
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, list):
+            return {"mutations": value, "items": value}
     except json.JSONDecodeError:
-        match = JSON_BLOCK.search(text)
-        if not match:
-            return None
+        pass
+
+    match = JSON_BLOCK.search(text)
+    if match:
         try:
             value = json.loads(match.group(0))
-            return value if isinstance(value, dict) else None
+            if isinstance(value, dict):
+                return value
+            if isinstance(value, list):
+                return {"mutations": value, "items": value}
         except json.JSONDecodeError:
-            return None
+            pass
+
+    list_match = re.search(r"\[[\s\S]*\]", text)
+    if list_match:
+        try:
+            value = json.loads(list_match.group(0))
+            if isinstance(value, list):
+                return {"mutations": value, "items": value}
+        except json.JSONDecodeError:
+            pass
+
+    return None
+

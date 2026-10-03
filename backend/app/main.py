@@ -30,16 +30,14 @@ def create_app() -> FastAPI:
     _configure_logging()
     Path("data").mkdir(exist_ok=True)
     init_db()
-    if settings.llm_mode == "mock":
-        logger.warning("LLM_MODE=mock; using deterministic MockLLMClient (development only)")
-    else:
-        logger.info(
-            "starting VeriFact llm_mode=%s llm_provider=%s generator=%s verifier=%s",
-            settings.llm_mode,
-            settings.llm_provider,
-            settings.generator_model,
-            settings.verifier_model,
-        )
+    logger.info(
+        "starting VeriFact llm_provider=%s generator=%s verifier=%s gemini_verifier=%s tavily=%s",
+        settings.llm_provider,
+        settings.generator_model,
+        settings.effective_verifier_model,
+        settings.gemini_verifier_ready,
+        settings.web_evidence_ready,
+    )
 
     application = FastAPI(
         title="VeriFact",

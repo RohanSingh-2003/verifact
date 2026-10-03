@@ -1,16 +1,16 @@
 import { Link, NavLink } from 'react-router-dom'
-import { BookOpen, FlaskConical, History, ScanSearch, Settings } from 'lucide-react'
+import { BookOpen, Globe, History, ScanSearch, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { classNames } from '../../lib/format'
 
 const primaryNav = [
   { to: '/', label: 'Detect', icon: ScanSearch, end: true },
   { to: '/history', label: 'History', icon: History, end: false },
-  { to: '/experiments', label: 'Experiments', icon: FlaskConical, end: false },
 ] as const
 
 const secondaryNav = [
   { to: '/metaqa', label: 'MetaQA', icon: BookOpen },
+  { to: '/web-analysis', label: 'Web Analysis', icon: Globe },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const
 
@@ -132,14 +132,14 @@ export function MobileTopBar() {
 }
 
 export function MobileNav() {
-  const items = [...primaryNav, secondaryNav[0]]
+  const items = [...primaryNav, ...secondaryNav]
 
   return (
     <nav
       aria-label="Mobile"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:hidden"
     >
-      <ul className="grid grid-cols-4 gap-1">
+      <ul className="grid grid-cols-5 gap-1">
         {items.map((item) => {
           const Icon = item.icon
           return (
@@ -155,7 +155,7 @@ export function MobileNav() {
                 }
               >
                 <Icon className="h-[18px] w-[18px]" strokeWidth={1.75} />
-                {item.label}
+                <span className="truncate max-w-full text-center">{item.label}</span>
               </NavLink>
             </li>
           )

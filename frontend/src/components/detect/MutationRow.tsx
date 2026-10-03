@@ -48,15 +48,24 @@ function ExpectedPill({ value }: { value: VerifierResponse }) {
   )
 }
 
+function FailedPill() {
+  return (
+    <span className="inline-flex min-w-[4.5rem] justify-center rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-red-700 dark:bg-red-950/60 dark:text-red-300">
+      Failed
+    </span>
+  )
+}
+
 interface MutationRowProps {
   mutation: MutationRecord
 }
 
 export function MutationRow({ mutation }: MutationRowProps) {
   const [open, setOpen] = useState(false)
-  const pending = !mutation.verified || mutation.verifier == null
+  const failed = Boolean(mutation.parseFailed) || (!mutation.verified && mutation.score === null && Boolean(mutation.reasoning))
+  const pending = !failed && (!mutation.verified || mutation.verifier == null)
   const mismatched =
-    !pending && mutation.verifier != null
+    !pending && !failed && mutation.verifier != null
       ? unexpectedMutation(mutation.verifier, mutation.expected)
       : false
   const typeHint = mutationMeaningLabel(mutation.kind)
@@ -84,7 +93,9 @@ export function MutationRow({ mutation }: MutationRowProps) {
               >
                 {mutationKindLabel(mutation.kind)}
               </span>
-              {pending ? (
+              {failed ? (
+                <span className="font-medium text-red-600 dark:text-red-400">Verification failed</span>
+              ) : pending ? (
                 <span>Verifying…</span>
               ) : mismatched ? (
                 <span>Unexpected</span>
@@ -101,7 +112,9 @@ export function MutationRow({ mutation }: MutationRowProps) {
             <div>
               <dt className="text-ink-muted">AI verdict</dt>
               <dd className="mt-1">
-                {pending || mutation.verifier == null ? (
+                {failed ? (
+                  <FailedPill />
+                ) : pending || mutation.verifier == null ? (
                   <PendingPill label="…" />
                 ) : (
                   <ActualPill value={mutation.verifier} />
@@ -119,7 +132,7 @@ export function MutationRow({ mutation }: MutationRowProps) {
             <div className="col-span-2">
               <dt className="text-ink-muted">Score contribution</dt>
               <dd className="mt-1 tabular-nums text-ink">
-                {pending ? '—' : formatScore(mutation.score ?? 0)}
+                {pending || failed ? '—' : formatScore(mutation.score ?? 0)}
               </dd>
             </div>
           </dl>
@@ -138,7 +151,9 @@ export function MutationRow({ mutation }: MutationRowProps) {
           >
             {mutationKindLabel(mutation.kind)}
           </span>
-          {pending || mutation.verifier == null ? (
+          {failed ? (
+            <FailedPill />
+          ) : pending || mutation.verifier == null ? (
             <PendingPill label="…" />
           ) : (
             <ActualPill value={mutation.verifier} />
@@ -150,7 +165,7 @@ export function MutationRow({ mutation }: MutationRowProps) {
             className="text-right text-sm tabular-nums text-ink"
             title="How much this test contributes to the MetaQA hallucination score"
           >
-            {pending ? '—' : formatScore(mutation.score ?? 0)}
+            {pending || failed ? '—' : formatScore(mutation.score ?? 0)}
           </span>
           <ChevronDown
             className={classNames(
@@ -187,20 +202,39 @@ export function MutationRow({ mutation }: MutationRowProps) {
             <div>
               <dt className="text-xs text-ink-muted">Verification</dt>
               <dd className="mt-1 space-y-0.5 tabular-nums text-ink-secondary">
-                <p>
-                  AI verdict:{' '}
-                  {pending || mutation.verifier == null ? '…' : verifierLabel(mutation.verifier)}
-                </p>
-                <p>Expected: {verifierLabel(mutation.expected)}</p>
-                <p>Score contribution: {pending ? '—' : formatScore(mutation.score ?? 0)}</p>
+                {failed ? (
+                  <>
+                    <p className="font-semibold text-red-600 dark:text-red-400">
+                      Verification failed
+                    </p>
+                    <p className="text-xs text-ink-muted">
+                      Reason: {mutation.reasoning || 'Gemini returned an incomplete or invalid response.'}
+                    </p>
+                    <p>Expected: {verifierLabel(mutation.expected)}</p>
+                    <p>Score contribution: — (excluded from MetaQA score)</p>
+                  </>
+                ) : (
+                  <>
+                    <p>
+                      AI verdict:{' '}
+                      {pending || mutation.verifier == null ? '…' : verifierLabel(mutation.verifier)}
+                    </p>
+                    <p>Expected: {verifierLabel(mutation.expected)}</p>
+                    <p>Score contribution: {pending ? '—' : formatScore(mutation.score ?? 0)}</p>
+                  </>
+                )}
               </dd>
             </div>
             <div>
               <dt className="text-xs text-ink-muted">Interpretation</dt>
               <dd className="mt-1 leading-6 text-ink">
-                {pending ? 'Waiting for verifier result…' : interpretation}
+                {failed
+                  ? 'Technical verification failure: this test was excluded from the MetaQA score calculation.'
+                  : pending
+                  ? 'Waiting for verifier result…'
+                  : interpretation}
               </dd>
-              {!pending ? (
+              {!pending && !failed ? (
                 <p className="mt-1.5 text-xs leading-5 text-ink-muted">
                   {mutationExpectationLabel(mutation.kind)} This explanation is for display only and
                   does not affect the MetaQA score.

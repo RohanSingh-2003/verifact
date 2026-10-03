@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { getSettings } from '../services/api'
 import { PageHeader } from '../components/ui/PageHeader'
 import { ErrorState, LoadingState } from '../components/ui/Status'
-import { classNames, formatScore } from '../lib/format'
+import { classNames, formatModelDisplay, formatProviderDisplay } from '../lib/format'
 import type { AppSettings } from '../types'
 import { useTheme } from '../theme/ThemeProvider'
 import type { ThemePreference } from '../lib/theme'
@@ -17,42 +17,79 @@ const THEME_OPTIONS: Array<{
   { value: 'system', label: 'System', description: "Follow your computer's system theme." },
 ]
 
+const APP_VERSION = 'v1.0.0'
+const METAQA_PAPER_URL = 'https://doi.org/10.1145/3715735'
+const CLAIMCHECK_PAPER_URL = 'https://aclanthology.org/2025.knowledgenlp-1.26/'
+
 export function SettingsPage() {
   const [settings, setSettings] = useState<AppSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const { preference, setPreference } = useTheme()
 
   useEffect(() => {
-    void getSettings()
-      .then((value) => {
-        setSettings(value)
+    let cancelled = false
+
+    getSettings()
+      .then((settingsData) => {
+        if (cancelled) return
+        setSettings(settingsData)
         setError(null)
       })
-      .catch((err) => {
+      .catch((err: Error) => {
+        if (cancelled) return
         setError(
           err instanceof Error
             ? err.message
             : 'Unable to load settings. Check that the FastAPI server is running.',
         )
       })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
+  // Resolve verifier model and provider
+  const verifierModelName =
+    settings?.effectiveVerifierModel ||
+    settings?.geminiVerifierModel ||
+    settings?.verifierModel ||
+    'gemini-3.8-flash'
+
+  const isGeminiVerifier =
+    verifierModelName.toLowerCase().includes('gemini') ||
+    Boolean(settings?.geminiVerifierReady)
+
+  const verifierProviderName = isGeminiVerifier
+    ? 'Google Gemini'
+    : formatProviderDisplay(settings?.llmProvider, verifierModelName)
+
+  const generatorModelDisplay = formatModelDisplay(settings?.generatorModel) ?? 'Gemma 4:26B'
+  const generatorProviderDisplay =
+    formatProviderDisplay(settings?.llmProvider, settings?.generatorModel) || 'Ollama'
+  const verifierModelDisplay = formatModelDisplay(verifierModelName) ?? 'Gemini 3.8 Flash'
+
   return (
-    <div className="mx-auto max-w-xl">
+    <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
         title="Settings"
-        description="Appearance preferences are saved in this browser. Detection defaults are read from the backend and are not edited here."
+        description="Appearance preferences and active AI services."
       />
 
-      <section className="panel mb-6 space-y-4 p-5">
+      {/* 1. Appearance */}
+      <section className="panel space-y-4 p-5">
         <div>
-          <h2 className="text-sm font-medium text-ink">Theme</h2>
-          <p className="mt-1 text-xs text-ink-muted">Choose how VeriFact looks on this device.</p>
+          <h2 className="text-sm font-semibold tracking-tight text-ink">Appearance</h2>
+          <p className="mt-0.5 text-xs text-ink-muted">Choose how VeriFact looks on this device.</p>
         </div>
         <div
           className="flex rounded-[var(--radius-sm)] bg-surface-muted p-1"
           role="radiogroup"
-          aria-label="Theme"
+          aria-label="Appearance theme"
         >
           {THEME_OPTIONS.map((option) => {
             const selected = preference === option.value
@@ -81,80 +118,169 @@ export function SettingsPage() {
       </section>
 
       {error ? <ErrorState message={error} /> : null}
-      {!settings && !error ? <LoadingState label="Loading settings…" /> : null}
+      {loading && !settings ? <LoadingState label="Loading settings…" /> : null}
+
       {settings ? (
-        <div className="panel space-y-6 p-5">
-          <p className="text-sm text-ink-secondary">
-            Mode:{' '}
-            <span className="font-medium text-ink">
-              {settings.llmMode === 'live' && settings.llmProvider === 'ollama'
-                ? 'Live Mode — Local Ollama'
-                : settings.llmMode === 'live' && settings.liveReady
-                  ? 'Live LLM Mode'
-                  : settings.llmMode === 'live'
-                    ? 'Live configured (blocked — API key missing)'
-                    : 'Demo / Mock Mode'}
-            </span>
-            {settings.llmMode === 'live' && settings.llmProvider === 'ollama'
-              ? ` · Model: ${settings.generatorModel}`
-              : ''}
-            {settings.llmMode === 'live' &&
-            settings.llmProvider !== 'ollama' &&
-            !settings.apiKeyConfigured
-              ? ' API keys are not returned to this page.'
-              : ''}
-          </p>
-          <label className="block">
-            <span className="text-sm font-medium text-ink">Detection threshold</span>
-            <span className="mt-1 block text-xs text-ink-muted">
-              Scores at or above this value are classified as likely hallucinated. Changing the
-              experimental best-F1 threshold does not change this production value.
-            </span>
-            <div className="mt-3 flex items-center gap-4">
-              <input
-                type="range"
-                min={0.1}
-                max={0.9}
-                step={0.05}
-                value={settings.threshold}
-                disabled
-                className="w-full accent-accent"
-              />
-              <span className="w-10 text-sm tabular-nums text-ink">
-                {formatScore(settings.threshold)}
-              </span>
-            </div>
-          </label>
-          <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+        <>
+          {/* 2. AI Configuration */}
+          <section className="panel space-y-4 p-5">
             <div>
-              <dt className="text-ink-muted">Generator A</dt>
-              <dd className="mt-1 text-ink">{settings.generatorModelA}</dd>
+              <h2 className="text-sm font-semibold tracking-tight text-ink">AI Configuration</h2>
+              <p className="mt-0.5 text-xs text-ink-muted">
+                Models and services currently used by VeriFact.
+              </p>
             </div>
+
+            <div className="divide-y divide-line/60">
+              <div className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                <span className="text-sm font-medium text-ink">Answer generation</span>
+                <span className="text-sm text-ink-secondary">
+                  <span className="font-medium text-ink">{generatorModelDisplay}</span> ·{' '}
+                  {generatorProviderDisplay}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                <span className="text-sm font-medium text-ink">MetaQA verification</span>
+                <span className="text-sm text-ink-secondary">
+                  <span className="font-medium text-ink">{verifierModelDisplay}</span> ·{' '}
+                  {verifierProviderName}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                <span className="text-sm font-medium text-ink">Web evidence</span>
+                <span className="text-sm font-medium text-ink">Tavily</span>
+              </div>
+            </div>
+          </section>
+
+          {/* 3. About VeriFact */}
+          <section className="panel space-y-5 p-5">
             <div>
-              <dt className="text-ink-muted">Generator B</dt>
-              <dd className="mt-1 text-ink">{settings.generatorModelB}</dd>
+              <h2 className="text-sm font-semibold tracking-tight text-ink">About VeriFact</h2>
+              <p className="mt-0.5 text-xs leading-relaxed text-ink-secondary">
+                VeriFact helps examine AI-generated answers using two complementary approaches:
+                MetaQA consistency checking and Web Evidence Analysis.
+              </p>
             </div>
-            <div>
-              <dt className="text-ink-muted">Verifier A</dt>
-              <dd className="mt-1 text-ink">{settings.verifierModelA}</dd>
+
+            {/* Product Overview */}
+            <div className="divide-y divide-line/60">
+              <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                <span className="text-xs font-medium text-ink-muted">Product</span>
+                <span className="text-xs font-medium text-ink">VeriFact</span>
+              </div>
+
+              <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                <span className="text-xs font-medium text-ink-muted">Purpose</span>
+                <span className="text-xs font-medium text-ink">AI Hallucination Detection</span>
+              </div>
+
+              <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                <span className="text-xs font-medium text-ink-muted">Version</span>
+                <span className="font-mono text-xs font-medium text-ink">{APP_VERSION}</span>
+              </div>
+
+              <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                <span className="text-xs font-medium text-ink-muted">Status</span>
+                <span className="text-xs font-medium text-ink">Research Prototype</span>
+              </div>
             </div>
-            <div>
-              <dt className="text-ink-muted">Verifier B</dt>
-              <dd className="mt-1 text-ink">{settings.verifierModelB}</dd>
+
+            {/* Research Subsection */}
+            <div className="border-t border-line/60 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                Research
+              </h3>
+              <div className="mt-2.5 space-y-3">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                  <div>
+                    <span className="text-xs font-medium text-ink">MetaQA</span>
+                    <span className="ml-2 text-xs text-ink-muted">Yang et al., FSE 2025</span>
+                  </div>
+                  <a
+                    href={METAQA_PAPER_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-ink-secondary underline-offset-4 hover:text-ink hover:underline"
+                  >
+                    View research paper →
+                  </a>
+                </div>
+
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+                  <div>
+                    <span className="text-xs font-medium text-ink">Web Evidence</span>
+                    <span className="ml-2 text-xs text-ink-muted">
+                      ClaimCheck, KnowledgeNLP 2025
+                    </span>
+                  </div>
+                  <a
+                    href={CLAIMCHECK_PAPER_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-ink-secondary underline-offset-4 hover:text-ink hover:underline"
+                  >
+                    View research paper →
+                  </a>
+                </div>
+              </div>
             </div>
-            <div>
-              <dt className="text-ink-muted">MAX_QUESTIONS</dt>
-              <dd className="mt-1 text-ink">{settings.maxQuestions}</dd>
+
+            {/* Technology Subsection */}
+            <div className="border-t border-line/60 pt-4">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-ink-muted">
+                Technology
+              </h3>
+              <div className="mt-2.5 divide-y divide-line/60">
+                <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                  <span className="text-xs font-medium text-ink-muted">Frontend</span>
+                  <span className="text-xs font-medium text-ink">React · TypeScript · Vite</span>
+                </div>
+
+                <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                  <span className="text-xs font-medium text-ink-muted">Backend</span>
+                  <span className="text-xs font-medium text-ink">Python · FastAPI</span>
+                </div>
+
+                <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                  <span className="text-xs font-medium text-ink-muted">Database</span>
+                  <span className="text-xs font-medium text-ink">SQLite</span>
+                </div>
+
+                <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                  <span className="text-xs font-medium text-ink-muted">Local AI</span>
+                  <span className="text-xs font-medium text-ink">
+                    {generatorProviderDisplay} · {generatorModelDisplay}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                  <span className="text-xs font-medium text-ink-muted">MetaQA Verification</span>
+                  <span className="text-xs font-medium text-ink">
+                    {verifierProviderName} · {verifierModelDisplay}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                  <span className="text-xs font-medium text-ink-muted">Web Evidence</span>
+                  <span className="text-xs font-medium text-ink">Tavily</span>
+                </div>
+              </div>
             </div>
-            <div>
-              <dt className="text-ink-muted">Mutations</dt>
-              <dd className="mt-1 text-ink">
-                {settings.synonymCount} synonym + {settings.antonymCount} antonym
-              </dd>
+
+            {/* Tagline & Footer */}
+            <div className="border-t border-line/60 pt-3 text-center sm:text-left">
+              <p className="text-xs italic text-ink-secondary">"Verify what AI says."</p>
+              <p className="mt-1 text-[11px] text-ink-muted">
+                VeriFact {APP_VERSION} · Research prototype for AI hallucination detection.
+              </p>
             </div>
-          </dl>
-        </div>
+          </section>
+        </>
       ) : null}
     </div>
   )
 }
+

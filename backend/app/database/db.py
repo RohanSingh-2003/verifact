@@ -57,6 +57,12 @@ def _ensure_sqlite_columns() -> None:
         statements.append("ALTER TABLE runs ADD COLUMN status VARCHAR(32) DEFAULT 'completed'")
     if run_cols and "analysis_error" not in run_cols:
         statements.append("ALTER TABLE runs ADD COLUMN analysis_error TEXT DEFAULT ''")
+    if run_cols and "web_evidence_status" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN web_evidence_status VARCHAR(32) DEFAULT 'pending'")
+    if run_cols and "web_evidence_error" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN web_evidence_error TEXT DEFAULT ''")
+    if run_cols and "web_evidence_json" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN web_evidence_json TEXT DEFAULT ''")
     if run_cols and "answer_ms" not in run_cols:
         statements.append("ALTER TABLE runs ADD COLUMN answer_ms FLOAT")
     if run_cols and "mutation_ms" not in run_cols:
@@ -65,6 +71,10 @@ def _ensure_sqlite_columns() -> None:
         statements.append("ALTER TABLE runs ADD COLUMN verify_ms FLOAT")
     if run_cols and "total_ms" not in run_cols:
         statements.append("ALTER TABLE runs ADD COLUMN total_ms FLOAT")
+    if run_cols and "mutation_generator_model" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN mutation_generator_model VARCHAR(128)")
+    if run_cols and "mutation_verifier_model" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN mutation_verifier_model VARCHAR(128)")
     mutation_cols = _sqlite_column_names("mutations")
     if mutation_cols and "parse_failed" not in mutation_cols:
         statements.append("ALTER TABLE mutations ADD COLUMN parse_failed BOOLEAN DEFAULT 0")

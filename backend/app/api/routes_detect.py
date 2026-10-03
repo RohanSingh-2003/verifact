@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 
@@ -5,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.api.deps import db_dep, get_llm_client, settings_dep
+from app.api.deps import db_dep, get_gemini_verifier_client, get_llm_client, settings_dep
 from app.config import Settings, get_settings
 from app.database.db import SessionLocal
 from app.llm.base import LLMClient, LLMError, LLMTimeoutError
@@ -13,6 +14,7 @@ from app.llm.client import OpenAICompatibleClient
 from app.llm.mock import MockLLMClient
 from app.llm.ollama import OllamaClient
 from app.metaqa.detector import BaseAnswer, generate_answer, run_metaqa_analysis
+from app.metaqa.detector import MetaqaVerificationUnavailable
 from app.schemas.detect import DetectRequest, DetectResponse, RunStatus
 from app.services.run_service import (
     classify_analysis_failure,
@@ -20,10 +22,14 @@ from app.services.run_service import (
     create_answer_ready_run,
     fail_run_analysis,
     persist_pending_mutations,
+    persist_web_evidence_result,
     to_detect_response,
     update_mutation_verification,
     update_run_status,
+    update_web_evidence_status,
 )
+from app.web_evidence.pipeline import build_web_search_client, run_web_evidence, unavailable_result
+from app.web_evidence.types import WebEvidenceResult, WebEvidenceStatus
 
 logger = logging.getLogger("verifact.api.detect")
 
@@ -32,18 +38,29 @@ router = APIRouter(tags=["detect"])
 
 def _new_llm_client(settings: Settings) -> LLMClient:
     """Fresh client for background MetaQA (avoid reusing request-scoped httpx loops)."""
-    if settings.llm_mode == "mock":
-        return MockLLMClient(
-            scenario=settings.mock_scenario,
-            scenarios_by_question={
-                "What is the capital of Australia?": "hallucinated",
-            },
-        )
     if settings.llm_provider == "ollama":
         return OllamaClient(settings)
     if settings.llm_provider == "openai_compatible":
         return OpenAICompatibleClient(settings)
     raise RuntimeError(f"Unsupported LLM_PROVIDER: {settings.llm_provider}")
+
+
+def _new_gemini_verifier(settings: Settings) -> LLMClient | None:
+    """Fresh Gemini verifier client for background MetaQA verification.
+
+    Returns None when Gemini is not configured — MetaQA should then report
+    verification unavailable instead of silently falling back to Ollama.
+    """
+    if settings.gemini_configured:
+        from app.llm.gemini import GeminiClient
+        return GeminiClient(
+            api_key=settings.gemini_api_key,
+            default_model=settings.gemini_verifier_model,
+            timeout_seconds=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
+            temperature=settings.llm_temperature,
+        )
+    return None
 
 
 async def _continue_metaqa_analysis(
@@ -54,20 +71,57 @@ async def _continue_metaqa_analysis(
     generator_model: str,
     answer_ms: float,
     request_llm: LLMClient | None = None,
+    request_verifier_llm: LLMClient | None = None,
 ) -> None:
     """Background MetaQA continuation on the app event loop. Fresh DB session.
 
     Mock mode reuses the request LLM (deterministic / test overrides).
     Live providers get a fresh httpx client so background work never shares
     an AsyncClient across event-loop boundaries.
+
+    Cross-model verification: Ollama generates mutations, Gemini verifies them.
+    If Gemini is not configured, MetaQA reports verification unavailable — it
+    NEVER silently falls back to Ollama for verification.
     """
     settings = get_settings()
     owns_client = False
-    if settings.llm_mode == "mock" and request_llm is not None:
+    owns_verifier = False
+    is_test_mock = isinstance(request_llm, MockLLMClient)
+    if is_test_mock and request_llm is not None:
         llm = request_llm
     else:
         llm = _new_llm_client(settings)
         owns_client = True
+
+    # Gemini verifier for cross-model verification
+    if is_test_mock and request_verifier_llm is not None:
+        verifier_llm = request_verifier_llm
+    elif is_test_mock and request_llm is not None and isinstance(request_llm, MockLLMClient):
+        from app.llm.gemini import MockGeminiClient
+        verifier_llm = MockGeminiClient(inner=request_llm)
+    else:
+        verifier_llm = _new_gemini_verifier(settings)
+        owns_verifier = True
+
+    if verifier_llm is None:
+        # Gemini not configured — report unavailable, never fall back to Ollama
+        db = SessionLocal()
+        try:
+            fail_run_analysis(
+                db,
+                run_id,
+                "Gemini verification unavailable. Configure GEMINI_API_KEY for cross-model MetaQA verification.",
+                status=RunStatus.VERIFICATION_FAILED,
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("failed to mark gemini unavailable run_id=%s", run_id)
+        finally:
+            db.close()
+        return
+
+    verifier_model = settings.effective_verifier_model
     db = SessionLocal()
     current_stage = RunStatus.ANSWER_READY.value
     try:
@@ -98,7 +152,7 @@ async def _continue_metaqa_analysis(
                     stage_db,
                     run_id,
                     mutations=mutations,
-                    verifier_model=settings.verifier_model,
+                    verifier_model=verifier_model,
                     mutation_ms=mutation_ms,
                 )
                 stage_db.commit()
@@ -130,6 +184,8 @@ async def _continue_metaqa_analysis(
             answer=answer,
             settings=settings,
             generator_model=generator_model,
+            verifier_model=verifier_model,
+            verifier_llm=verifier_llm,
             answer_ms=answer_ms,
             on_stage=on_stage,
             on_mutations_ready=on_mutations_ready,
@@ -137,7 +193,31 @@ async def _continue_metaqa_analysis(
         )
         complete_run_analysis(db, run_id, result)
         db.commit()
-        logger.info("background metaqa completed run_id=%s", run_id)
+        logger.info(
+            "background metaqa completed run_id=%s completion=%s verified=%s/%s",
+            run_id,
+            result.metaqa_completion,
+            result.verified_count,
+            result.expected_count,
+        )
+    except MetaqaVerificationUnavailable as exc:
+        db.rollback()
+        logger.warning("background metaqa unavailable run_id=%s: %s", run_id, exc)
+        fail_status, fail_message = classify_analysis_failure(exc, stage="verifying_mutations")
+        fail_db = SessionLocal()
+        try:
+            fail_run_analysis(
+                fail_db,
+                run_id,
+                fail_message,
+                status=fail_status,
+            )
+            fail_db.commit()
+        except Exception:
+            fail_db.rollback()
+            logger.exception("failed to mark metaqa unavailable run_id=%s", run_id)
+        finally:
+            fail_db.close()
     except Exception as exc:
         db.rollback()
         logger.exception("background metaqa failed run_id=%s", run_id)
@@ -161,6 +241,104 @@ async def _continue_metaqa_analysis(
                     await close()
                 except Exception:
                     logger.exception("failed to close background llm client")
+        if owns_verifier and verifier_llm is not None:
+            close = getattr(verifier_llm, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    logger.exception("failed to close background gemini verifier client")
+
+
+async def _continue_web_evidence(
+    *,
+    run_id: str,
+    question: str,
+    answer_text: str,
+    request_llm: LLMClient | None = None,
+) -> None:
+    """Background Web Evidence pipeline — independent of MetaQA status/fields."""
+    settings = get_settings()
+    owns_client = False
+    if isinstance(request_llm, MockLLMClient) and request_llm is not None:
+        llm = request_llm
+    else:
+        llm = _new_llm_client(settings)
+        owns_client = True
+
+    def on_stage(stage: str) -> None:
+        try:
+            status_value = WebEvidenceStatus(stage)
+        except ValueError:
+            return
+        stage_db = SessionLocal()
+        try:
+            update_web_evidence_status(stage_db, run_id, status_value)
+            stage_db.commit()
+        except Exception:
+            stage_db.rollback()
+            logger.exception("failed to update web evidence status run_id=%s stage=%s", run_id, stage)
+        finally:
+            stage_db.close()
+
+    try:
+        search = build_web_search_client(settings)
+        if search is None:
+            result = unavailable_result(
+                "Web Evidence is unavailable. Configure TAVILY_API_KEY to enable external evidence checks."
+            )
+            db = SessionLocal()
+            try:
+                persist_web_evidence_result(db, run_id, result)
+                db.commit()
+            finally:
+                db.close()
+            logger.info("web evidence unavailable run_id=%s", run_id)
+            return
+
+        result = await run_web_evidence(
+            llm,
+            search,
+            question=question,
+            answer=answer_text,
+            settings=settings,
+            on_stage=on_stage,
+        )
+        db = SessionLocal()
+        try:
+            persist_web_evidence_result(db, run_id, result)
+            db.commit()
+        finally:
+            db.close()
+        logger.info(
+            "web evidence finished run_id=%s status=%s claims=%s",
+            run_id,
+            result.status.value,
+            result.total_claims,
+        )
+    except Exception as exc:
+        logger.exception("background web evidence failed run_id=%s", run_id)
+        fail_result = WebEvidenceResult(
+            status=WebEvidenceStatus.FAILED,
+            error=f"Web Evidence could not be completed: {str(exc)[:200]}",
+        )
+        fail_db = SessionLocal()
+        try:
+            persist_web_evidence_result(fail_db, run_id, fail_result)
+            fail_db.commit()
+        except Exception:
+            fail_db.rollback()
+            logger.exception("failed to persist web evidence failure run_id=%s", run_id)
+        finally:
+            fail_db.close()
+    finally:
+        if owns_client:
+            close = getattr(llm, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception:
+                    logger.exception("failed to close web evidence llm client")
 
 
 @router.post("/api/detect", response_model=DetectResponse)
@@ -170,6 +348,7 @@ async def detect(
     db: Session = Depends(db_dep),
     settings: Settings = Depends(settings_dep),
     llm: LLMClient = Depends(get_llm_client),
+    verifier_llm: LLMClient | None = Depends(get_gemini_verifier_client),
 ) -> DetectResponse:
     question = payload.cleaned_question
     if not question:
@@ -177,7 +356,7 @@ async def detect(
 
     if settings.llm_mode == "live" and not settings.api_key_configured:
         detail = (
-            "Live Ollama mode is not ready. Check OLLAMA_BASE_URL and that the model is configured."
+            "Ollama is not ready. Check OLLAMA_BASE_URL and that the model is configured."
             if settings.is_ollama
             else "Live LLM mode is not configured. Add the required provider credentials in the backend environment or switch to Demo / Mock Mode."
         )
@@ -216,19 +395,59 @@ async def detect(
                 detail="Answer was generated but could not be saved.",
             ) from exc
 
-        background_tasks.add_task(
-            _continue_metaqa_analysis,
-            run_id=run.id,
-            question=question,
-            answer_text=answer.text,
-            generator_model=answer.model,
-            answer_ms=answer_ms,
-            request_llm=llm if settings.llm_mode == "mock" else None,
-        )
+        # Schedule MetaQA and Web Evidence independently and concurrently.
+        # FastAPI BackgroundTasks run sequentially, so wrap both in one task
+        # that uses asyncio.gather(return_exceptions=True) for true parallelism
+        # and full error isolation between branches.
+
+        # Get Gemini verifier for cross-model verification
+        is_test_mock = isinstance(llm, MockLLMClient)
+        if is_test_mock and isinstance(llm, MockLLMClient):
+            from app.llm.gemini import MockGeminiClient
+            verifier_llm = MockGeminiClient(inner=llm)
+
+        async def _run_parallel_verification() -> None:
+            outcomes = await asyncio.gather(
+                _continue_metaqa_analysis(
+                    run_id=run.id,
+                    question=question,
+                    answer_text=answer.text,
+                    generator_model=answer.model,
+                    answer_ms=answer_ms,
+                    request_llm=llm if is_test_mock else None,
+                    request_verifier_llm=verifier_llm if is_test_mock else None,
+                ),
+                _continue_web_evidence(
+                    run_id=run.id,
+                    question=question,
+                    answer_text=answer.text,
+                    request_llm=llm if is_test_mock else None,
+                ),
+                return_exceptions=True,
+            )
+            labels = ("metaqa", "web_evidence")
+            for label, outcome in zip(labels, outcomes, strict=True):
+                if isinstance(outcome, Exception):
+                    logger.exception(
+                        "parallel verification branch crashed run_id=%s branch=%s",
+                        run.id,
+                        label,
+                        exc_info=outcome,
+                    )
+            from app.llm.ollama import get_ollama_call_count
+
+            tot_elapsed = round((time.perf_counter() - answer_started) * 1000, 1)
+            logger.info(
+                "parallel verification completed run_id=%s total_analysis_ms=%.0f number_of_ollama_calls=%s",
+                run.id,
+                tot_elapsed,
+                get_ollama_call_count(),
+            )
+
+        background_tasks.add_task(_run_parallel_verification)
         logger.info(
-            "answer ready run_id=%s llm_mode=%s answer_ms=%.0f; metaqa scheduled",
+            "answer ready run_id=%s answer_ms=%.0f; metaqa+web_evidence scheduled in parallel",
             run.id,
-            settings.llm_mode,
             answer_ms,
         )
         return to_detect_response(run)

@@ -1,8 +1,10 @@
+import pytest
+
 from app.config import Settings
 from app.llm.base import LLMError
 from app.llm.mock import MockLLMClient, SCENARIO_VERDICTS
 from app.llm.prompts import VERIFY_SYSTEM, VERIFY_USER
-from app.metaqa.detector import run_detection
+from app.metaqa.detector import MetaqaVerificationUnavailable, run_detection
 from app.metaqa.scoring import Classification, MutationType, Verdict
 from tests.fakes import detector_settings
 
@@ -69,15 +71,12 @@ async def test_case_d_mixed() -> None:
 
 
 async def test_case_e_malformed_verifier_response() -> None:
-    result = await run_detection(
-        MockLLMClient(scenario="malformed_verifier"),
-        question="What is the capital of Australia?",
-        settings=detector_settings(),
-    )
-    assert all(item.verdict is Verdict.NOT_SURE for item in result.mutations)
-    assert all(item.parse_failed for item in result.mutations)
-    assert result.hallucination_score == 0.5
-    assert result.classification is Classification.HALLUCINATED
+    with pytest.raises(MetaqaVerificationUnavailable):
+        await run_detection(
+            MockLLMClient(scenario="malformed_verifier"),
+            question="What is the capital of Australia?",
+            settings=detector_settings(),
+        )
 
 
 async def test_expected_verdicts_come_from_mutation_type() -> None:
@@ -100,9 +99,12 @@ async def test_one_verifier_failure_does_not_abort_run() -> None:
         settings=detector_settings(),
     )
     assert len(result.mutations) == 10
-    assert result.mutations[3].verdict is Verdict.NOT_SURE
+    assert result.mutations[3].verdict is None
     assert result.mutations[3].parse_failed is True
+    assert result.mutations[3].unavailable is True
     assert result.mutations[0].verdict is Verdict.YES
+    assert result.verified_count == 9
+    assert result.metaqa_completion == "partial"
 
 
 async def test_base_answer_failure_raises() -> None:

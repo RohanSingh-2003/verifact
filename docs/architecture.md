@@ -1,8 +1,8 @@
 # System Architecture
 
-VeriFact is a research-oriented hallucination detection system and experimentation platform. It comprises a modern React single-page application, a high-performance FastAPI backend service, an SQLite persistence layer, and a multi-provider LLM abstraction layer.
+VeriFact is a research-oriented hallucination detection system. It comprises a modern React single-page application, a high-performance FastAPI backend service, an SQLite persistence layer, and a multi-provider LLM abstraction layer.
 
-The core detection engine is strictly **reference-free** (zero-resource), evaluating answer consistency without external web search, Wikipedia, or retrieval-augmented generation (RAG).
+The core **MetaQA** detection engine is **reference-free** (zero-resource): it evaluates internal answer consistency without web search. VeriFact also runs an independent **Web Evidence** pipeline (Tavily) that checks extracted claims against retrieved snippets. The two signals are not collapsed into one score.
 
 ---
 
@@ -12,8 +12,9 @@ The core detection engine is strictly **reference-free** (zero-resource), evalua
 ┌─────────────────────────────────────────────────────────────┐
 │                 Frontend UI (React 19 + Vite)               │
 │                                                             │
-│   DetectPage        ExperimentsPage   HistoryPage           │
-│   (Progressive UI)  (2×2 Matrix)      (Run Traces)          │
+│   DetectPage        HistoryPage       MetaQAPage            │
+│   (Progressive UI)  (Run Traces)      (Methodology)         │
+│   SettingsPage                                              │
 └──────────────────────────────┬──────────────────────────────┘
                                │ HTTP REST / JSON (Vite proxy)
 ┌──────────────────────────────▼──────────────────────────────┐
@@ -22,10 +23,10 @@ The core detection engine is strictly **reference-free** (zero-resource), evalua
 │   Routing Layer (`app.api`):                                │
 │   ├── routes_detect.py        (POST /api/detect, async task)│
 │   ├── routes_runs.py          (GET /api/runs, GET /runs/{id}│
-│   ├── routes_experiments.py   (2×2 experiment endpoints)    │
-│   ├── routes_evaluations.py   (Ground-truth evaluation API) │
 │   ├── routes_health.py        (GET /api/health)             │
-│   └── routes_settings.py      (Public configuration)        │
+│   ├── routes_settings.py      (Public configuration)        │
+│   ├── routes_experiments.py   (Isolated study endpoints)    │
+│   └── routes_evaluations.py   (Offline evaluation API)      │
 │                                                             │
 │   Core MetaQA Engine (`app.metaqa`):                        │
 │   ├── detector.py             (Orchestrator & stage timings)│
@@ -33,26 +34,32 @@ The core detection engine is strictly **reference-free** (zero-resource), evalua
 │   ├── verifier.py             (YES / NO / NOT SURE parser)  │
 │   └── scoring.py              (Deterministic scoring table) │
 │                                                             │
+│   Web Evidence (`app.web_evidence`, `app.web_search`):      │
+│   ├── classifier / strategies / claims / search_query       │
+│   ├── dedupe / source_quality / verifier / pipeline         │
+│   └── TavilyClient + MockTavilyClient + in-memory cache     │
+│                                                             │
 │   Service & Persistence Layer (`app.services`, `app.database│
 │   ├── run_service.py          (Stage-by-stage DB updates)   │
-│   ├── experiment_service.py   (Frozen 2×2 study orchestration│
+│   ├── verification_summary.py (MetaQA ↔ Web compare, no %)  │
+│   ├── experiment_service.py   (Offline study orchestration) │
 │   └── db.py                   (SQLAlchemy SQLite engine)    │
 │                                                             │
 │   LLM Abstraction Layer (`app.llm`):                        │
-│   ├── OllamaClient            (Native /api/chat, think=false│
+│   ├── OllamaClient            (Generation: answer + mutants)│
+│   ├── GeminiClient            (Cross-model MetaQA verifier) │
 │   ├── OpenAICompatibleClient  (Standard /chat/completions)  │
 │   └── MockLLMClient           (Deterministic test fixtures) │
 └──────────────────────────────┬──────────────────────────────┘
                                │
-               ┌───────────────┴───────────────┐
-               ▼                               ▼
-    ┌──────────────────────┐        ┌──────────────────────┐
-    │  SQLite Database     │        │  Local Ollama Daemon │
-    │  data/verifact.db    │        │  http://localhost:   │
-    │  - runs              │        │  11434               │
-    │  - mutations         │        │  (Model: gemma4:26b) │
-    │  - experiments       │        │                      │
-    └──────────────────────┘        └──────────────────────┘
+               ┌───────────────┼───────────────┐
+               ▼               ▼               ▼
+    ┌──────────────────┐ ┌───────────┐ ┌──────────────────┐
+    │ SQLite Database  │ │ Local     │ │ Google Gemini    │
+    │ data/verifact.db │ │ Ollama    │ │ API (Verifier)   │
+    │ - runs           │ │ Gemma     │ │ gemini-2.5-flash │
+    │ - mutations      │ │ 4:26b     │ └──────────────────┘
+    └──────────────────┘ └───────────┘
 ```
 
 ---
@@ -63,11 +70,10 @@ The core detection engine is strictly **reference-free** (zero-resource), evalua
 - **Styling**: Tailwind CSS (Tailwind v4 with `@tailwindcss/vite`).
 - **Icons & Navigation**: `lucide-react`, `react-router-dom`.
 - **Pages**:
-  - `DetectPage`: Progressive detection dashboard. As soon as the answer is generated, it renders. The client then polls `GET /api/runs/{id}` to display newly generated mutations, live verification verdicts, and the final classification.
-  - `ExperimentsPage`: 2×2 research interface for configuring and executing same-model vs. cross-model studies.
-  - `HistoryPage`: Paginated run history with filtering and search capabilities.
-  - `MetaQAPage`: Interactive explanation of MetaQA methodology and scoring tables.
-  - `SettingsPage`: Inspection of active non-secret runtime configuration.
+  - `DetectPage` (`/`): Progressive detection dashboard. As soon as the base answer is generated, it renders. The client then polls `GET /api/runs/{id}` to display newly generated mutations, live verification verdicts, Web Evidence claims and sources, and the final Verification Summary.
+  - `HistoryPage` (`/history`): Paginated run history with filtering, search capabilities, and audit traces.
+  - `MetaQAPage` (`/metaqa`): Interactive explanation of MetaQA metamorphic methodology and scoring tables.
+  - `SettingsPage` (`/settings`): Inspection of active runtime configuration parameters.
 - **Truthful Status Banners**:
   - Displays **Live Mode — Local Ollama · Model: gemma4:26b** when running against Ollama.
   - Displays **Demo / Mock Mode** when running with synthetic test fixtures.
@@ -77,15 +83,17 @@ The core detection engine is strictly **reference-free** (zero-resource), evalua
 ## 2. Backend Architecture
 
 - **Framework**: FastAPI with Pydantic v2 schemas and validation settings (`pydantic-settings`).
-- **Asynchronous Execution**: Uses FastAPI's `BackgroundTasks` to decouple answer generation from metamorphic testing:
-  1. `POST /api/detect` accepts the question and synchronously invokes `generate_answer()`.
+- **Asynchronous Execution**: Uses FastAPI's `BackgroundTasks` to return the answer immediately, then runs MetaQA and Web Evidence **concurrently** inside one background task via `asyncio.gather(..., return_exceptions=True)`:
+  1. `POST /api/detect` accepts the question and invokes `generate_answer()`.
   2. The initial run is persisted to SQLite with status `answer_ready`.
-  3. The response is returned to the client immediately.
-  4. `_continue_metaqa_analysis()` runs asynchronously on the event loop with its own dedicated database session and LLM client instance.
-- **Stage-by-Stage Callbacks**:
+  3. The response is returned to the client immediately (`overall_status: running`).
+  4. `_continue_metaqa_analysis()` and `_continue_web_evidence()` run in parallel with independent DB sessions, LLM clients, and exception handling — a failure in one branch never cancels the other.
+  5. When both branches reach a terminal state, `overall_status` becomes `completed` (both succeeded) or `partial` (one or both verification branches failed/unavailable). Overall `failed` is reserved for missing AI answers.
+- **Stage-by-Stage Callbacks (MetaQA)**:
   - `on_stage(stage)`: Records transition (`generating_mutations`, `verifying_mutations`, `calculating_score`).
   - `on_mutations_ready(mutations)`: Saves mutation statements to SQLite with status `mutations_ready`.
   - `on_mutation_verified(position, scored)`: Streams completed verification results into the database as individual mutations finish.
+- **Web Evidence stages** progress independently (`classifying_question` → `extracting_claims` → `searching_web` → `verifying_evidence` → `completed` / `failed` / `unavailable`). Claim searches and claim verifications are concurrent within configured budgets.
 
 ---
 
@@ -119,11 +127,30 @@ All LLM clients inherit from the abstract base class `LLMClient` (`complete_text
    - Interfaces directly with native Ollama `/api/chat`.
    - Forces `think: false` to disable hidden reasoning loops that exhaust token budgets.
    - Enforces persistent connection pooling and keep-alive (`OLLAMA_KEEP_ALIVE=30m`).
-2. **`OpenAICompatibleClient`** (`app/llm/client.py`):
+   - Responsible for: AI answer generation and MetaQA mutation generation.
+2. **`GeminiClient`** (`app/llm/gemini.py`):
+   - Interfaces with Google Gemini API via the official `google-genai` SDK.
+   - Responsible for: MetaQA mutation verification ONLY (never answer generation or mutation generation).
+   - Returns structured JSON (`{"verdict": "YES" | "NO" | "NOT SURE", "rationale": "..."}`).
+   - Never leaks expected verdicts or ground truth to the verifier.
+   - No silent fallback: if Gemini fails or is unconfigured, MetaQA reports verification unavailable rather than falling back to Ollama.
+   - Configured via `GEMINI_API_KEY`, `GEMINI_VERIFIER_MODEL`, and `GEMINI_VERIFY_CONCURRENCY`.
+3. **`MockGeminiClient`** (`app/llm/gemini.py`):
+   - Mock verifier client implementing `LLMClient` for tests and mock mode without API keys.
+4. **`OpenAICompatibleClient`** (`app/llm/client.py`):
    - Calls OpenAI-compatible chat completion endpoints (`/chat/completions`).
    - Supports exponential backoff and retry handling.
-3. **`MockLLMClient`** (`app/llm/mock.py`):
+5. **`MockLLMClient`** (`app/llm/mock.py`):
    - Returns deterministic, fixture-based responses for tests and CI without external dependencies.
+
+### Why Cross-Model Verification Exists
+
+The cross-model configuration allows the same generated answer and mutation set to be verified by a different LLM, enabling comparison between same-model and cross-model verifier behavior.
+
+- **Same-model setup**: Gemma generates answer and mutations → Gemma verifies mutations.
+- **Cross-model setup**: Gemma generates answer and mutations → Gemini verifies mutations.
+
+The mutation set remains fixed when comparing verifiers, ensuring that the same question and same mutations can be evaluated by different models. This enables the experiment; the results determine what conclusions can be drawn.
 
 ---
 
@@ -133,11 +160,12 @@ All LLM clients inherit from the abstract base class `LLMClient` (`complete_text
 - **Models**:
   - `Run`: Stores question, generated base answer, generator model, hallucination score, classification, stage timings, and status.
   - `MutationRecord`: Stores individual mutation statements, mutation type, verifier model, verdict, contribution, and rationale.
-  - `ExperimentRecord` & `ConditionRecord`: Stores 2×2 experiment matrices, frozen mutation hashes, and paired evaluation metrics.
+  - `ExperimentRecord` & `ConditionRecord`: Retained in database schema for offline research evaluation and automated reproducibility testing.
 
 ---
 
-## 6. Research Boundary & Future Extensions
+## 6. Research Boundary & Parallel Verification
 
-- **Zero-Resource Constraint**: The active system operates entirely without live web retrieval, Google Search, Wikipedia, or RAG.
-- **Future Work**: A planned future extension will introduce an external Web Evidence pipeline (source search, claim extraction, and document-level verification). In the current release, this is strictly future work.
+- **MetaQA zero-resource constraint**: MetaQA itself operates without live web retrieval, Google Search, Wikipedia, or RAG.
+- **Parallel Web Evidence**: After the AI answer is generated, MetaQA and Web Evidence execute as **independent parallel verification pipelines**. Either pipeline may complete, fail, or become unavailable without blocking the other. The AI answer is always displayed independently of verification.
+- **Separate scores**: MetaQA score and Web Evidence consistency score remain separate. No combined hallucination percentage is produced. Partial verification is a valid state. Verification failure is not equivalent to hallucination.

@@ -14,5 +14,13 @@ def test_health() -> None:
     assert body["live_ready"] is False
     assert "generator_model" in body
     assert "verifier_model" in body
+    assert "web_evidence_ready" in body
+    assert "web_evidence_enabled" in body
     assert "openai_api_key" not in body
     assert "OLLAMA_API_KEY" not in response.text
+    assert "TAVILY_API_KEY" not in response.text
+    assert "tavily_api_key" not in body
+    assert "gemini_api_key" not in body
+    assert "GEMINI_API_KEY" not in response.text
+    assert "gemini_verifier_ready" in body
+    assert "gemini_verifier_model" in body

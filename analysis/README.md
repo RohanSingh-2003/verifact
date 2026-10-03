@@ -1,25 +1,45 @@
-"""
-Research artifacts for VeriFact.
+# VeriFact Research Analysis & Artifact Generation
 
-Generate CSVs, experiment config JSON, and publication charts from a completed
-experiment (and optionally an evaluation run):
+This directory contains research analysis utilities and output artifacts derived from completed experiment and benchmark runs.
 
-    cd backend
-    .venv\\Scripts\\python.exe scripts\\build_research_artifacts.py --out ..\\analysis\\output
+---
 
-Charts are produced from the exported CSV files. They do not hardcode findings.
-Mock-mode outputs are DEMO / MOCK DATA and must not be treated as paper results.
+## Artifact Generation Script
 
-Files written:
+To generate condition CSV tables, configuration metadata, and comparison charts from a completed experiment:
 
-- condition_rows.csv
-- condition_summary.csv
-- paired_comparisons.csv
-- classification_flips.csv
-- threshold_sweep.csv
-- experiment_config.json
-- chart1_condition_means.png
-- chart2_score_difference.png
-- chart3_flip_rate.png
-- chart4_threshold_sweep.png (from experiment sweep or evaluation sweep)
-"""
+```bash
+cd backend
+
+# On Windows PowerShell:
+.\.venv\Scripts\python.exe scripts\build_research_artifacts.py --out ..\analysis\output
+
+# On macOS/Linux:
+# python scripts/build_research_artifacts.py --out ../analysis/output
+```
+
+---
+
+## Generated Artifacts
+
+The generation script processes raw database runs into structured output files in `analysis/output/`:
+
+### Tabular CSV Data
+- `condition_rows.csv`: Detailed per-question metrics across all experimental conditions.
+- `condition_summary.csv`: Aggregated means, standard deviations, and error rates per condition.
+- `paired_comparisons.csv`: Within-subject paired score differences between same-model and cross-model verifiers.
+- `classification_flips.csv`: Frequency and direction of classification label changes between conditions.
+- `threshold_sweep.csv`: Sensitivity analysis sweeping classification thresholds $\theta \in [0.1, 0.9]$.
+
+### Visualizations
+- `chart1_condition_means.png`: Mean hallucination scores across experimental conditions.
+- `chart2_score_difference.png`: Distribution of paired score differences.
+- `chart3_flip_rate.png`: Proportion of questions with classification outcome changes.
+- `chart4_threshold_sweep.png`: Precision, recall, and F1 curves across threshold ranges.
+
+---
+
+## Important Research Notice
+
+- **Demo / Mock Data**: Outputs generated from `LLM_MODE=mock` are deterministic software demonstration fixtures and must **never** be cited as live LLM findings.
+- **Reproducibility**: Charts are derived programmatically from the exported CSV data without manual adjustment or hardcoded values.

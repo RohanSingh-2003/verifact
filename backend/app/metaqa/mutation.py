@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
+from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
@@ -138,6 +140,35 @@ _VERB_CUES = frozenset(
         "became",
         "become",
         "becomes",
+        "function",
+        "functions",
+        "functioned",
+        "lies",
+        "lie",
+        "located",
+        "locates",
+        "border",
+        "borders",
+        "belong",
+        "belongs",
+        "govern",
+        "governs",
+        "represent",
+        "represents",
+        "connect",
+        "connects",
+        "house",
+        "houses",
+        "feature",
+        "features",
+        "consist",
+        "consists",
+        "span",
+        "spans",
+        "act",
+        "acts",
+        "operate",
+        "operates",
         "fell",
         "fall",
         "falls",
@@ -168,7 +199,6 @@ _VERB_CUES = frozenset(
         "announced",
         "transferred",
         "transfer",
-        "transferred",
         "died",
         "die",
         "extinct",
@@ -243,7 +273,7 @@ def looks_like_complete_sentence(
         return False
     if cleaned.rstrip().endswith("?") and words[0].casefold() in _INTERROGATIVES:
         return False
-    if cleaned.endswith(":") or cleaned.endswith("-"):
+    if cleaned.endswith((":", "-")):
         return False
     lower_words = {word.casefold() for word in words}
     has_verb_cue = bool(lower_words & _VERB_CUES)
@@ -413,6 +443,229 @@ async def extract_core_claims(
     raise LLMError("Claim extractor did not return usable factual claims.") from last_error
 
 
+def resolve_original_claim(
+    candidate: str | None,
+    claims: list[CoreClaim] | None,
+    mutated_text: str | None = None,
+) -> str:
+    """Resolve original_text to one of the extracted claims with tolerant matching."""
+    if not claims:
+        return candidate.strip() if candidate else ""
+    if not candidate or not candidate.strip():
+        if mutated_text:
+            mut_words = set(_WORD_RE.findall(mutated_text.casefold()))
+            best = claims[0]
+            best_ov = -1
+            for claim in claims:
+                c_words = set(_WORD_RE.findall(claim.text.casefold()))
+                ov = len(mut_words & c_words)
+                if ov > best_ov:
+                    best_ov = ov
+                    best = claim
+            if best_ov > 0:
+                return best.text
+        return claims[0].text
+
+    cleaned = candidate.strip()
+    c_lower = cleaned.casefold()
+
+    # Exact casefold match
+    for claim in claims:
+        if claim.text.casefold() == c_lower:
+            return claim.text
+
+    # Match ignoring trailing punctuation and whitespace
+    c_stripped = c_lower.strip(".!? ")
+    for claim in claims:
+        if claim.text.casefold().strip(".!? ") == c_stripped:
+            return claim.text
+
+    # Substring match
+    for claim in claims:
+        cl_clean = claim.text.casefold().strip(".!? ")
+        if c_stripped in cl_clean or cl_clean in c_stripped:
+            return claim.text
+
+    # Word overlap match
+    c_words = set(_WORD_RE.findall(c_lower))
+    best_claim = claims[0]
+    best_overlap = -1
+    for claim in claims:
+        claim_words = set(_WORD_RE.findall(claim.text.casefold()))
+        overlap = len(c_words & claim_words)
+        if overlap > best_overlap:
+            best_overlap = overlap
+            best_claim = claim
+
+    if best_overlap > 0:
+        return best_claim.text
+
+    return claims[0].text
+
+
+def clean_mutation_sentence(text: str) -> str:
+    cleaned = " ".join(text.strip().strip("\"'`").split())
+    # Clean leading markdown fences or bullet numbering
+    cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned)
+    cleaned = re.sub(r"^(\d+[\.\)]|\-|\*)\s*", "", cleaned).strip()
+    # Clean known prefixes like "synonym:", "antonym:", "mutation:", "[synonym]"
+    cleaned = re.sub(
+        r"^(?:\[?(?:synonym(?:\s+mutation)?|antonym(?:\s+mutation)?|paraphrase|negation|mutation)\]?[\s:\-]+)+",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    ).strip()
+    return cleaned
+
+
+def normalize_mutation_payload(
+    payload: object,
+    claims: list[CoreClaim] | None = None,
+) -> tuple[list[GeneratedMutation], dict[str, list[str]]]:
+    """Normalize any mutation response payload into a standardized list of GeneratedMutation
+
+    and the canonical dictionary:
+    {
+      "synonym_mutations": [...],
+      "antonym_mutations": [...]
+    }
+    """
+    raw_synonyms: list[Any] = []
+    raw_antonyms: list[Any] = []
+
+    if isinstance(payload, str):
+        from app.llm.client import parse_json_object
+        parsed = parse_json_object(payload)
+        if parsed is not None:
+            payload = parsed
+
+    if isinstance(payload, dict):
+        # Look for explicit synonym arrays
+        for k in ("synonym_mutations", "synonyms", "synonym", "synonym_mutation", "syn"):
+            if k in payload and isinstance(payload[k], list):
+                raw_synonyms.extend(payload[k])
+                break
+        # Look for explicit antonym arrays
+        for k in ("antonym_mutations", "antonyms", "antonym", "antonym_mutation", "ant", "negation_mutations", "negations"):
+            if k in payload and isinstance(payload[k], list):
+                raw_antonyms.extend(payload[k])
+                break
+
+        # If mutations key is present
+        mut_val = payload.get("mutations")
+        if isinstance(mut_val, dict):
+            for k in ("synonym_mutations", "synonyms", "synonym"):
+                if k in mut_val and isinstance(mut_val[k], list):
+                    raw_synonyms.extend(mut_val[k])
+            for k in ("antonym_mutations", "antonyms", "antonym", "negation_mutations", "negations"):
+                if k in mut_val and isinstance(mut_val[k], list):
+                    raw_antonyms.extend(mut_val[k])
+        elif isinstance(mut_val, list):
+            for item in mut_val:
+                if isinstance(item, dict):
+                    t = str(item.get("type") or item.get("mutation_type") or item.get("kind") or "").casefold()
+                    if t in ("synonym", "paraphrase", "same", "consistent"):
+                        raw_synonyms.append(item)
+                    elif t in ("antonym", "negation", "contradiction", "opposite", "inconsistent"):
+                        raw_antonyms.append(item)
+                    else:
+                        raw_synonyms.append(item)
+                elif isinstance(item, str):
+                    lower_item = item.strip().casefold()
+                    if lower_item.startswith(("antonym", "negation", "opposite")):
+                        raw_antonyms.append(item)
+                    else:
+                        raw_synonyms.append(item)
+    elif isinstance(payload, list):
+        for item in payload:
+            if isinstance(item, dict):
+                t = str(item.get("type") or item.get("mutation_type") or item.get("kind") or "").casefold()
+                if t in ("antonym", "negation", "contradiction", "opposite"):
+                    raw_antonyms.append(item)
+                else:
+                    raw_synonyms.append(item)
+            elif isinstance(item, str):
+                lower_item = item.strip().casefold()
+                if lower_item.startswith(("antonym", "negation", "opposite")):
+                    raw_antonyms.append(item)
+                else:
+                    raw_synonyms.append(item)
+
+    def _extract_text_and_orig(item: Any) -> tuple[str, str]:
+        if isinstance(item, str):
+            return clean_mutation_sentence(item), ""
+        if isinstance(item, dict):
+            mutated = (
+                item.get("mutated_text")
+                or item.get("mutation")
+                or item.get("text")
+                or item.get("statement")
+                or item.get("mutated")
+                or item.get("sentence")
+                or ""
+            )
+            original = (
+                item.get("original_text")
+                or item.get("original")
+                or item.get("claim")
+                or item.get("source")
+                or item.get("base")
+                or ""
+            )
+            return clean_mutation_sentence(str(mutated)), str(original).strip()
+        return "", ""
+
+    valid_mutations: list[GeneratedMutation] = []
+    seen: set[tuple[str, str]] = set()
+
+    for item in raw_synonyms:
+        m_text, o_text = _extract_text_and_orig(item)
+        if not m_text:
+            continue
+        if not looks_like_complete_sentence(m_text):
+            if not m_text.endswith((".", "!", "?")) and looks_like_complete_sentence(m_text + "."):
+                m_text = m_text + "."
+            else:
+                continue
+        orig = resolve_original_claim(o_text, claims, mutated_text=m_text)
+        if m_text.casefold() == orig.casefold():
+            continue
+        key = ("synonym", m_text.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        valid_mutations.append(
+            GeneratedMutation(type=MutationType.SYNONYM, original_text=orig, mutated_text=m_text)
+        )
+
+    for item in raw_antonyms:
+        m_text, o_text = _extract_text_and_orig(item)
+        if not m_text:
+            continue
+        if not looks_like_complete_sentence(m_text):
+            if not m_text.endswith((".", "!", "?")) and looks_like_complete_sentence(m_text + "."):
+                m_text = m_text + "."
+            else:
+                continue
+        orig = resolve_original_claim(o_text, claims, mutated_text=m_text)
+        if m_text.casefold() == orig.casefold():
+            continue
+        key = ("antonym", m_text.casefold())
+        if key in seen:
+            continue
+        seen.add(key)
+        valid_mutations.append(
+            GeneratedMutation(type=MutationType.ANTONYM, original_text=orig, mutated_text=m_text)
+        )
+
+    canonical_dict = {
+        "synonym_mutations": [m.mutated_text for m in valid_mutations if m.type is MutationType.SYNONYM],
+        "antonym_mutations": [m.mutated_text for m in valid_mutations if m.type is MutationType.ANTONYM],
+    }
+    return valid_mutations, canonical_dict
+
+
 def collect_valid_mutations(
     raw_items: object,
     *,
@@ -437,11 +690,20 @@ def collect_valid_mutations(
             )
             continue
         if allowed is not None and mutation.original_text.casefold() not in allowed:
-            logger.warning(
-                "Rejected mutation whose original_text is not a core claim: %s",
-                mutation.original_text[:160],
+            # Tolerant claim matching: check if stripped or substring matches any allowed claim
+            orig_stripped = mutation.original_text.casefold().strip(".!? ")
+            matched_claim = next(
+                (c for c in allowed_claims or () if c.casefold().strip(".!? ") == orig_stripped),
+                None,
             )
-            continue
+            if matched_claim is not None:
+                mutation.original_text = matched_claim
+            else:
+                logger.warning(
+                    "Rejected mutation whose original_text is not a core claim: %s",
+                    mutation.original_text[:160],
+                )
+                continue
         key = mutation_key(mutation)
         if key in seen:
             logger.warning("Rejected duplicate mutation: %s", mutation.mutated_text[:160])
@@ -486,28 +748,18 @@ async def generate_mutations(
     claim_max_tokens: int | None = None,
     max_claims: int = _DEFAULT_MAX_CLAIMS,
 ) -> list[GeneratedMutation]:
-    """Extract core claims, then fill synonym/antonym quotas with partial retries.
+    """Generate synonym and antonym mutations in a single concise LLM call.
 
-    Keeps already-valid mutations across rounds and requests only the missing
-    counts instead of regenerating the entire set each time.
+    Extracts claims deterministically from the candidate answer in 0ms (avoiding
+    an extra LLM call), then generates the required mutations in one request.
+    If the initial response is incomplete, at most one fill round is attempted.
     """
-    claims = await extract_core_claims(
-        llm,
-        model=model,
-        question=question,
-        answer=answer,
-        max_claims=max_claims,
-        max_tokens=claim_max_tokens if claim_max_tokens is not None else min(256, max_tokens or 256),
-    )
-    allowed = {claim.text for claim in claims}
-    claims_block = format_claims_block(claims)
-
+    claims = fallback_claims_from_answer(answer, max_claims=max_claims)
     kept_synonyms: list[GeneratedMutation] = []
     kept_antonyms: list[GeneratedMutation] = []
     seen: set[tuple[str, str]] = set()
     last_error: Exception | None = None
-    # Initial full request + up to 3 fill rounds for missing items only.
-    max_rounds = 4
+    max_rounds = 2
 
     for round_index in range(max_rounds):
         need_syn = synonym_count - len(kept_synonyms)
@@ -518,7 +770,7 @@ async def generate_mutations(
         if round_index == 0 and not kept_synonyms and not kept_antonyms:
             user_prompt = MUTATION_USER.format(
                 question=question,
-                claims_block=claims_block,
+                answer=answer,
                 synonym_count=synonym_count,
                 antonym_count=antonym_count,
             )
@@ -526,7 +778,7 @@ async def generate_mutations(
             accepted = kept_synonyms + kept_antonyms
             user_prompt = MUTATION_FILL_USER.format(
                 question=question,
-                claims_block=claims_block,
+                answer=answer,
                 accepted_block=format_accepted_mutations_block(accepted),
                 synonym_count=max(0, need_syn),
                 antonym_count=max(0, need_ant),
@@ -539,12 +791,22 @@ async def generate_mutations(
                 model=model,
                 system_prompt=MUTATION_SYSTEM,
                 user_prompt=user_prompt,
-                max_tokens=max_tokens,
+                max_tokens=max_tokens or 300,
             )
-            valid = collect_valid_mutations(
-                payload.get("mutations") if isinstance(payload, dict) else None,
-                allowed_claims=allowed,
-            )
+            raw_response = payload.pop("_raw", None)
+            if raw_response is None:
+                raw_response = json.dumps(payload)
+            logger.info("[METAQA MUTATION] Ollama response received: %s", raw_response)
+
+            # Robust extraction accepting both standard and conceptual/alternative JSON formats
+            valid, parsed_payload = normalize_mutation_payload(payload, claims=claims)
+            logger.info("[METAQA MUTATION] Parsed mutation payload: %s", parsed_payload)
+
+            round_syn = len(parsed_payload["synonym_mutations"])
+            round_ant = len(parsed_payload["antonym_mutations"])
+            logger.info("[METAQA MUTATION] Synonym count: %s", round_syn)
+            logger.info("[METAQA MUTATION] Antonym count: %s", round_ant)
+
             before = len(kept_synonyms) + len(kept_antonyms)
             merge_mutation_batch(
                 kept_synonyms=kept_synonyms,
@@ -555,6 +817,13 @@ async def generate_mutations(
                 seen=seen,
             )
             after = len(kept_synonyms) + len(kept_antonyms)
+
+            if len(kept_synonyms) >= synonym_count and len(kept_antonyms) >= antonym_count:
+                val_result = f"VALID (synonyms={len(kept_synonyms)}/{synonym_count}, antonyms={len(kept_antonyms)}/{antonym_count})"
+            else:
+                val_result = f"INCOMPLETE (synonyms={len(kept_synonyms)}/{synonym_count}, antonyms={len(kept_antonyms)}/{antonym_count})"
+            logger.info("[METAQA MUTATION] Validation result: %s", val_result)
+
             logger.info(
                 "mutation round=%s kept_syn=%s/%s kept_ant=%s/%s added=%s",
                 round_index + 1,
@@ -571,6 +840,7 @@ async def generate_mutations(
                 )
         except (ValidationError, ValueError, LLMError, AttributeError, TypeError) as exc:
             last_error = exc
+            logger.warning("[METAQA MUTATION] Validation result: FAILED: %s", exc)
             logger.warning("Mutation generation round %s failed: %s", round_index + 1, exc)
 
     if len(kept_synonyms) >= synonym_count and len(kept_antonyms) >= antonym_count:
@@ -583,6 +853,20 @@ async def generate_mutations(
         )
         return selected
 
+    # Graceful partial mutation support: do not let a single missing mutation destroy MetaQA
+    if kept_synonyms and kept_antonyms and (len(kept_synonyms) + len(kept_antonyms)) >= 3:
+        selected = kept_synonyms[:synonym_count] + kept_antonyms[:antonym_count]
+        logger.warning(
+            "mutations partially generated syn=%s/%s ant=%s/%s total=%s; proceeding with partial set",
+            len(kept_synonyms),
+            synonym_count,
+            len(kept_antonyms),
+            antonym_count,
+            len(selected),
+        )
+        return selected
+
     raise LLMError(
         "Mutation generator did not return the required mutation set."
     ) from last_error
+

@@ -1,6 +1,6 @@
 # VeriFact Demonstration Script
 
-This script provides a structured 3-to-4 minute walkthrough of VeriFact demonstrating **only features implemented in the current repository**. Do not demonstrate or claim live web search or Tavily integration.
+This script provides a structured 3-to-4 minute walkthrough of VeriFact demonstrating **features implemented in the current repository**, including MetaQA and the independent Web Evidence pipeline (Phases 1–2).
 
 ---
 
@@ -8,6 +8,7 @@ This script provides a structured 3-to-4 minute walkthrough of VeriFact demonstr
 - [ ] Backend running (`uvicorn app.main:app --reload --port 8000`)
 - [ ] Frontend running (`npm run dev`) at `http://localhost:5173`
 - [ ] Ollama daemon running with `gemma4:26b` (if demonstrating Live Mode)
+- [ ] Optional: `TAVILY_API_KEY` set in `backend/.env` for live Web Evidence (otherwise Web Evidence shows unavailable / mock sources in Demo Mode)
 - [ ] If running in Mock Mode, note the amber banner
 
 ---
@@ -51,13 +52,16 @@ This script provides a structured 3-to-4 minute walkthrough of VeriFact demonstr
 - **Spoken Talking Point**:
   > *"Once all mutations are verified, VeriFact's mathematical engine deterministically calculates the hallucination score by averaging individual contributions. Because the score is below the 0.5 threshold, this answer is classified as **Reliable** (or if contradictions were detected, **Hallucinated**)."*
 
-### Step 8: Walk Through the Run History
+### Step 8: Web Evidence Analysis (independent)
+- **Action**: Scroll to **Web Evidence Analysis**.
+- **Spoken Talking Point**:
+  > *"Alongside MetaQA, VeriFact classifies the question type — for example Science or Current event — picks preferred source categories, then checks each factual claim against retrieved snippets. Preferred domains are relevance hints, not automatic proof. Each claim is Supported, Contradicted, or Insufficient Evidence. The Verification Summary then compares MetaQA and Web Evidence side-by-side — for example ‘Signals agree’ or ‘Signals disagree’ — without inventing a combined percentage."*
+
+### Step 9: Walk Through the Run History
 - **Action**: Click **History** in the top navigation.
 - **Spoken Talking Point**:
   > *"All detection runs, base answers, mutation sets, and stage execution timings are stored in a local SQLite database for auditing and research review."*
 
-### Step 9: State the Research Boundary & Planned Future Work
+### Step 10: State the Research Boundary
 - **Spoken Talking Point**:
-  > *"To maintain academic rigor, it is vital to note what VeriFact does and does not establish:*
-  > - *MetaQA measures **semantic consistency**, not absolute real-world truth. The current detector is completely **reference-free** and does not use Google, Wikipedia, or external RAG.*
-  > - *As a planned future extension, we intend to introduce an external **Web Evidence** pipeline to corroborate internal MetaQA consistency scores against live web search sources."*
+  > *"MetaQA measures **semantic consistency**, not absolute real-world truth. Web Evidence reports whether retrieved snippets support or contradict a claim — it is an evidence report, not a truth oracle. Lack of evidence is not treated as hallucination."*

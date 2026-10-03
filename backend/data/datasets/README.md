@@ -1,12 +1,18 @@
-# Evaluation datasets
+# Evaluation Datasets
 
-Place curated evaluation files here.
+This directory contains benchmark and evaluation datasets used to measure VeriFact's hallucination detection accuracy against curated ground-truth data.
 
-## Local format (JSON)
+---
+
+## Dataset Format Specifications
+
+Datasets can be provided in either **JSON** or **CSV** format.
+
+### 1. JSON Schema
 
 ```json
 {
-  "name": "pilot",
+  "name": "pilot_evaluation",
   "version": "1.0",
   "examples": [
     {
@@ -23,19 +29,35 @@ Place curated evaluation files here.
 }
 ```
 
-CSV is also supported. Required columns: `id`, `question`, `reference_answer`.
-Optional: `ground_truth_label`, `category`, `source`, `aliases` (pipe-separated), `needs_review`, `mock_base_answer`, `mock_scenario`.
+### 2. CSV Schema
 
-Categories: `named_entity`, `date`, `numeric`, `location`, `general_fact`.
+| Column | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | string | **Yes** | Unique identifier for the question example (e.g., `q001`). |
+| `question` | string | **Yes** | Factual question evaluated by the model. |
+| `reference_answer` | string | **Yes** | Gold standard factual answer. |
+| `aliases` | string | No | Pipe-delimited list of accepted equivalent answers (`Canberra\|Canberra, ACT`). |
+| `ground_truth_label`| string | No | Evaluator label of answer correctness (`Reliable` or `Hallucinated`). |
+| `category` | string | No | Question domain: `named_entity`, `date`, `numeric`, `location`, `general_fact`. |
+| `source` | string | No | Dataset provenance or source tag. |
+| `needs_review` | bool | No | Flags items requiring manual human review. |
+| `mock_base_answer` | string | No | Deterministic answer used exclusively when `LLM_MODE=mock`. |
+| `mock_scenario` | string | No | Deterministic scenario used exclusively when `LLM_MODE=mock`. |
 
-`ground_truth_label` is a label of **generated-answer correctness** (`Reliable` or `Hallucinated`), not a property of the question.
+---
 
-Needs Review: if a generated answer cannot be labeled confidently (dataset flag, empty/uncertain answer, or ambiguous reference match), the evaluator stores `Needs Review` and excludes that item from automatic precision/recall/F1. The raw evaluation row is kept.
+## Evaluation Workflow
 
-`mock_base_answer` / `mock_scenario` are used only when `LLM_MODE=mock`. They are never sent to live MetaQA prompts.
+When an evaluation is triggered via `POST /api/evaluations/run`:
 
-A machine-readable manifest (`*.manifest.json`) lists question IDs, categories, reference answers, and license/source information. Ground truth in that file is evaluation-layer metadata only.
+1. The candidate generator model answers each question in the dataset.
+2. The generated answer is compared against the reference answer and aliases.
+3. If an answer cannot be labeled automatically with high confidence, the system flags `needs_review=true` and excludes that row from automatic precision/recall metrics while preserving the raw row for inspection.
+4. MetaQA executes across the generated answers to compute accuracy, precision, recall, and F1 scores against the ground-truth labels.
 
-## TruthfulQA
+---
 
-TruthfulQA is **not** bundled. To evaluate on it, export a curated subset into `truthfulqa.json` or `truthfulqa.csv` using this schema. VeriFact will not invent TruthfulQA items.
+## External Benchmark Datasets
+
+- **TruthfulQA**: Raw TruthfulQA files are **not** bundled in the repository due to licensing. To evaluate on TruthfulQA, export your curated subset into `truthfulqa.json` or `truthfulqa.csv` matching the schema above.
+- **Mock Safety**: Mock answers and scenarios (`mock_base_answer`, `mock_scenario`) are used solely during automated test runs with `LLM_MODE=mock` and are never dispatched to live LLMs.

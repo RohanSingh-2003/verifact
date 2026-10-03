@@ -102,10 +102,11 @@ def test_detect_case_e_malformed_verifier() -> None:
         response = client.post("/api/detect", json={"question": "What is the capital of Australia?"})
         assert response.status_code == 200
         body = client.get(f"/api/runs/{response.json()['run_id']}").json()
-        assert all(item["verdict"] == "NOT SURE" for item in body["mutations"])
         assert all(item["parse_failed"] is True for item in body["mutations"])
-        assert body["hallucination_score"] == 0.5
-        assert body["classification"] == "Hallucinated"
+        assert all(item["verified"] is False for item in body["mutations"])
+        assert body["status"] == "verification_failed"
+        assert body["hallucination_score"] is None
+        assert body["classification"] is None
     finally:
         app.dependency_overrides.clear()
 

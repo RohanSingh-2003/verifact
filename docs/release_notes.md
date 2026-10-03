@@ -1,7 +1,7 @@
 # Release Notes: VeriFact v1.0.0
 
 ## Release Summary
-VeriFact v1.0.0 establishes the core software implementation of the MetaQA metamorphic hallucination detection framework, featuring real local LLM inference via Ollama + Gemma 4:26b, a progressive web application architecture, and a 2×2 same-model versus cross-model experiment harness.
+VeriFact v1.0.0 establishes the production-grade software implementation of the MetaQA metamorphic hallucination detection framework extended with an independent Web Evidence verification layer. It features real local LLM inference via Ollama + Gemma 4:26b, a progressive web application architecture, and a deterministic side-by-side Verification Summary.
 
 ---
 
@@ -22,23 +22,39 @@ VeriFact v1.0.0 establishes the core software implementation of the MetaQA metam
 
 ### 3. Progressive Detection Workflow
 - **Answer-First Responsiveness**: Base answer is generated and returned immediately to the frontend (`status: answer_ready`), eliminating user wait time during local 26B inference.
-- **Background Event Loop Orchestration**: Downstream MetaQA analysis continues asynchronously in the background on the exact same run ID.
-- **Incremental State Transitions**: Discrete lifecycle states (`answer_ready` → `generating_mutations` → `mutations_ready` → `verifying_mutations` → `calculating_score` → `completed`).
-- **Real-Time Polling**: Frontend polls `GET /api/runs/{id}` to progressively render mutation texts, live verification badges, and final scores.
+- **Parallel verification**: After answer delivery, MetaQA and Web Evidence run concurrently via `asyncio.gather` with full error isolation. Either may fail without blocking the other or hiding the answer.
+- **Overall status**: `running` | `completed` | `partial` | `failed` — partial means one verification branch failed while the answer (and possibly the other branch) remains available.
+- **Incremental State Transitions**: Discrete MetaQA lifecycle states (`answer_ready` → `generating_mutations` → `mutations_ready` → `verifying_mutations` → `calculating_score` → `completed`), independent of Web Evidence stages.
+- **Real-Time Polling**: Frontend polls `GET /api/runs/{id}` until **both** branches are terminal.
 
-### 4. Interactive Web Interface
+### 4. Targeted Web Evidence Pipeline
+- **Question-type routing**: Rule-based classifier selects domain strategies (science, government, current events, statistics, technology, medicine, general facts).
+- **Source strategies**: Preferred domain categories and freshness hints for Tavily Basic Search; automatically broadens when preferred results are insufficient.
+- **Claim extraction & verification**: Strict snippet-only verification labeled `SUPPORTED`, `CONTRADICTED`, or `INSUFFICIENT_EVIDENCE`.
+- **Source metadata**: Tags sources with institutional categories (OFFICIAL, ACADEMIC, GOVERNMENT, NEWS, REFERENCE, FACT_CHECK, GENERAL).
+- **Insufficiency Invariance**: Evidence insufficiency is strictly never treated as a hallucination.
+
+### 5. Verification Summary
+- Deterministic side-by-side synthesis comparing MetaQA vs Web Evidence without an artificial fused percentage.
+- Descriptive relationship outcomes: `AGREE`, `DISAGREE`, `BOTH_CONCERNING`, `WEB_INSUFFICIENT`, or `PARTIAL`.
+
+### 6. Interactive Web Interface
 - **React 19 & Vite UI**: Fast, responsive single-page application built with TypeScript and Tailwind CSS.
 - **Truthful Status Banners**: Distinct UI indicators for **Live Mode — Local Ollama** and **Demo / Mock Mode**.
-- **Pages**: Interactive Detect, Run History with audit traces, 2×2 Research Experiments, MetaQA methodology visualizer, and Settings inspector.
+- **Clean Navigation**: Streamlined 4-page product layout:
+  - **Detect** (`/`): Progressive detection dashboard.
+  - **History** (`/history`): Run audit log with mutation inspection and web evidence traces.
+  - **MetaQA Guide** (`/metaqa`): Educational visualizer for metamorphic testing theory and scoring tables.
+  - **Settings** (`/settings`): Runtime configuration parameters.
 
-### 5. Persistence & Research Scaffold
+### 7. Persistence & Research Reproducibility
 - **SQLite Database**: Persistent relational storage for runs, mutation statements, verification rationales, and execution timings.
-- **2×2 Experiment Harness**: Controlled same-model vs. cross-model study runner ($A \to A, A \to B, B \to A, B \to B$) with frozen mutation set controls.
-- **Automated Test Suite**: 162 backend unit tests passing with pytest.
+- **Automated Test Suite**: 252 backend unit tests passing with pytest.
+- **Research Artifact Preservation**: Preserved 2×2 study scaffold and frozen pilot artifacts in backend test suite for offline academic evaluation.
 
 ---
 
-## Planned Future Extensions (Not in v1.0.0)
-- **External Web Evidence**: Integration with web search APIs (e.g., Tavily) to ground claims against external sources.
-- **Evidence-Based Claim Verification**: Classifying factual assertions as SUPPORTED, CONTRADICTED, or INSUFFICIENT EVIDENCE.
+## Planned Future Extensions
+- **Calibrated Multi-Signal Fusion**: Principled statistical fusion models to integrate metamorphic consistency and external evidence confidence.
 - **Browser Extension**: An interactive Chrome extension for on-the-fly verification of web content.
+- **Expanded Multi-Model Benchmarks**: Automated evaluation over heterogeneous open-weight LLMs.

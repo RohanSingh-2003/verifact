@@ -43,7 +43,7 @@ export function MutationTabs({ mutations, verifying = false }: MutationTabsProps
   return (
     <section className="animate-fade-up">
       <div className="mb-4">
-        <h2 className="text-base font-semibold tracking-tight text-ink">Mutation Analysis</h2>
+        <h2 className="text-base font-semibold tracking-tight text-ink">MetaQA Analysis</h2>
         <p className="mt-1 text-sm leading-6 text-ink-secondary">
           VeriFact creates controlled changes to the AI&apos;s answer and checks whether the model
           reacts consistently.

@@ -177,33 +177,41 @@ def _extract_answer_from_claim_prompt(user_prompt: str) -> str:
 
 def _extract_claims_from_mutation_prompt(user_prompt: str) -> list[str]:
     marker = "Core claims"
-    if marker not in user_prompt:
-        return []
-    remainder = user_prompt.split(marker, 1)[1]
-    lines = remainder.splitlines()
-    claims: list[str] = []
-    for line in lines:
-        stripped = line.strip()
-        lower = stripped.casefold()
-        if lower.startswith("create exactly") or lower.startswith("generate only"):
-            break
-        if lower.startswith("already accepted"):
-            break
-        if not stripped:
-            # Blank line after the claim list ends the block (before rules / accepted section).
-            if claims:
+    if marker in user_prompt:
+        remainder = user_prompt.split(marker, 1)[1]
+        lines = remainder.splitlines()
+        claims: list[str] = []
+        for line in lines:
+            stripped = line.strip()
+            lower = stripped.casefold()
+            if lower.startswith(("create exactly", "generate only", "generate exactly")):
                 break
-            continue
-        # Numbered list: "1. claim text"
-        if stripped[0].isdigit() and "." in stripped[:4]:
-            claims.append(stripped.split(".", 1)[1].strip())
-        elif stripped.startswith("-"):
-            claims.append(stripped.lstrip("- ").strip())
-    return [item for item in claims if item]
+            if lower.startswith("already accepted"):
+                break
+            if not stripped:
+                if claims:
+                    break
+                continue
+            if stripped[0].isdigit() and "." in stripped[:4]:
+                claims.append(stripped.split(".", 1)[1].strip())
+            elif stripped.startswith("-"):
+                claims.append(stripped.lstrip("- ").strip())
+        return [item for item in claims if item]
+
+    # Support concise prompt with "Answer:" block
+    if "\nAnswer:\n" in user_prompt or user_prompt.startswith("Answer:\n"):
+        ans_part = user_prompt.split("Answer:\n", 1)[1]
+        # Text up to "Generate exactly" or "Create exactly"
+        for stop_word in ("Generate exactly", "Create exactly", "Return JSON"):
+            if stop_word in ans_part:
+                ans_part = ans_part.split(stop_word, 1)[0]
+        return _split_claim_sentences(ans_part.strip())
+
+    return []
 
 
 _MUTATION_COUNT_RE = re.compile(
-    r"Create exactly\s+(\d+)\s+synonym mutations and\s+(\d+)\s+antonym mutations",
+    r"(?:Create|Generate)\s+exactly\s+(\d+)\s+(?:concise\s+)?synonym mutations and\s+(\d+)\s+(?:concise\s+)?antonym mutations",
     re.IGNORECASE,
 )
 _FILL_SYN_RE = re.compile(r"exactly\s+(\d+)\s+synonym mutation", re.IGNORECASE)
@@ -232,7 +240,10 @@ def _extract_max_claims(user_prompt: str) -> int:
 
 
 def _is_claim_extraction_prompt(system_prompt: str, user_prompt: str) -> bool:
-    if "extract a small set of important factual claims" in system_prompt.casefold():
+    system = system_prompt.casefold()
+    if "extract a small set of important factual claims" in system:
+        return True
+    if "extract factual claims from an ai answer for external evidence" in system:
         return True
     return "extract " in user_prompt.casefold() and "important factual claims" in user_prompt.casefold()
 
@@ -335,7 +346,7 @@ class MockLLMClient(LLMClient):
         self.captured_user_prompts.append(user_prompt)
         question = extract_question(user_prompt)
         self._apply_question_scenario(question)
-        if "Statement to judge:" in user_prompt:
+        if "Statement to judge:" in user_prompt or "Statement to evaluate:" in user_prompt:
             self.verify_calls += 1
             statement = _extract_statement(user_prompt)
             index = self._mutation_index(statement)
@@ -371,6 +382,122 @@ class MockLLMClient(LLMClient):
 
             verdict, rationale = _mock_verdict_for_scenario(effective_scenario, is_antonym, index)
             return {"verdict": verdict, "rationale": rationale}
+
+        # Web Evidence batch verification (multiple claims in one prompt).
+        if "Verify each claim independently" in user_prompt and "claim_id:" in user_prompt:
+            self.verify_calls += 1
+            # Parse claim blocks and return structured batch results.
+            blocks = user_prompt.split("---")
+            claims_out: list[dict[str, str]] = []
+            for block in blocks:
+                cid = ""
+                claim_text = ""
+                for line in block.splitlines():
+                    if line.startswith("claim_id:"):
+                        cid = line.removeprefix("claim_id:").strip()
+                if "Claim:\n" in block:
+                    after = block.split("Claim:\n", 1)[1]
+                    claim_text = after.split("\n\n", 1)[0].strip()
+                if not cid:
+                    continue
+                lower = block.casefold()
+                if "(no evidence retrieved)" in lower or (
+                    "snippet=(no snippet)" in lower and "snippet=" in lower
+                ):
+                    claims_out.append(
+                        {
+                            "claim_id": cid,
+                            "verdict": "INSUFFICIENT_EVIDENCE",
+                            "reason": "No usable evidence snippets for this claim.",
+                        }
+                    )
+                elif "CONTRADICTS_CLAIM:" in block or "contradicts the claim" in lower:
+                    claims_out.append(
+                        {
+                            "claim_id": cid,
+                            "verdict": "CONTRADICTED",
+                            "reason": "Retrieved evidence conflicts with the claim.",
+                        }
+                    )
+                else:
+                    claims_out.append(
+                        {
+                            "claim_id": cid,
+                            "verdict": "SUPPORTED",
+                            "reason": (
+                                f"Retrieved evidence supports “{claim_text[:80]}”."
+                                if claim_text
+                                else "Retrieved evidence supports the claim."
+                            ),
+                        }
+                    )
+            return {"claims": claims_out}
+
+        # Web Evidence verification (claim + retrieved evidence) — independent of MetaQA.
+        if "Evidence:" in user_prompt and "Claim:" in user_prompt:
+            self.verify_calls += 1
+            if "(no evidence retrieved)" in user_prompt.casefold():
+                return {
+                    "verdict": "INSUFFICIENT_EVIDENCE",
+                    "reason": "No web sources were retrieved for this claim.",
+                }
+            if "(no snippet)" in user_prompt.casefold() and "snippet=" in user_prompt.casefold():
+                # Only snippets matter; empty snippets → insufficient.
+                snippet_lines = [
+                    line for line in user_prompt.splitlines() if line.strip().startswith("snippet=")
+                ]
+                if snippet_lines and all(
+                    line.strip() in {"snippet=(no snippet)", "snippet="} for line in snippet_lines
+                ):
+                    return {
+                        "verdict": "INSUFFICIENT_EVIDENCE",
+                        "reason": (
+                            "Retrieved sources discuss the topic but do not provide enough "
+                            "textual evidence to establish whether the claim is true."
+                        ),
+                    }
+            claim_line = ""
+            for line in user_prompt.splitlines():
+                if line.startswith("Claim:"):
+                    claim_line = line.removeprefix("Claim:").strip()
+                    break
+            # Extract claim from multi-line Claim: block.
+            if not claim_line and "Claim:\n" in user_prompt:
+                after = user_prompt.split("Claim:\n", 1)[1]
+                claim_line = after.split("\n\n", 1)[0].strip()
+
+            lower_prompt = user_prompt.casefold()
+            if "contradict" in lower_prompt and "false claim" in lower_prompt:
+                return {
+                    "verdict": "CONTRADICTED",
+                    "reason": (
+                        f"A retrieved snippet states a conflicting fact for "
+                        f"“{claim_line[:80]}”."
+                        if claim_line
+                        else "Retrieved evidence conflicts with the claim."
+                    ),
+                }
+            # Heuristic for tests: snippet marked as contradicting the claim.
+            if "CONTRADICTS_CLAIM:" in user_prompt or "contradicts the claim" in lower_prompt:
+                return {
+                    "verdict": "CONTRADICTED",
+                    "reason": (
+                        "The source states a different fact than the claim, so the retrieved "
+                        "evidence contradicts the claim."
+                    ),
+                }
+            # Pull a short snippet phrase for a claim-specific reason.
+            snippet_phrase = ""
+            for line in user_prompt.splitlines():
+                if line.strip().startswith("snippet=") and "(no snippet)" not in line:
+                    snippet_phrase = line.split("snippet=", 1)[1].strip()[:120]
+                    break
+            reason = (
+                f"The source states that {snippet_phrase.rstrip('.')}, which directly supports the claim."
+                if snippet_phrase
+                else "Retrieved evidence explicitly supports the claim."
+            )
+            return {"verdict": "SUPPORTED", "reason": reason}
 
         if _is_claim_extraction_prompt(system_prompt, user_prompt):
             self.claim_calls += 1
@@ -541,6 +668,7 @@ def extract_question(user_prompt: str) -> str:
         "base answer:",
         "candidate answer:",
         "statement to judge:",
+        "statement to evaluate:",
         "core claims",
         "answer:",
         "write a concise factual answer.",
@@ -563,7 +691,7 @@ def extract_question(user_prompt: str) -> str:
 
 
 def _extract_statement(user_prompt: str) -> str:
-    marker = "Statement to judge:"
+    marker = "Statement to evaluate:" if "Statement to evaluate:" in user_prompt else "Statement to judge:"
     if marker not in user_prompt:
         return ""
     remainder = user_prompt.split(marker, 1)[1]

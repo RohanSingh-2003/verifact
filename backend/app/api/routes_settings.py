@@ -29,6 +29,17 @@ class PublicSettings(BaseModel):
     llm_max_output_tokens: int
     frozen_experiment_id: str
     prompt_bundle: str = Field(default="metaqa-v1")
+    mutation_model: str = ""
+    effective_mutation_model: str = ""
+    effective_verifier_model: str = ""
+    gemini_verifier_model: str = ""
+    gemini_verifier_ready: bool = False
+    tavily_search_depth: str = "basic"
+    web_max_claims: int = 3
+    web_max_searches: int = 3
+    web_results_per_claim: int = 2
+    web_evidence_enabled: bool = True
+    web_evidence_ready: bool = False
 
 
 @router.get("/api/settings", response_model=PublicSettings)
@@ -53,4 +64,15 @@ def read_settings(settings: Settings = Depends(settings_dep)) -> PublicSettings:
         llm_temperature=settings.llm_temperature,
         llm_max_output_tokens=settings.llm_max_output_tokens,
         frozen_experiment_id=settings.frozen_experiment_id,
+        mutation_model=settings.mutation_model,
+        effective_mutation_model=settings.effective_mutation_model,
+        effective_verifier_model=settings.effective_verifier_model,
+        gemini_verifier_model=settings.gemini_verifier_model,
+        gemini_verifier_ready=settings.gemini_verifier_ready,
+        tavily_search_depth=settings.tavily_search_depth,
+        web_max_claims=settings.web_max_claims,
+        web_max_searches=settings.web_max_searches,
+        web_results_per_claim=settings.web_results_per_claim,
+        web_evidence_enabled=settings.web_evidence_enabled,
+        web_evidence_ready=settings.web_evidence_ready,
     )

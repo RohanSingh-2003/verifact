@@ -8,8 +8,9 @@ import type {
   GenerationTrace,
   HistoryRun,
   RunStatus,
+  SystemHealth,
 } from '../types'
-import { AnalysisStage as Stage, RunStatus as RunStatusValue, isAnalysisFailureStatus, isTerminalRunStatus } from '../types'
+import { AnalysisStage as Stage, RunStatus as RunStatusValue, analysisStillRunning, isAnalysisFailureStatus } from '../types'
 import { mapDetectResponse, mapRunSummary } from './mappers'
 import type { DetectApiResponse, RunListResponse } from './mappers'
 
@@ -91,7 +92,7 @@ export async function detectRun(
   options.onPartialResult?.(result)
   options.onStage?.(statusToStage(result.status))
 
-  if (isTerminalRunStatus(result.status)) {
+  if (!analysisStillRunning(result)) {
     return result
   }
 
@@ -108,10 +109,9 @@ export async function detectRun(
     }
     options.onPartialResult?.(result)
     options.onStage?.(statusToStage(result.status))
-    if (result.status === RunStatusValue.Completed) {
-      return result
-    }
-    if (isAnalysisFailureStatus(result.status)) {
+    // Continue while either MetaQA or Web Evidence is still running.
+    // MetaQA failure alone must NOT stop polling.
+    if (!analysisStillRunning(result)) {
       return result
     }
   }
@@ -322,29 +322,14 @@ export async function exportEvaluationSweepCsv(id: string): Promise<void> {
   await downloadCsv(`/api/evaluations/${id}/export/sweep`, `verifact-evaluation-sweep-${id.slice(0, 8)}.csv`)
 }
 
-export async function getHealth(): Promise<{
-  status: string
-  llm_mode: 'mock' | 'live'
-  llm_provider?: string
-  live_ready?: boolean
-  generator_model?: string
-  verifier_model?: string
-}> {
+export async function getHealth(): Promise<SystemHealth> {
   const response = await apiFetch('/api/health')
-  return (await response.json()) as {
-    status: string
-    llm_mode: 'mock' | 'live'
-    llm_provider?: string
-    live_ready?: boolean
-    generator_model?: string
-    verifier_model?: string
-  }
+  return (await response.json()) as SystemHealth
 }
 
 export async function getSettings(): Promise<AppSettings> {
   const response = await apiFetch('/api/settings')
   const payload = (await response.json()) as {
-    llm_mode: 'mock' | 'live'
     live_ready: boolean
     api_key_configured: boolean
     llm_provider?: string
@@ -359,12 +344,22 @@ export async function getSettings(): Promise<AppSettings> {
     synonym_count: number
     antonym_count: number
     frozen_experiment_id?: string
+    mutation_model?: string
+    effective_mutation_model?: string
+    effective_verifier_model?: string
+    gemini_verifier_model?: string
+    gemini_verifier_ready?: boolean
+    tavily_search_depth?: string
+    web_max_claims?: number
+    web_max_searches?: number
+    web_results_per_claim?: number
+    web_evidence_enabled?: boolean
+    web_evidence_ready?: boolean
   }
   return {
     threshold: payload.threshold,
     generatorModel: payload.generator_model,
     verifierModel: payload.verifier_model,
-    llmMode: payload.llm_mode,
     liveReady: payload.live_ready,
     apiKeyConfigured: payload.api_key_configured,
     llmProvider: payload.llm_provider ?? 'openai_compatible',
@@ -376,5 +371,16 @@ export async function getSettings(): Promise<AppSettings> {
     synonymCount: payload.synonym_count,
     antonymCount: payload.antonym_count,
     frozenExperimentId: payload.frozen_experiment_id ?? '58baff20-fb86-4f43-b20e-895a086ceb6b',
+    mutationModel: payload.mutation_model ?? '',
+    effectiveMutationModel: payload.effective_mutation_model || payload.generator_model,
+    effectiveVerifierModel: payload.effective_verifier_model || payload.verifier_model,
+    geminiVerifierModel: payload.gemini_verifier_model ?? '',
+    geminiVerifierReady: payload.gemini_verifier_ready ?? false,
+    tavilySearchDepth: payload.tavily_search_depth ?? 'basic',
+    webMaxClaims: payload.web_max_claims ?? 3,
+    webMaxSearches: payload.web_max_searches ?? 3,
+    webResultsPerClaim: payload.web_results_per_claim ?? 2,
+    webEvidenceEnabled: payload.web_evidence_enabled ?? true,
+    webEvidenceReady: payload.web_evidence_ready ?? false,
   }
 }
