@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
@@ -45,12 +46,82 @@ def _new_llm_client(settings: Settings) -> LLMClient:
     raise RuntimeError(f"Unsupported LLM_PROVIDER: {settings.llm_provider}")
 
 
-def _new_gemini_verifier(settings: Settings) -> LLMClient | None:
-    """Fresh Gemini verifier client for background MetaQA verification.
+class _ModelClientLLMAdapter(LLMClient):
+    """Adapts a ModelClient to the LLMClient interface for MetaQA analysis."""
 
-    Returns None when Gemini is not configured — MetaQA should then report
-    verification unavailable instead of silently falling back to Ollama.
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    async def complete_text(
+        self,
+        *,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int | None = None,
+    ) -> str:
+        return await self._inner.complete_text(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=max_tokens,
+        )
+
+    async def complete_json(
+        self,
+        *,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int | None = None,
+    ) -> dict[str, Any]:
+        return await self._inner.complete_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=max_tokens,
+        )
+
+    async def aclose(self) -> None:
+        close = getattr(self._inner, "aclose", None)
+        if close is not None:
+            await close()
+
+
+def _new_verifier_for_pool(
+    settings: Settings,
+    *,
+    selected_answer_model: str,
+) -> tuple[LLMClient | None, str]:
+    """Select a verifier client and model identifier from the verifier pool.
+
+    The selected answer model is ALWAYS excluded from the verifier pool.
     """
+    from app.llm.registry import MODEL_REGISTRY, get_model_client, is_model_configured
+
+    if selected_answer_model != "gemini" and settings.gemini_configured:
+        from app.llm.gemini import GeminiClient
+        client = GeminiClient(
+            api_key=settings.gemini_api_key,
+            default_model=settings.gemini_verifier_model,
+            timeout_seconds=settings.llm_timeout_seconds,
+            max_retries=settings.llm_max_retries,
+            temperature=settings.llm_temperature,
+        )
+        return client, settings.gemini_verifier_model
+
+    # If Gemini is the answer model, or not configured, pick another configured candidate
+    for candidate_id in ("gemma", "qwen", "mistral", "nemotron"):
+        if candidate_id == selected_answer_model:
+            continue
+        if is_model_configured(candidate_id, settings):
+            model_client = get_model_client(candidate_id, settings)
+            mdef = MODEL_REGISTRY[candidate_id]
+            return _ModelClientLLMAdapter(model_client), mdef.default_model_name
+
+    return None, ""
+
+
+def _new_gemini_verifier(settings: Settings) -> LLMClient | None:
+    """Fresh Gemini verifier client for background MetaQA verification."""
     if settings.gemini_configured:
         from app.llm.gemini import GeminiClient
         return GeminiClient(
@@ -70,18 +141,14 @@ async def _continue_metaqa_analysis(
     answer_text: str,
     generator_model: str,
     answer_ms: float,
+    selected_answer_model: str = "gemma",
     request_llm: LLMClient | None = None,
     request_verifier_llm: LLMClient | None = None,
 ) -> None:
     """Background MetaQA continuation on the app event loop. Fresh DB session.
 
     Mock mode reuses the request LLM (deterministic / test overrides).
-    Live providers get a fresh httpx client so background work never shares
-    an AsyncClient across event-loop boundaries.
-
-    Cross-model verification: Ollama generates mutations, Gemini verifies them.
-    If Gemini is not configured, MetaQA reports verification unavailable — it
-    NEVER silently falls back to Ollama for verification.
+    Dynamic verifier pool excludes the selected answer model.
     """
     settings = get_settings()
     owns_client = False
@@ -93,35 +160,39 @@ async def _continue_metaqa_analysis(
         llm = _new_llm_client(settings)
         owns_client = True
 
-    # Gemini verifier for cross-model verification
+    verifier_model_name = settings.effective_verifier_model
     if is_test_mock and request_verifier_llm is not None:
         verifier_llm = request_verifier_llm
     elif is_test_mock and request_llm is not None and isinstance(request_llm, MockLLMClient):
         from app.llm.gemini import MockGeminiClient
         verifier_llm = MockGeminiClient(inner=request_llm)
     else:
-        verifier_llm = _new_gemini_verifier(settings)
+        verifier_llm, pool_verifier_name = _new_verifier_for_pool(
+            settings,
+            selected_answer_model=selected_answer_model,
+        )
+        if pool_verifier_name:
+            verifier_model_name = pool_verifier_name
         owns_verifier = True
 
     if verifier_llm is None:
-        # Gemini not configured — report unavailable, never fall back to Ollama
         db = SessionLocal()
         try:
             fail_run_analysis(
                 db,
                 run_id,
-                "Gemini verification unavailable. Configure GEMINI_API_KEY for cross-model MetaQA verification.",
+                f"No independent verifier available in verifier pool (answer model: {selected_answer_model}). Configure GEMINI_API_KEY or another cloud provider.",
                 status=RunStatus.VERIFICATION_FAILED,
             )
             db.commit()
         except Exception:
             db.rollback()
-            logger.exception("failed to mark gemini unavailable run_id=%s", run_id)
+            logger.exception("failed to mark verifier unavailable run_id=%s", run_id)
         finally:
             db.close()
         return
 
-    verifier_model = settings.effective_verifier_model
+    verifier_model = verifier_model_name or settings.effective_verifier_model
     db = SessionLocal()
     current_stage = RunStatus.ANSWER_READY.value
     try:
@@ -341,6 +412,16 @@ async def _continue_web_evidence(
                     logger.exception("failed to close web evidence llm client")
 
 
+@router.get("/api/models")
+def get_models(settings: Settings = Depends(settings_dep)) -> dict[str, Any]:
+    """Return available answer models and their cloud provider readiness status."""
+    from app.llm.registry import DEFAULT_MODEL_ID, list_available_models
+    return {
+        "models": list_available_models(settings),
+        "default_model": DEFAULT_MODEL_ID,
+    }
+
+
 @router.post("/api/detect", response_model=DetectResponse)
 async def detect(
     payload: DetectRequest,
@@ -354,26 +435,51 @@ async def detect(
     if not question:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Enter a factual question.")
 
-    if settings.llm_mode == "live" and not settings.api_key_configured:
-        detail = (
-            "Ollama is not ready. Check OLLAMA_BASE_URL and that the model is configured."
-            if settings.is_ollama
-            else "Live LLM mode is not configured. Add the required provider credentials in the backend environment or switch to Demo / Mock Mode."
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=detail,
-        )
+    from app.llm.registry import (
+        MODEL_REGISTRY,
+        get_model_client,
+        is_model_configured,
+        validate_answer_model,
+    )
 
     try:
-        generator = settings.require_model(settings.generator_model)
+        canonical_model_id = validate_answer_model(payload.answer_model)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    model_def = MODEL_REGISTRY[canonical_model_id]
+
+    if settings.llm_mode == "live":
+        if not is_model_configured(canonical_model_id, settings) or not settings.api_key_configured:
+            detail = (
+                f"Selected answer model '{model_def.display_name}' ({model_def.provider_display}) is not configured. "
+                f"Live LLM mode is not configured. Add the required provider credentials in the backend environment or switch to Demo / Mock Mode."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=detail,
+            )
+
+    try:
         answer_started = time.perf_counter()
-        answer = await generate_answer(
-            llm,
-            question,
-            generator,
-            max_tokens=settings.llm_answer_max_tokens,
-        )
+        is_test_mock = isinstance(llm, MockLLMClient) or settings.llm_mode == "mock"
+        if is_test_mock:
+            # Deterministic test mock or mock mode
+            base_ans = await generate_answer(
+                llm,
+                question,
+                model_def.default_model_name,
+                max_tokens=settings.llm_answer_max_tokens,
+            )
+            answer = BaseAnswer(text=base_ans.text, model=model_def.display_name)
+        else:
+            model_client = get_model_client(canonical_model_id, settings)
+            text = await model_client.generate_answer(
+                question,
+                max_tokens=settings.llm_answer_max_tokens,
+            )
+            answer = BaseAnswer(text=text.strip(), model=model_def.display_name)
+
         answer_ms = round((time.perf_counter() - answer_started) * 1000, 1)
 
         try:
@@ -396,12 +502,7 @@ async def detect(
             ) from exc
 
         # Schedule MetaQA and Web Evidence independently and concurrently.
-        # FastAPI BackgroundTasks run sequentially, so wrap both in one task
-        # that uses asyncio.gather(return_exceptions=True) for true parallelism
-        # and full error isolation between branches.
-
-        # Get Gemini verifier for cross-model verification
-        is_test_mock = isinstance(llm, MockLLMClient)
+        # Dynamic verifier pool automatically excludes the selected answer model.
         if is_test_mock and isinstance(llm, MockLLMClient):
             from app.llm.gemini import MockGeminiClient
             verifier_llm = MockGeminiClient(inner=llm)
@@ -414,6 +515,7 @@ async def detect(
                     answer_text=answer.text,
                     generator_model=answer.model,
                     answer_ms=answer_ms,
+                    selected_answer_model=canonical_model_id,
                     request_llm=llm if is_test_mock else None,
                     request_verifier_llm=verifier_llm if is_test_mock else None,
                 ),
@@ -446,9 +548,10 @@ async def detect(
 
         background_tasks.add_task(_run_parallel_verification)
         logger.info(
-            "answer ready run_id=%s answer_ms=%.0f; metaqa+web_evidence scheduled in parallel",
+            "answer ready run_id=%s answer_ms=%.0f; metaqa+web_evidence scheduled in parallel (model=%s)",
             run.id,
             answer_ms,
+            canonical_model_id,
         )
         return to_detect_response(run)
     except HTTPException:

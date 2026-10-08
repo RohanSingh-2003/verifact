@@ -58,10 +58,31 @@ class Settings(BaseSettings):
     ollama_keep_alive: str = "30m"
 
     # Gemini Verifier — cross-model MetaQA mutation verification.
-    # Gemini is used ONLY for verifying mutations, not for answer/mutation generation.
+    # Gemini is used for verifying mutations or answer generation.
     gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.8-flash"
     gemini_verifier_model: str = "gemini-3.8-flash"
     gemini_verify_concurrency: int = Field(default=3, ge=1, le=10)
+
+    # Multi-Model Cloud Providers (Phase 1)
+    # 1. Ollama Cloud (Gemma 4:26B) - official cloud endpoint, NOT localhost
+    ollama_cloud_base_url: str = "https://ollama.com/api"
+    ollama_cloud_model: str = "gemma4:26b"
+
+    # 2. NVIDIA NIM API (Nemotron)
+    nvidia_api_key: str = ""
+    nvidia_base_url: str = "https://integrate.api.nvidia.com/v1"
+    nvidia_model: str = "nvidia/llama-3.1-nemotron-70b-instruct"
+
+    # 3. Groq API (Qwen)
+    groq_api_key: str = ""
+    groq_base_url: str = "https://api.groq.com/openai/v1"
+    groq_model: str = "qwen-2.5-32b"
+
+    # 4. Mistral AI API (Mistral)
+    mistral_api_key: str = ""
+    mistral_base_url: str = "https://api.mistral.ai/v1"
+    mistral_model: str = "mistral-small-latest"
 
     # Web Evidence (Tavily) — independent of MetaQA; optional when key missing.
     tavily_api_key: str = ""
@@ -154,6 +175,34 @@ class Settings(BaseSettings):
         if self.llm_mode == "mock":
             return True
         return self.gemini_configured
+
+    @property
+    def ollama_cloud_configured(self) -> bool:
+        if self.llm_mode == "mock":
+            return True
+        key = self.ollama_api_key.strip()
+        return bool(key) and not key.startswith("replace-with-") and key != "ollama"
+
+    @property
+    def nvidia_configured(self) -> bool:
+        if self.llm_mode == "mock":
+            return True
+        key = self.nvidia_api_key.strip()
+        return bool(key) and not key.startswith("replace-with-")
+
+    @property
+    def groq_configured(self) -> bool:
+        if self.llm_mode == "mock":
+            return True
+        key = self.groq_api_key.strip()
+        return bool(key) and not key.startswith("replace-with-")
+
+    @property
+    def mistral_configured(self) -> bool:
+        if self.llm_mode == "mock":
+            return True
+        key = self.mistral_api_key.strip()
+        return bool(key) and not key.startswith("replace-with-")
 
     @property
     def effective_mutation_model(self) -> str:

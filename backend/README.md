@@ -109,9 +109,20 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 | `THRESHOLD` | float | `0.5` | Classification threshold $\theta$ ($H \ge \theta \implies \text{Hallucinated}$). |
 | `LLM_TIMEOUT_SECONDS` | float | `60.0` | Timeout per LLM generation request. |
 | `LLM_ANSWER_MAX_TOKENS` | int | `350` | Output token cap for candidate answer generation. |
-| `LLM_MUTATION_MAX_TOKENS` | int | `300` | Output token cap for mutation generation. |
-| `GEMINI_API_KEY` | string | `""` | Google Gemini API key for cross-model verification. |
-| `GEMINI_VERIFIER_MODEL` | string | `gemini-3.8-flash` | Gemini model ID for MetaQA mutation verification. |
+| `OLLAMA_API_KEY` | string | `""` | Ollama Cloud API key for cloud inference (`https://ollama.com/api`). |
+| `OLLAMA_CLOUD_BASE_URL` | string | `https://ollama.com/api` | Ollama Cloud API endpoint (local daemon not used). |
+| `OLLAMA_CLOUD_MODEL` | string | `gemma4:26b` | Cloud model identifier for Gemma 4:26B. |
+| `NVIDIA_API_KEY` | string | `""` | NVIDIA API key. |
+| `NVIDIA_BASE_URL` | string | `https://integrate.api.nvidia.com/v1` | NVIDIA API endpoint. |
+| `NVIDIA_MODEL` | string | `nvidia/llama-3.1-nemotron-70b-instruct` | NVIDIA Nemotron model ID. |
+| `GROQ_API_KEY` | string | `""` | Groq API key for Qwen model. |
+| `GROQ_BASE_URL` | string | `https://api.groq.com/openai/v1` | Groq API endpoint. |
+| `GROQ_MODEL` | string | `qwen-2.5-32b` | Qwen model ID on Groq. |
+| `MISTRAL_API_KEY` | string | `""` | Mistral AI API key. |
+| `MISTRAL_BASE_URL` | string | `https://api.mistral.ai/v1` | Mistral AI API endpoint. |
+| `MISTRAL_MODEL` | string | `mistral-small-latest` | Mistral model ID. |
+| `GEMINI_API_KEY` | string | `""` | Google Gemini API key. |
+| `GEMINI_VERIFIER_MODEL` | string | `gemini-3.8-flash` | Gemini model ID for verification or generation. |
 | `GEMINI_VERIFY_CONCURRENCY`| int | `3` | Max concurrent verifier requests to Gemini API. |
 | `TAVILY_API_KEY` | string | `""` | Tavily API key for Web Evidence. |
 | `TAVILY_SEARCH_DEPTH` | string | `basic` | Tavily search depth (`basic` or `advanced`). |
@@ -125,8 +136,9 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ## API Routes
 
 ### Interactive Detection & History
-- `POST /api/detect`: Accepts `{ "question": "..." }`, generates the base answer, creates a run record with status `answer_ready`, schedules parallel background verification tasks, and returns immediately.
-- `GET /api/runs/{id}`: Returns the live state of the run, including candidate answer, MetaQA mutation verdicts and score, Web Evidence claims and sources, and the Overall VeriFact Assessment.
+- `GET /api/models`: Returns list of available Answer Models (Gemma 4:26B, NVIDIA Nemotron, Qwen, Mistral, Gemini Flash 3.8), their cloud providers, configuration readiness, and default selection.
+- `POST /api/detect`: Accepts `{ "question": "...", "answer_model": "gemma" }`, generates the base answer using the selected model, dynamically assigns all remaining models as the independent verifier pool (strictly excluding the answer generator), and schedules parallel background verification.
+- `GET /api/runs/{id}`: Returns the live state of the run, including candidate answer, selected answer model, verifiers, MetaQA mutation verdicts and score, Web Evidence claims and sources, and the Overall VeriFact Assessment.
 - `GET /api/runs`: Returns a paginated list of previous detection runs.
 - `DELETE /api/runs/{id}`: Deletes a specific run record and associated mutations.
 - `GET /api/health`: System health status, provider readiness, and active model names.

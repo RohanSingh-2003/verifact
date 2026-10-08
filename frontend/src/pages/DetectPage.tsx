@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { detectRun, getHealth, getRun } from '../services/api'
+import { detectRun, getAvailableModels, getHealth, getRun } from '../services/api'
 import { EXAMPLE_QUESTIONS } from '../data/exampleQuestions'
 import { AnswerCard } from '../components/detect/AnswerCard'
+import { AnswerModelSelector } from '../components/detect/AnswerModelSelector'
 import {
   AnalysisProgress,
   type ProgressStepItem,
@@ -14,7 +15,7 @@ import { MutationTabs } from '../components/detect/MutationTabs'
 import { QuestionInput } from '../components/detect/QuestionInput'
 import { ScoreCard } from '../components/detect/ScoreCard'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/Status'
-import type { AnalysisResult, AnalysisStage } from '../types'
+import type { AnalysisResult, AnalysisStage, AnswerModelOption } from '../types'
 import {
   AnalysisStage as Stage,
   RunStatus,
@@ -200,6 +201,24 @@ export function DetectPage() {
   const [provider, setProvider] = useState<string | null>(null)
   const [healthGenerator, setHealthGenerator] = useState<string | null>(null)
   const [geminiVerifierModel, setGeminiVerifierModel] = useState<string | null>(null)
+  const [selectedAnswerModel, setSelectedAnswerModel] = useState('gemma')
+  const [availableModels, setAvailableModels] = useState<AnswerModelOption[]>([
+    { id: 'gemma', name: 'Gemma 4:26B', provider: 'ollama', providerDisplay: 'Ollama Cloud', modelName: 'gemma4:26b', configured: true, isDefault: true },
+    { id: 'nemotron', name: 'NVIDIA Nemotron', provider: 'nvidia', providerDisplay: 'NVIDIA', modelName: 'nvidia/llama-3.1-nemotron-70b-instruct', configured: false, isDefault: false },
+    { id: 'qwen', name: 'Qwen', provider: 'groq', providerDisplay: 'Alibaba / Groq', modelName: 'qwen-2.5-32b', configured: false, isDefault: false },
+    { id: 'mistral', name: 'Mistral', provider: 'mistral', providerDisplay: 'Mistral AI', modelName: 'mistral-small-latest', configured: false, isDefault: false },
+    { id: 'gemini', name: 'Gemini Flash 3.8', provider: 'gemini', providerDisplay: 'Google', modelName: 'gemini-3.8-flash', configured: true, isDefault: false },
+  ])
+
+  useEffect(() => {
+    void getAvailableModels()
+      .then((models) => {
+        if (models && models.length > 0) {
+          setAvailableModels(models)
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     void getHealth()
@@ -255,6 +274,9 @@ export function DetectPage() {
 
         setQuestion(analysis.question)
         setResult(analysis)
+        if (analysis.answerModel?.id) {
+          setSelectedAnswerModel(analysis.answerModel.id)
+        }
         setError(null)
         setFetching(false)
         setStage(stageFromRunStatus(analysis.status))
@@ -307,6 +329,7 @@ export function DetectPage() {
     setStage(Stage.GeneratingAnswer)
     try {
       const analysis = await detectRun(question, {
+        answerModel: selectedAnswerModel,
         onStage: (next) => {
           if (requestToken.current !== token) return
           setStage(next)
@@ -377,6 +400,8 @@ export function DetectPage() {
   const metaqaProgressStatus = getMetaqaStatus(stage, result?.status, metaqaFailed)
   const metaqaErrorReason = metaqaFailed ? metaqaFailureMessage(result, mutationsVisible) : null
 
+  const selectedModelOption = availableModels.find((m) => m.id === selectedAnswerModel)
+
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-6">
@@ -391,6 +416,15 @@ export function DetectPage() {
       </header>
 
       <MethodOverview />
+
+      <div className="mb-4">
+        <AnswerModelSelector
+          models={availableModels}
+          selectedId={selectedAnswerModel}
+          onSelect={setSelectedAnswerModel}
+          disabled={inputLocked}
+        />
+      </div>
 
       <QuestionInput
         value={question}
@@ -418,7 +452,16 @@ export function DetectPage() {
       <div className="mt-8 space-y-8">
         {/* State 1: Answer is generating (neutral state, separate from MetaQA) */}
         {waitingForAnswer && !result ? (
-          <AnswerCard isGenerating model={activeModel ?? undefined} />
+          <AnswerCard
+            isGenerating
+            model={activeModel ?? undefined}
+            answerModel={selectedModelOption ? {
+              id: selectedModelOption.id,
+              name: selectedModelOption.name,
+              provider: selectedModelOption.providerDisplay || selectedModelOption.provider,
+              modelName: selectedModelOption.modelName,
+            } : undefined}
+          />
         ) : null}
 
         {fetching && !waitingForAnswer && !analyzing && !result ? (
@@ -443,6 +486,17 @@ export function DetectPage() {
             <AnswerCard
               answer={result.answer}
               model={result.model}
+              answerModel={
+                result.answerModel ||
+                (selectedModelOption
+                  ? {
+                      id: selectedModelOption.id,
+                      name: selectedModelOption.name,
+                      provider: selectedModelOption.providerDisplay || selectedModelOption.provider,
+                      modelName: selectedModelOption.modelName,
+                    }
+                  : undefined)
+              }
               responseTimeMs={result.responseTimeMs}
             />
 

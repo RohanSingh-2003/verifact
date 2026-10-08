@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
@@ -37,13 +39,14 @@ class PublicSettings(BaseModel):
     tavily_search_depth: str = "basic"
     web_max_claims: int = 3
     web_max_searches: int = 3
-    web_results_per_claim: int = 2
     web_evidence_enabled: bool = True
     web_evidence_ready: bool = False
+    models: list[dict[str, Any]] = Field(default_factory=list)
 
 
 @router.get("/api/settings", response_model=PublicSettings)
 def read_settings(settings: Settings = Depends(settings_dep)) -> PublicSettings:
+    from app.llm.registry import list_available_models
     return PublicSettings(
         llm_mode=settings.llm_mode,
         live_ready=settings.live_ready,
@@ -75,4 +78,5 @@ def read_settings(settings: Settings = Depends(settings_dep)) -> PublicSettings:
         web_results_per_claim=settings.web_results_per_claim,
         web_evidence_enabled=settings.web_evidence_enabled,
         web_evidence_ready=settings.web_evidence_ready,
+        models=list_available_models(settings),
     )

@@ -9,6 +9,7 @@ import type {
   HistoryRun,
   RunStatus,
   SystemHealth,
+  AnswerModelOption,
 } from '../types'
 import { AnalysisStage as Stage, RunStatus as RunStatusValue, analysisStillRunning, isAnalysisFailureStatus } from '../types'
 import { mapDetectResponse, mapRunSummary } from './mappers'
@@ -19,6 +20,7 @@ const POLL_INTERVAL_MS = 1200
 const POLL_TIMEOUT_MS = 15 * 60 * 1000
 
 export interface DetectRunOptions {
+  answerModel?: string
   onStage?: (stage: AnalysisStage) => void
   onPartialResult?: (result: AnalysisResult) => void
 }
@@ -85,7 +87,10 @@ export async function detectRun(
   const started = Date.now()
   const response = await apiFetch('/api/detect', {
     method: 'POST',
-    body: JSON.stringify({ question: trimmed }),
+    body: JSON.stringify({
+      question: trimmed,
+      answer_model: options.answerModel || 'gemma',
+    }),
   })
   const payload = (await response.json()) as DetectApiResponse
   let result = mapDetectResponse(payload, Date.now() - started)
@@ -382,5 +387,39 @@ export async function getSettings(): Promise<AppSettings> {
     webResultsPerClaim: payload.web_results_per_claim ?? 2,
     webEvidenceEnabled: payload.web_evidence_enabled ?? true,
     webEvidenceReady: payload.web_evidence_ready ?? false,
+  }
+}
+
+export async function getAvailableModels(): Promise<AnswerModelOption[]> {
+  try {
+    const response = await apiFetch('/api/models')
+    const data = (await response.json()) as {
+      models: Array<{
+        id: string
+        name: string
+        provider: string
+        provider_display: string
+        model_name: string
+        configured: boolean
+        is_default?: boolean
+      }>
+    }
+    return (data.models ?? []).map((m) => ({
+      id: m.id,
+      name: m.name,
+      provider: m.provider,
+      providerDisplay: m.provider_display,
+      modelName: m.model_name,
+      configured: m.configured,
+      isDefault: m.is_default,
+    }))
+  } catch {
+    return [
+      { id: 'gemma', name: 'Gemma 4:26B', provider: 'ollama', providerDisplay: 'Ollama Cloud', modelName: 'gemma4:26b', configured: true, isDefault: true },
+      { id: 'nemotron', name: 'NVIDIA Nemotron', provider: 'nvidia', providerDisplay: 'NVIDIA', modelName: 'nvidia/llama-3.1-nemotron-70b-instruct', configured: false, isDefault: false },
+      { id: 'qwen', name: 'Qwen', provider: 'groq', providerDisplay: 'Alibaba / Groq', modelName: 'qwen-2.5-32b', configured: false, isDefault: false },
+      { id: 'mistral', name: 'Mistral', provider: 'mistral', providerDisplay: 'Mistral AI', modelName: 'mistral-small-latest', configured: false, isDefault: false },
+      { id: 'gemini', name: 'Gemini Flash 3.8', provider: 'gemini', providerDisplay: 'Google', modelName: 'gemini-3.8-flash', configured: true, isDefault: false },
+    ]
   }
 }

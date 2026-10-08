@@ -611,6 +611,29 @@ def to_detect_response(run: Run) -> DetectResponse:
         web_status,
         has_answer=bool((run.base_answer or "").strip()),
     )
+
+    from app.config import get_settings
+    from app.llm.registry import MODEL_REGISTRY, get_verifier_pool, resolve_model_id
+    from app.schemas.detect import AnswerModelOut, VerifierModelOut
+
+    app_settings = get_settings()
+    ans_model_id = resolve_model_id(run.generator_model) or "gemma"
+    model_def = MODEL_REGISTRY.get(ans_model_id, MODEL_REGISTRY["gemma"])
+    answer_model_info = AnswerModelOut(
+        id=model_def.id,
+        name=model_def.display_name,
+        provider=model_def.provider_display,
+    )
+    verifier_pool_info = [
+        VerifierModelOut(
+            id=v["id"],
+            name=v["name"],
+            provider=v["provider"],
+            status="pending" if complete or status != RunStatus.FAILED else v["status"],
+        )
+        for v in get_verifier_pool(ans_model_id, app_settings)
+    ]
+
     return DetectResponse(
         run_id=run.id,
         question=run.question,
@@ -629,6 +652,8 @@ def to_detect_response(run: Run) -> DetectResponse:
         analysis_error=run.analysis_error or None,
         web_evidence=web_evidence,
         verification_summary=VerificationSummaryOut.model_validate(summary_payload),
+        answer_model=answer_model_info,
+        verifiers=verifier_pool_info,
         created_at=run.created_at,
         timing=timing,
     )

@@ -113,10 +113,12 @@ interface DetectApiResponse {
   not_sure_rate: number | null
   created_at: string
   status?: RunStatus
-  overall_status?: OverallStatus | string
+  overall_status?: string | null
   analysis_error?: string | null
   web_evidence?: DetectApiWebEvidence | null
   verification_summary?: DetectApiVerificationSummary | null
+  answer_model?: { id: string; name: string; provider: string; model_name?: string } | null
+  verifiers?: Array<{ id: string; name: string; provider: string; status: string }> | null
   timing?: DetectApiTiming | null
 }
 
@@ -366,6 +368,19 @@ export function mapDetectResponse(payload: DetectApiResponse, responseTimeMs: nu
     analysisError: payload.analysis_error ?? null,
     webEvidence: mapWebEvidence(payload.web_evidence),
     verificationSummary: mapVerificationSummary(payload.verification_summary),
+    answerModel: payload.answer_model
+      ? {
+          id: payload.answer_model.id,
+          name: payload.answer_model.name,
+          provider: payload.answer_model.provider,
+        }
+      : null,
+    verifiers: (payload.verifiers ?? []).map((v) => ({
+      id: v.id,
+      name: v.name,
+      provider: v.provider,
+      status: v.status,
+    })),
     timing: timing
       ? {
           answerMs: timing.answer_ms,

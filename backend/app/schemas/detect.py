@@ -47,8 +47,22 @@ class OverallStatus(str, Enum):
     FAILED = "failed"
 
 
+class AnswerModelOut(BaseModel):
+    id: str
+    name: str
+    provider: str
+
+
+class VerifierModelOut(BaseModel):
+    id: str
+    name: str
+    provider: str
+    status: str = "pending"
+
+
 class DetectRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
+    answer_model: str = Field(default="gemma")
 
     @field_validator("question")
     @classmethod
@@ -57,6 +71,12 @@ class DetectRequest(BaseModel):
         if not cleaned:
             raise ValueError("Enter a factual question.")
         return cleaned
+
+    @field_validator("answer_model")
+    @classmethod
+    def validate_answer_model_field(cls, value: str) -> str:
+        from app.llm.registry import validate_answer_model
+        return validate_answer_model(value)
 
     @property
     def cleaned_question(self) -> str:
@@ -122,6 +142,8 @@ class DetectResponse(BaseModel):
     analysis_error: str | None = None
     web_evidence: WebEvidenceOut | None = None
     verification_summary: VerificationSummaryOut | None = None
+    answer_model: AnswerModelOut | None = None
+    verifiers: list[VerifierModelOut] = Field(default_factory=list)
     created_at: datetime
     timing: DetectTiming | dict[str, float | int] | None = None
 

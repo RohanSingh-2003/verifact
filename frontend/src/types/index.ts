@@ -230,6 +230,29 @@ export interface MutationRecord {
   parseFailed?: boolean
 }
 
+export interface AnswerModelOption {
+  id: string
+  name: string
+  provider: string
+  providerDisplay: string
+  modelName: string
+  configured: boolean
+  isDefault?: boolean
+}
+
+export interface AnswerModelInfo {
+  id: string
+  name: string
+  provider: string
+}
+
+export interface VerifierModelInfo {
+  id: string
+  name: string
+  provider: string
+  status: string
+}
+
 export interface AnalysisResult {
   id: string
   question: string
@@ -247,6 +270,8 @@ export interface AnalysisResult {
   analysisError?: string | null
   webEvidence?: WebEvidenceResult | null
   verificationSummary?: VerificationSummary | null
+  answerModel?: AnswerModelInfo | null
+  verifiers?: VerifierModelInfo[]
   timing?: {
     answerMs?: number | null
     mutationMs?: number | null

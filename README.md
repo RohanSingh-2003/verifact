@@ -88,13 +88,38 @@ VeriFact separates the **research methodology** from the **application-level eng
 
 ---
 
+## Multi-Model VeriFact Architecture (Phase 1)
+
+VeriFact supports dynamic multi-model evaluation across five leading cloud models. Rather than fixing one model permanently as generator and others as verifiers, the user selects the **Answer Model**:
+
+- **Dynamic Answer Generation**: The selected model generates the candidate answer.
+- **Dynamic Verifier Pool**: All other available models automatically become independent cross-model verifiers (the selected model is strictly excluded from its own verifier pool).
+- **100% Cloud-Based Inference**: All models run through official cloud APIs. There is **no local model inference** (no calls to `localhost:11434`).
+- **Independent Verification**: Verifiers independently judge consistency. Verifiers are never given expected verdicts, scores, or ground-truth labels.
+- **Scientific Caveat**: Model agreement across independent verifiers is an indicator of consistency and robustness, **not absolute ground truth**.
+
+### Supported Cloud Models
+
+| Model | Display Name | Cloud Provider | Official API / Base URL | API Key Variable |
+| :--- | :--- | :--- | :--- | :--- |
+| **Gemma 4:26B** *(Default)* | Gemma 4:26B | Ollama Cloud | `https://ollama.com/api` (Cloud API) | `OLLAMA_API_KEY` |
+| **NVIDIA Nemotron** | NVIDIA Nemotron | NVIDIA | `https://integrate.api.nvidia.com/v1` | `NVIDIA_API_KEY` |
+| **Qwen** | Qwen | Alibaba / Groq | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` |
+| **Mistral** | Mistral | Mistral AI | `https://api.mistral.ai/v1` | `MISTRAL_API_KEY` |
+| **Gemini Flash 3.8** | Gemini Flash 3.8 | Google | Google Gemini API (`gemini-3.8-flash`) | `GEMINI_API_KEY` |
+
+---
+
 ## Verification Pipeline
 
 ```text
                         User Question
                               ↓
-                      Answer Generation
-                      (Ollama / Gemma)
+                      Answer Model Selector
+            [ Gemma 4:26B (Ollama Cloud) - Default ]
+            [ NVIDIA Nemotron | Qwen | Mistral | Gemini ]
+                              ↓
+                   Selected Model Generates Answer
                               ↓
                        Generated Answer
                               ↓
@@ -108,8 +133,8 @@ VeriFact separates the **research methodology** from the **application-level eng
  (Synonym & Antonym)                               │
          │                                         ▼
          ▼                                     Web Search
-      Gemini                               (Tavily Targeted)
-   Verification                                    │
+ Independent Verifier Pool                 (Tavily Targeted)
+ (Excludes Answer Model)                           │
          │                                         ▼
          ▼                                      Evidence
     MetaQA Score                               Extraction
@@ -132,11 +157,13 @@ VeriFact separates the **research methodology** from the **application-level eng
 
 ---
 
-## Answer Generation
+## Answer Generation & Provider Routing
 
-- **Primary Engine**: Local [Ollama](https://ollama.com) running Google's **Gemma 4:26B** (`gemma4:26b`), or an OpenAI-compatible endpoint when configured.
-- **Execution**: The user's question is sent to the generator model using a factual, concise system prompt.
-- **Immediate Feedback**: The generated answer is saved to SQLite with status `answer_ready` and returned to the UI immediately. Users can read the answer while both verification pipelines execute in the background.
+- **Dynamic Model Selection**: Select any configured cloud model as the primary answer generator from the Detect UI or via the API (`answer_model: "gemma"`).
+- **Default Answer Model**: **Gemma 4:26B**, accessed through the official **Ollama Cloud API** (`https://ollama.com/api`), not local daemon inference.
+- **Exclusion Guarantee**: When model $M$ is chosen as the answer model, the verifier pool is dynamically computed as $\text{AllModels} \setminus \{M\}$. Model $M$ will never judge its own answer.
+- **Provider Isolation**: Provider-specific HTTP and payload mechanics are isolated within dedicated clients (`OllamaCloudClient`, `NvidiaClient`, `GroqClient`, `MistralClient`, `GeminiClientAdapter`).
+- **Immediate Answer Return**: The generated answer is saved to SQLite with status `answer_ready` and returned to the UI immediately, displaying the model and cloud provider badge. Users can read the answer while both verification branches proceed in parallel.
 
 ---
 
@@ -459,13 +486,33 @@ LLM_TIMEOUT_SECONDS=60
 LLM_MUTATION_MAX_TOKENS=300
 LLM_ANSWER_MAX_TOKENS=350
 
-# Cross-Model MetaQA Verifier (Google Gemini)
-GEMINI_API_KEY=your_gemini_api_key_here
+# Multi-Model Cloud Providers (Phase 1)
+# 1. Gemma 4:26B via Ollama Cloud (Cloud API, not localhost)
+OLLAMA_API_KEY=
+OLLAMA_CLOUD_BASE_URL=https://ollama.com/api
+OLLAMA_CLOUD_MODEL=gemma4:26b
+
+# 2. NVIDIA Nemotron via NVIDIA API
+NVIDIA_API_KEY=
+NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
+NVIDIA_MODEL=nvidia/llama-3.1-nemotron-70b-instruct
+
+# 3. Qwen via Groq API
+GROQ_API_KEY=
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=qwen-2.5-32b
+
+# 4. Mistral via Mistral AI API
+MISTRAL_API_KEY=
+MISTRAL_BASE_URL=https://api.mistral.ai/v1
+MISTRAL_MODEL=mistral-small-latest
+
+# 5. Google Gemini API
+GEMINI_API_KEY=
 GEMINI_VERIFIER_MODEL=gemini-3.8-flash
-GEMINI_VERIFY_CONCURRENCY=3
 
 # Web Evidence Verification (Tavily Search)
-TAVILY_API_KEY=your_tavily_api_key_here
+TAVILY_API_KEY=
 TAVILY_BASE_URL=https://api.tavily.com
 TAVILY_SEARCH_DEPTH=basic
 TAVILY_TIMEOUT_SECONDS=30

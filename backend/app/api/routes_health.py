@@ -7,6 +7,11 @@ from app.config import Settings
 router = APIRouter(tags=["health"])
 
 
+class ProviderStatus(BaseModel):
+    name: str
+    ready: bool
+
+
 class HealthResponse(BaseModel):
     status: str
     llm_mode: str = "live"
@@ -21,6 +26,7 @@ class HealthResponse(BaseModel):
     gemini_verifier_ready: bool = False
     gemini_verifier_model: str = ""
     database_connected: bool = True
+    providers: dict[str, ProviderStatus] = {}
 
 
 @router.get("/api/health", response_model=HealthResponse)
@@ -35,6 +41,16 @@ def health(settings: Settings = Depends(settings_dep)) -> HealthResponse:
     except (SQLAlchemyError, OSError):
         db_connected = False
 
+    from app.llm.registry import is_model_configured
+
+    provider_statuses = {
+        "ollama": ProviderStatus(name="Ollama Cloud", ready=is_model_configured("gemma", settings)),
+        "nvidia": ProviderStatus(name="NVIDIA", ready=is_model_configured("nemotron", settings)),
+        "groq": ProviderStatus(name="Alibaba / Groq", ready=is_model_configured("qwen", settings)),
+        "mistral": ProviderStatus(name="Mistral AI", ready=is_model_configured("mistral", settings)),
+        "gemini": ProviderStatus(name="Google Gemini", ready=is_model_configured("gemini", settings)),
+    }
+
     return HealthResponse(
         status="ok",
         llm_mode=settings.llm_mode,
@@ -48,4 +64,5 @@ def health(settings: Settings = Depends(settings_dep)) -> HealthResponse:
         gemini_verifier_ready=settings.gemini_verifier_ready,
         gemini_verifier_model=settings.gemini_verifier_model,
         database_connected=db_connected,
+        providers=provider_statuses,
     )
