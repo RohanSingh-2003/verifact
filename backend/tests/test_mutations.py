@@ -588,14 +588,10 @@ async def test_requirement_13_2_and_3_three_synonyms_and_three_antonyms() -> Non
 
 
 def test_requirement_13_4_think_false_configured() -> None:
-    """4. think=false for mutation generation in Ollama client."""
-    from app.config import get_settings
-    from app.llm.ollama import OllamaClient
-    settings = get_settings()
-    client = OllamaClient(settings)
-    # Inspect the _chat implementation to verify think is False
+    """4. think=false for Ollama Cloud client."""
+    from app.llm.providers import OllamaCloudClient
     import inspect
-    source = inspect.getsource(client._chat)
+    source = inspect.getsource(OllamaCloudClient._chat)
     assert '"think": False' in source
 
 
@@ -606,23 +602,19 @@ def test_requirement_13_5_mutation_token_limit_applied() -> None:
     assert settings.llm_mutation_max_tokens == 300
 
 
-def test_requirement_13_6_keep_alive_passed() -> None:
-    """6. keep_alive is correctly passed."""
-    from app.config import get_settings
-    from app.llm.ollama import OllamaClient
-    settings = get_settings()
-    client = OllamaClient(settings)
-    import inspect
-    source = inspect.getsource(client._chat)
-    assert '"keep_alive": self._settings.ollama_keep_alive' in source
-    assert settings.ollama_keep_alive == "30m"
+def test_requirement_13_6_ollama_cloud_gemma() -> None:
+    """6. Gemma 4:26B is registered with Ollama Cloud provider."""
+    from app.llm.registry import MODEL_REGISTRY
+    assert "gemma" in MODEL_REGISTRY
+    assert MODEL_REGISTRY["gemma"].provider_display == "Ollama Cloud"
+    assert MODEL_REGISTRY["gemma"].default_model_name == "gemma4:26b"
 
 
-def test_requirement_13_7_answer_generation_uses_generator_model() -> None:
-    """7. Answer generation still uses Gemma 4:26B in live configuration."""
-    from pathlib import Path
-    env_text = Path(".env").read_text(encoding="utf-8")
-    assert "GENERATOR_MODEL=gemma4:26b" in env_text
+def test_requirement_13_7_answer_generation_uses_cloud_registry() -> None:
+    """7. Default answer model is Gemma 4:26B from the cloud registry."""
+    from app.llm.registry import DEFAULT_MODEL_ID, MODEL_REGISTRY
+    assert DEFAULT_MODEL_ID == "gemma"
+    assert MODEL_REGISTRY[DEFAULT_MODEL_ID].display_name == "Gemma 4:26B"
 
 
 async def test_requirement_13_8_gemini_verification_unchanged() -> None:

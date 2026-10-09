@@ -416,9 +416,9 @@ export async function getAvailableModels(): Promise<AnswerModelOption[]> {
   } catch {
     return [
       { id: 'gemma', name: 'Gemma 4:26B', provider: 'ollama', providerDisplay: 'Ollama Cloud', modelName: 'gemma4:26b', configured: true, isDefault: true },
-      { id: 'nemotron', name: 'NVIDIA Nemotron', provider: 'nvidia', providerDisplay: 'NVIDIA', modelName: 'nvidia/llama-3.1-nemotron-70b-instruct', configured: false, isDefault: false },
-      { id: 'qwen', name: 'Qwen', provider: 'groq', providerDisplay: 'Alibaba / Groq', modelName: 'qwen-2.5-32b', configured: false, isDefault: false },
-      { id: 'mistral', name: 'Mistral', provider: 'mistral', providerDisplay: 'Mistral AI', modelName: 'mistral-small-latest', configured: false, isDefault: false },
+      { id: 'glm', name: 'GLM-4.7-Flash', provider: 'cloudflare', providerDisplay: 'Cloudflare Workers AI', modelName: '@cf/zai-org/glm-4.7-flash', configured: true, isDefault: false },
+      { id: 'qwen', name: 'Qwen', provider: 'groq', providerDisplay: 'Alibaba / Groq', modelName: 'qwen-2.5-32b', configured: true, isDefault: false },
+      { id: 'openrouter', name: 'OpenRouter', provider: 'openrouter', providerDisplay: 'OpenRouter', modelName: 'liquid/lfm-2.5-2.6b:free', configured: true, isDefault: false },
       { id: 'gemini', name: 'Gemini Flash 3.8', provider: 'gemini', providerDisplay: 'Google', modelName: 'gemini-3.8-flash', configured: true, isDefault: false },
     ]
   }

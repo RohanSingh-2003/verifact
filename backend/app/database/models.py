@@ -36,6 +36,7 @@ class Run(Base):
     web_evidence_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     web_evidence_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
     web_evidence_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    ai_verdicts_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
     answer_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     mutation_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     verify_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -65,6 +66,7 @@ class Mutation(Base):
     parse_failed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    verdicts_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     run: Mapped[Run] = relationship(back_populates="mutations")

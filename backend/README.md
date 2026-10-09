@@ -50,30 +50,38 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-### Live Ollama Setup
-1. Install and start Ollama (`http://localhost:11434`).
-2. Pull the configured model:
-   ```bash
-   ollama pull gemma4:26b
-   ```
-3. Set in `.env`:
-   ```env
-   LLM_MODE=live
-   LLM_PROVIDER=ollama
-   OLLAMA_BASE_URL=http://localhost:11434/v1
-   OLLAMA_ALLOWED_MODELS=gemma4:26b
-   OLLAMA_KEEP_ALIVE=30m
-   GENERATOR_MODEL=gemma4:26b
-   VERIFIER_MODEL=gemma4:26b
-   SYNONYM_COUNT=3
-   ANTONYM_COUNT=3
-   ```
+### Cloud Providers Setup
 
-### Live Cloud Verifiers & Web Search
-Add your API keys to `backend/.env`:
+VeriFact uses cloud/API-based LLM inference. Gemma 4:26B is accessed through Ollama Cloud; no local Ollama installation is required.
+
+Configure cloud provider API keys in `backend/.env`:
 ```env
+LLM_MODE=live
+
+# 1. Ollama Cloud (Gemma 4:26B)
+OLLAMA_CLOUD_BASE_URL=https://ollama.com/api
+OLLAMA_API_KEY=your_ollama_cloud_key_here
+
+# 2. Cloudflare Workers AI (GLM-4.7-Flash)
+CLOUDFLARE_API_TOKEN=your_cloudflare_token_here
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
+CLOUDFLARE_BASE_URL=https://api.cloudflare.com/client/v4
+CLOUDFLARE_MODEL=@cf/zai-org/glm-4.7-flash
+
+# 3. Groq (Qwen)
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+
+# 4. OpenRouter (Liquid AI LFM 2.5)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=liquid/lfm-2.5-2.6b:free
+
+# 5. Google Gemini (Gemini Flash 3.8)
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_VERIFIER_MODEL=gemini-3.8-flash
+
+# Web Evidence (Tavily Search)
 TAVILY_API_KEY=your_tavily_api_key_here
 ```
 
@@ -98,12 +106,6 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 | `DATABASE_URL` | string | `sqlite:///./data/verifact.db` | SQLAlchemy SQLite database connection string. |
 | `FRONTEND_ORIGIN` | string | `http://localhost:5173` | Allowed CORS frontend origin. |
 | `LLM_MODE` | `mock` \| `live` | `mock` | Execution mode. `mock` uses local deterministic fixtures. |
-| `LLM_PROVIDER` | `ollama` \| `openai_compatible` | `openai_compatible` | Generator model provider. |
-| `OLLAMA_BASE_URL` | string | `http://localhost:11434/v1` | Ollama API endpoint. |
-| `OLLAMA_ALLOWED_MODELS` | string | `gemma4:26b` | Comma-delimited allowlist of model IDs. |
-| `OLLAMA_KEEP_ALIVE` | string | `30m` | Time model weights stay resident in memory. |
-| `GENERATOR_MODEL` | string | `gemma4:26b` | Local model for answering questions. |
-| `MUTATION_MODEL` | string | `""` | Optional override model for mutations (defaults to generator). |
 | `SYNONYM_COUNT` | int | `3` | Number of meaning-preserving mutations per Detect run. |
 | `ANTONYM_COUNT` | int | `3` | Number of meaning-reversing mutations per Detect run. |
 | `THRESHOLD` | float | `0.5` | Classification threshold $\theta$ ($H \ge \theta \implies \text{Hallucinated}$). |
@@ -112,15 +114,16 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 | `OLLAMA_API_KEY` | string | `""` | Ollama Cloud API key for cloud inference (`https://ollama.com/api`). |
 | `OLLAMA_CLOUD_BASE_URL` | string | `https://ollama.com/api` | Ollama Cloud API endpoint (local daemon not used). |
 | `OLLAMA_CLOUD_MODEL` | string | `gemma4:26b` | Cloud model identifier for Gemma 4:26B. |
-| `NVIDIA_API_KEY` | string | `""` | NVIDIA API key. |
-| `NVIDIA_BASE_URL` | string | `https://integrate.api.nvidia.com/v1` | NVIDIA API endpoint. |
-| `NVIDIA_MODEL` | string | `nvidia/llama-3.1-nemotron-70b-instruct` | NVIDIA Nemotron model ID. |
+| `CLOUDFLARE_API_TOKEN` | string | `""` | Cloudflare API token with Workers AI access. |
+| `CLOUDFLARE_ACCOUNT_ID` | string | `""` | Cloudflare account identifier. |
+| `CLOUDFLARE_BASE_URL` | string | `https://api.cloudflare.com/client/v4` | Cloudflare API base URL. |
+| `CLOUDFLARE_MODEL` | string | `@cf/zai-org/glm-4.7-flash` | GLM-4.7-Flash model identifier on Cloudflare Workers AI. |
 | `GROQ_API_KEY` | string | `""` | Groq API key for Qwen model. |
 | `GROQ_BASE_URL` | string | `https://api.groq.com/openai/v1` | Groq API endpoint. |
 | `GROQ_MODEL` | string | `qwen-2.5-32b` | Qwen model ID on Groq. |
-| `MISTRAL_API_KEY` | string | `""` | Mistral AI API key. |
-| `MISTRAL_BASE_URL` | string | `https://api.mistral.ai/v1` | Mistral AI API endpoint. |
-| `MISTRAL_MODEL` | string | `mistral-small-latest` | Mistral model ID. |
+| `OPENROUTER_API_KEY` | string | `""` | OpenRouter API key. |
+| `OPENROUTER_BASE_URL` | string | `https://openrouter.ai/api/v1` | OpenRouter API endpoint. |
+| `OPENROUTER_MODEL` | string | `liquid/lfm-2.5-2.6b:free` | OpenRouter model ID. |
 | `GEMINI_API_KEY` | string | `""` | Google Gemini API key. |
 | `GEMINI_VERIFIER_MODEL` | string | `gemini-3.8-flash` | Gemini model ID for verification or generation. |
 | `GEMINI_VERIFY_CONCURRENCY`| int | `3` | Max concurrent verifier requests to Gemini API. |
@@ -136,7 +139,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ## API Routes
 
 ### Interactive Detection & History
-- `GET /api/models`: Returns list of available Answer Models (Gemma 4:26B, NVIDIA Nemotron, Qwen, Mistral, Gemini Flash 3.8), their cloud providers, configuration readiness, and default selection.
+- `GET /api/models`: Returns list of available Answer Models (Gemini Flash 3.8, Gemma 4:26B, GLM-4.7-Flash, Qwen, OpenRouter), their cloud providers, configuration readiness, and default selection.
 - `POST /api/detect`: Accepts `{ "question": "...", "answer_model": "gemma" }`, generates the base answer using the selected model, dynamically assigns all remaining models as the independent verifier pool (strictly excluding the answer generator), and schedules parallel background verification.
 - `GET /api/runs/{id}`: Returns the live state of the run, including candidate answer, selected answer model, verifiers, MetaQA mutation verdicts and score, Web Evidence claims and sources, and the Overall VeriFact Assessment.
 - `GET /api/runs`: Returns a paginated list of previous detection runs.

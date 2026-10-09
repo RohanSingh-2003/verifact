@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 from app.config import Settings
 from app.llm.base import LLMClient, LLMError, LLMTimeoutError
+from app.llm.mock import MockLLMClient
 from app.llm.prompts import ANSWER_SYSTEM, ANSWER_USER
 from app.metaqa.mutation import GeneratedMutation, generate_mutations
 from app.metaqa.scoring import (
@@ -43,6 +44,7 @@ class ScoredMutation:
     rationale: str
     parse_failed: bool = False
     unavailable: bool = False
+    verdicts: tuple[Any, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -190,6 +192,7 @@ async def run_metaqa_analysis(
     settings: Settings,
     generator_model: str | None = None,
     verifier_model: str | None = None,
+    verifier_models: list[str] | None = None,
     verifier_llm: LLMClient | None = None,
     synonym_count: int | None = None,
     antonym_count: int | None = None,
@@ -204,15 +207,17 @@ async def run_metaqa_analysis(
     MetaQA methodology is unchanged; this only isolates the post-answer stages.
     """
     cleaned_question = question.strip()
-    generator = settings.require_model(generator_model or settings.generator_model)
-    mutation_model = settings.require_model(
-        generator_model or settings.effective_mutation_model
-    )
-    verifier = (
-        verifier_model or settings.effective_verifier_model
-        if verifier_llm is not None
-        else settings.require_model(verifier_model or settings.verifier_model)
-    )
+    generator = generator_model or settings.generator_model
+    # The selected answer model is responsible for generating both the answer and mutations
+    mutation_model = generator_model or settings.generator_model
+    if verifier_models:
+        verifier = verifier_model or ", ".join(verifier_models)
+    else:
+        verifier = (
+            verifier_model or settings.effective_verifier_model
+            if verifier_llm is not None
+            else settings.require_model(verifier_model or settings.verifier_model)
+        )
     verifier_client = verifier_llm or llm
     syn_n = synonym_count if synonym_count is not None else settings.synonym_count
     ant_n = antonym_count if antonym_count is not None else settings.antonym_count
@@ -242,22 +247,44 @@ async def run_metaqa_analysis(
         on_stage("verifying_mutations")
 
     verify_started = time.perf_counter()
-    # Use Gemini-specific concurrency when cross-model verification is active
-    verify_concurrency = (
-        settings.gemini_verify_concurrency
-        if verifier_llm is not None
-        else settings.verify_concurrency
-    )
-    scored = await verify_mutations(
-        verifier_client,
-        question=cleaned_question,
-        answer=answer.text,
-        mutations=mutations,
-        verifier_model=verifier,
-        concurrency=verify_concurrency,
-        max_tokens=settings.llm_verify_max_tokens,
-        on_result=on_mutation_verified,
-    )
+    if verifier_models:
+        from app.metaqa.multi_verifier import verify_all_mutations_multi_model
+        test_client = None
+        if isinstance(verifier_client, MockLLMClient):
+            test_client = verifier_client
+        elif hasattr(verifier_client, "_inner") and isinstance(getattr(verifier_client, "_inner"), MockLLMClient):
+            test_client = getattr(verifier_client, "_inner")
+        elif isinstance(llm, MockLLMClient):
+            test_client = llm
+        elif settings.llm_mode == "mock":
+            test_client = verifier_client
+
+        scored = await verify_all_mutations_multi_model(
+            mutations=mutations,
+            question=cleaned_question,
+            answer=answer.text,
+            verifier_model_ids=verifier_models,
+            settings=settings,
+            on_result=on_mutation_verified,
+            test_llm=test_client,
+        )
+    else:
+        # Fallback to single verifier when verifier_models is not provided
+        verify_concurrency = (
+            settings.gemini_verify_concurrency
+            if verifier_llm is not None
+            else settings.verify_concurrency
+        )
+        scored = await verify_mutations(
+            verifier_client,
+            question=cleaned_question,
+            answer=answer.text,
+            mutations=mutations,
+            verifier_model=verifier,
+            concurrency=verify_concurrency,
+            max_tokens=settings.llm_verify_max_tokens,
+            on_result=on_mutation_verified,
+        )
     verify_ms = (time.perf_counter() - verify_started) * 1000
 
     if on_stage is not None:
@@ -290,7 +317,7 @@ async def run_metaqa_analysis(
     rate = not_sure_rate(verdicts) if verdicts else 0.0
     scoring_ms = (time.perf_counter() - scoring_started) * 1000
     completion = "complete" if verified_count == expected_count else "partial"
-    verifier_label = "Gemini" if verifier_llm is not None else "Ollama"
+    verifier_label = verifier or "Multi-Model"
     logger.info(
         "MetaQA stage timings — Answer generation: %.1fs, Mutation generation: %.1fs, "
         "%s verification: %.1fs, MetaQA scoring: %.1fms",

@@ -45,9 +45,9 @@ def health(settings: Settings = Depends(settings_dep)) -> HealthResponse:
 
     provider_statuses = {
         "ollama": ProviderStatus(name="Ollama Cloud", ready=is_model_configured("gemma", settings)),
-        "nvidia": ProviderStatus(name="NVIDIA", ready=is_model_configured("nemotron", settings)),
+        "cloudflare": ProviderStatus(name="Cloudflare Workers AI", ready=is_model_configured("glm", settings)),
         "groq": ProviderStatus(name="Alibaba / Groq", ready=is_model_configured("qwen", settings)),
-        "mistral": ProviderStatus(name="Mistral AI", ready=is_model_configured("mistral", settings)),
+        "openrouter": ProviderStatus(name="OpenRouter", ready=is_model_configured("openrouter", settings)),
         "gemini": ProviderStatus(name="Google Gemini", ready=is_model_configured("gemini", settings)),
     }
 

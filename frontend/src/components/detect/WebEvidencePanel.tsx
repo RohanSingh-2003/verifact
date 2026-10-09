@@ -202,8 +202,8 @@ function getCleanSourceEvidence(source: WebSourceRecord, claimVerdict?: Evidence
 }
 
 function getClaimEvidenceSummary(claim: WebClaimRecord): string {
-  if (claim.verdict === EvidenceVerdict.InsufficientEvidence || claim.sources.length === 0) {
-    return 'The retrieved source does not provide enough relevant information to verify this claim.'
+  if (claim.sources.length === 0) {
+    return 'No web sources were retrieved for this claim.'
   }
 
   for (const src of claim.sources) {
@@ -211,6 +211,10 @@ function getClaimEvidenceSummary(claim: WebClaimRecord): string {
     if (summary && summary !== INSUFFICIENT_EVIDENCE_TEXT) {
       return summary
     }
+  }
+
+  if (claim.reason && claim.reason.trim()) {
+    return claim.reason.trim()
   }
 
   return 'The retrieved source does not provide enough relevant information to verify this claim.'

@@ -133,7 +133,8 @@ def normalize_tavily_results(raw_items: list[Any]) -> list[WebSource]:
         if not url.startswith(("http://", "https://")):
             continue
         title = str(item.get("title") or "").strip() or url
-        snippet = str(item.get("content") or item.get("snippet") or "").strip()
+        raw_text = str(item.get("raw_content") or "").strip()
+        snippet = str(item.get("content") or item.get("snippet") or raw_text or "").strip()
         published = item.get("published_date") or item.get("published_at")
         published_at = str(published).strip() if published else None
         score_raw = item.get("score")
@@ -148,7 +149,7 @@ def normalize_tavily_results(raw_items: list[Any]) -> list[WebSource]:
                 title=title,
                 url=url,
                 domain=domain,
-                snippet=snippet[:1200],
+                snippet=snippet[:2500],
                 published_at=published_at,
                 relevance_score=relevance,
                 source_type=classify_source_type(domain).value,

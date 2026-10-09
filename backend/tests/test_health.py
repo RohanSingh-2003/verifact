@@ -10,12 +10,18 @@ def test_health() -> None:
     body = response.json()
     assert body["status"] == "ok"
     assert body["llm_mode"] == "mock"
-    assert body["llm_provider"] == "openai_compatible"
+    assert "llm_provider" in body
     assert body["live_ready"] is False
     assert "generator_model" in body
     assert "verifier_model" in body
     assert "web_evidence_ready" in body
     assert "web_evidence_enabled" in body
+    assert "providers" in body
+    assert "ollama" in body["providers"]
+    assert "cloudflare" in body["providers"]
+    assert "groq" in body["providers"]
+    assert "openrouter" in body["providers"]
+    assert "gemini" in body["providers"]
     assert "openai_api_key" not in body
     assert "OLLAMA_API_KEY" not in response.text
     assert "TAVILY_API_KEY" not in response.text

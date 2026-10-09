@@ -6,8 +6,8 @@ def detector_settings(**overrides: object) -> Settings:
     payload = {
         "environment": "test",
         "llm_mode": "mock",
-        "generator_model": "gpt-4o-mini",
-        "verifier_model": "gpt-4o-mini",
+        "generator_model": "gemma4:26b",
+        "verifier_model": "gemma4:26b",
         "synonym_count": 5,
         "antonym_count": 5,
         "threshold": 0.5,

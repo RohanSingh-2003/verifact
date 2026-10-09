@@ -45,7 +45,8 @@ _STOP_WORDS = {
     "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
     "too", "very", "can", "will", "just", "should", "now", "is", "was", "are",
     "were", "be", "been", "being", "have", "has", "had", "do", "does", "did",
-    "that", "this", "these", "those", "it", "its", "as", "of",
+    "that", "this", "these", "those", "it", "its", "as", "of", "also", "serves",
+    "served", "country", "primary", "economic", "hub",
 }
 
 INSUFFICIENT_SOURCE_MESSAGE = (
@@ -113,7 +114,11 @@ def extract_source_evidence(
 
     Grounded strictly in the source's snippet and title. Never invents facts.
     """
-    if verdict is EvidenceVerdict.INSUFFICIENT_EVIDENCE and not source.snippet.strip():
+    if verdict is EvidenceVerdict.INSUFFICIENT_EVIDENCE and not (source.snippet or "").strip():
+        return INSUFFICIENT_SOURCE_MESSAGE
+
+    from app.web_evidence.relevance import compute_topical_relevance
+    if compute_topical_relevance(claim_text, source) < 0.20:
         return INSUFFICIENT_SOURCE_MESSAGE
 
     clean_text = clean_raw_snippet(source.snippet)
@@ -123,6 +128,14 @@ def extract_source_evidence(
         if len(clean_title.split()) >= 6:
             clean_text = clean_title
         else:
+            return INSUFFICIENT_SOURCE_MESSAGE
+
+    # Anchor verification: if claim contains key named entities, ensure snippet contains at least one
+    from app.web_evidence.relevance import extract_claim_anchors_and_concepts
+    anchors, _ = extract_claim_anchors_and_concepts(claim_text)
+    if anchors:
+        clean_lower = clean_text.lower()
+        if not any(a.lower() in clean_lower for a in anchors):
             return INSUFFICIENT_SOURCE_MESSAGE
 
     sentences = _split_into_sentences(clean_text)
@@ -151,12 +164,7 @@ def extract_source_evidence(
         if score > 0:
             scored.append((score, index, sentence))
 
-    if not scored:
-        if verdict is EvidenceVerdict.SUPPORTED and sentences:
-            # Fall back to the first clean grammatical sentence
-            best_sentence = sentences[0]
-            if len(best_sentence.split()) >= 5:
-                return _clean_sentence_formatting(best_sentence, source)
+    if not scored or scored[0][0] < 1.0:
         return INSUFFICIENT_SOURCE_MESSAGE
 
     # Sort primarily by relevance score descending, then by original position

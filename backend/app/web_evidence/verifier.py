@@ -11,12 +11,12 @@ from app.web_search.base import WebSource
 
 logger = logging.getLogger("verifact.web_evidence.verifier")
 
-EVIDENCE_VERIFY_SYSTEM = """You verify factual claims using ONLY the retrieved evidence snippets provided.
+EVIDENCE_VERIFY_SYSTEM = """You verify factual claims using ONLY the retrieved evidence sources provided.
 Do not use prior knowledge, browsing, tools, or facts outside each claim's Evidence block.
-URL and domain are identifiers only — they are NOT evidence. Judge solely from snippet text.
-If snippets are missing, vague, off-topic, or do not clearly address a claim, return INSUFFICIENT_EVIDENCE.
-Never invent citations. Never treat "no search results" as CONTRADICTED.
-Return JSON only. Keep each reason ≤40 words."""
+Judge based strictly on the factual content of the evidence snippets, taking into account source context and authority.
+If snippets are missing, vague, off-topic, or do not establish all parts of a claim, return INSUFFICIENT_EVIDENCE.
+Never invent citations. Never treat "no search results" or missing details as CONTRADICTED.
+Return JSON only. Keep each reason concise (1–2 sentences, ≤60 words)."""
 
 EVIDENCE_VERIFY_USER = """Claim:
 {claim}
@@ -26,39 +26,51 @@ Evidence:
 
 Decide whether the evidence supports the claim, contradicts it, or is insufficient.
 
-Allowed verdicts:
-- SUPPORTED — a snippet explicitly states the same factual content as the claim.
-- CONTRADICTED — a snippet explicitly states a conflicting fact about the same subject.
-- INSUFFICIENT_EVIDENCE — snippets are missing, off-topic, too vague, or do not settle the claim.
+Exact semantic distinctions:
+- SUPPORTED — reliable evidence directly establishes the claim or establishes it through a clear, valid inference. Valid paraphrases count; exact word-for-word match is NOT required. Do not mark supported based solely on topical similarity.
+- CONTRADICTED — reliable evidence directly conflicts with the claim.
+- INSUFFICIENT_EVIDENCE — available evidence does not establish either support or contradiction, or establishes only part of a multi-part claim while omitting key factual assertions.
+
+Important evaluation rules:
+- A search snippet omitting a detail does NOT prove that detail false; omission is not contradiction.
+- If a claim has multiple factual assertions (e.g. Canberra in ACT AND ACT is an enclave in New South Wales), ALL parts must be established to mark SUPPORTED. If only one part is confirmed and another part is unaddressed, return INSUFFICIENT_EVIDENCE and state exactly which part remains unverified.
+- If sources conflict, inspect source authority, scope, date, and context. If conflict cannot be resolved, return INSUFFICIENT_EVIDENCE and explain the conflict.
+- Failure to find evidence is NOT proof of contradiction.
 
 Reasoning rules:
-- Write a short claim-specific reason (1–2 sentences, ≤40 words).
-- For SUPPORTED: mention the specific fact from a snippet that matches the claim.
-- For CONTRADICTED: contrast what the snippet states vs what the claim states.
-- For INSUFFICIENT_EVIDENCE: say what is missing or why snippets do not settle the claim.
-- Do not cite URLs as proof.
+- Write a concise, claim-specific explanation (1–2 sentences, ≤60 words).
+- For SUPPORTED: identify the specific facts from the evidence that establish the claim.
+- For CONTRADICTED: contrast what the evidence states vs what the claim asserts.
+- For INSUFFICIENT_EVIDENCE: explain the specific missing evidence (e.g., "The retrieved source confirms Canberra's location in the ACT, but does not establish that the ACT is an enclave within New South Wales").
 
 Return JSON only:
 {{
   "verdict": "SUPPORTED" | "CONTRADICTED" | "INSUFFICIENT_EVIDENCE",
-  "reason": "claim-specific explanation grounded in the snippets"
+  "reason": "specific explanation identifying which evidence supports, contradicts, or remains missing"
 }}"""
 
-BATCH_EVIDENCE_VERIFY_SYSTEM = """You verify multiple factual claims using ONLY each claim's retrieved evidence snippets.
-Do not use prior knowledge outside the Evidence blocks.
-URL and domain are identifiers only — not evidence.
-If snippets are missing, vague, or off-topic for a claim, return INSUFFICIENT_EVIDENCE for that claim.
-Never invent citations. Never treat empty evidence as CONTRADICTED.
-Return one verdict per claim_id. Keep each reason ≤40 words. Return JSON only."""
+BATCH_EVIDENCE_VERIFY_SYSTEM = """You verify multiple factual claims independently using ONLY each claim's retrieved evidence.
+Do not use prior knowledge outside each claim's Evidence block.
+Exact semantic distinctions:
+- SUPPORTED: reliable evidence establishes the claim or clear valid inference (paraphrases count).
+- CONTRADICTED: reliable evidence directly conflicts with the claim.
+- INSUFFICIENT_EVIDENCE: available evidence does not establish either support or contradiction, or omits key factual parts.
+Never invent citations. Never treat missing evidence as CONTRADICTED.
+Return one verdict per claim_id. Keep each reason concise (≤60 words). Return JSON only."""
 
 BATCH_EVIDENCE_VERIFY_USER = """Verify each claim independently using only its Evidence block.
 
 {claim_blocks}
 
-Allowed verdicts per claim:
-- SUPPORTED
-- CONTRADICTED
-- INSUFFICIENT_EVIDENCE
+Exact semantic distinctions per claim:
+- SUPPORTED: reliable evidence directly establishes the claim (paraphrases count).
+- CONTRADICTED: reliable evidence directly conflicts with the claim.
+- INSUFFICIENT_EVIDENCE: evidence is missing, partial, or fails to establish key parts of the claim.
+
+Rules:
+- For multi-part claims, if evidence confirms part A but does not establish part B, return INSUFFICIENT_EVIDENCE and explain what is missing.
+- Omission in snippets is NOT contradiction.
+- State in the reason what evidence was found and what remains unverified for INSUFFICIENT_EVIDENCE.
 
 Return JSON only:
 {{
@@ -66,7 +78,7 @@ Return JSON only:
     {{
       "claim_id": "claim_1",
       "verdict": "SUPPORTED" | "CONTRADICTED" | "INSUFFICIENT_EVIDENCE",
-      "reason": "short claim-specific reason"
+      "reason": "specific explanation identifying supporting, contradicting, or missing evidence"
     }}
   ]
 }}"""
@@ -87,7 +99,7 @@ def sources_have_usable_snippets(sources: list[WebSource], *, min_words: int = 5
     return False
 
 
-def format_evidence_block(sources: list[WebSource], *, max_snippet_chars: int = 300) -> str:
+def format_evidence_block(sources: list[WebSource], *, max_snippet_chars: int = 1200) -> str:
     if not sources:
         return "(no evidence retrieved)"
     lines: list[str] = []
@@ -127,8 +139,8 @@ def parse_evidence_verdict(payload: dict[str, Any] | None) -> tuple[EvidenceVerd
     if mapped not in _ALLOWED:
         return EvidenceVerdict.INSUFFICIENT_EVIDENCE, "Verifier verdict could not be parsed."
     reason = str(payload.get("reason") or "").strip()
-    if len(reason) > 320:
-        reason = reason[:317] + "..."
+    if len(reason) > 450:
+        reason = reason[:447] + "..."
     if not reason:
         reason = "No reason provided."
     return EvidenceVerdict(mapped), reason

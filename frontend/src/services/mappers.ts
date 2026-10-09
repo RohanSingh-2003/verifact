@@ -23,6 +23,18 @@ import {
   WebEvidenceStatus,
 } from '../types'
 
+interface DetectApiModelVerdict {
+  model_id: string
+  model_name: string
+  model?: string
+  provider: string
+  verdict: string
+  rationale?: string
+  error?: string | null
+  contribution?: number | null
+  status?: string
+}
+
 interface DetectApiMutation {
   id: string
   type: 'synonym' | 'antonym'
@@ -34,6 +46,7 @@ interface DetectApiMutation {
   rationale: string
   verified?: boolean
   parse_failed?: boolean
+  verdicts?: DetectApiModelVerdict[]
 }
 
 interface DetectApiTiming {
@@ -119,6 +132,15 @@ interface DetectApiResponse {
   verification_summary?: DetectApiVerificationSummary | null
   answer_model?: { id: string; name: string; provider: string; model_name?: string } | null
   verifiers?: Array<{ id: string; name: string; provider: string; status: string }> | null
+  ai_verdicts?: Array<{
+    model_id: string
+    model_name: string
+    provider: string
+    verdict: string
+    rationale?: string
+    error?: string | null
+    status: string
+  }> | null
   timing?: DetectApiTiming | null
 }
 
@@ -207,6 +229,17 @@ function mapVerifier(value: DetectApiMutation['verdict'] | DetectApiMutation['ex
 
 function mapMutation(item: DetectApiMutation): MutationRecord {
   const verified = item.verified !== false && item.verdict != null && !item.parse_failed
+  const verdicts = (item.verdicts || []).map((v) => ({
+    modelId: v.model_id,
+    modelName: v.model_name,
+    provider: v.provider,
+    verdict: v.verdict,
+    rationale: v.rationale || '',
+    error: v.error ?? null,
+    contribution: v.contribution ?? null,
+    status: v.status || 'completed',
+  }))
+
   return {
     id: item.id,
     kind: item.type === 'synonym' ? MutationKind.Synonym : MutationKind.Antonym,
@@ -218,6 +251,7 @@ function mapMutation(item: DetectApiMutation): MutationRecord {
     reasoning: item.rationale || '',
     verified,
     parseFailed: Boolean(item.parse_failed),
+    verdicts,
   }
 }
 
@@ -379,6 +413,15 @@ export function mapDetectResponse(payload: DetectApiResponse, responseTimeMs: nu
       id: v.id,
       name: v.name,
       provider: v.provider,
+      status: v.status,
+    })),
+    aiVerdicts: (payload.ai_verdicts ?? []).map((v) => ({
+      modelId: v.model_id,
+      modelName: v.model_name,
+      provider: v.provider,
+      verdict: v.verdict,
+      rationale: v.rationale,
+      error: v.error ?? null,
       status: v.status,
     })),
     timing: timing

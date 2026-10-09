@@ -60,6 +60,16 @@ class VerifierModelOut(BaseModel):
     status: str = "pending"
 
 
+class IndependentVerifierVerdict(BaseModel):
+    model_id: str
+    model_name: str
+    provider: str
+    verdict: str = "PENDING"  # "YES", "NO", "NOT SURE", "FAILED", "PENDING"
+    rationale: str = ""
+    error: str | None = None
+    status: str = "completed"  # "completed", "failed", "pending"
+
+
 class DetectRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     answer_model: str = Field(default="gemma")
@@ -88,6 +98,22 @@ class BaseAnswerOut(BaseModel):
     model: str
 
 
+class ModelVerifierVerdict(BaseModel):
+    model_id: str
+    model_name: str
+    model: str = ""
+    provider: str
+    verdict: str = "PENDING"  # "YES", "NO", "NOT SURE", "FAILED", "PENDING"
+    rationale: str = ""
+    error: str | None = None
+    contribution: float | None = None
+    status: str = "completed"  # "completed", "failed", "pending"
+
+    def model_post_init(self, __context: Any) -> None:
+        if not self.model:
+            object.__setattr__(self, "model", self.model_name)
+
+
 class MutationOut(BaseModel):
     id: str
     type: MutationType
@@ -100,6 +126,7 @@ class MutationOut(BaseModel):
     rationale: str = ""
     parse_failed: bool = False
     verified: bool = True
+    verdicts: list[ModelVerifierVerdict] = Field(default_factory=list)
 
 
 class DetectTiming(BaseModel):
@@ -144,6 +171,7 @@ class DetectResponse(BaseModel):
     verification_summary: VerificationSummaryOut | None = None
     answer_model: AnswerModelOut | None = None
     verifiers: list[VerifierModelOut] = Field(default_factory=list)
+    ai_verdicts: list[IndependentVerifierVerdict] = Field(default_factory=list)
     created_at: datetime
     timing: DetectTiming | dict[str, float | int] | None = None
 

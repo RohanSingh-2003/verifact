@@ -37,6 +37,24 @@ _GOVERNMENT_EXACT = frozenset(
         "eci.gov.in",
         "mospi.gov.in",
         "rbi.org.in",
+        "nic.in",
+        "isro.gov.in",
+        "gov.au",
+        "act.gov.au",
+        "nsw.gov.au",
+        "ga.gov.au",
+        "australia.gov.au",
+        "abs.gov.au",
+        "legislation.gov.au",
+        "vic.gov.au",
+        "qld.gov.au",
+        "wa.gov.au",
+        "sa.gov.au",
+        "tas.gov.au",
+        "nt.gov.au",
+        "canada.ca",
+        "gc.ca",
+        "statcan.gc.ca",
         "gov.uk",
         "legislation.gov.uk",
         "parliament.uk",
@@ -54,6 +72,16 @@ _GOVERNMENT_EXACT = frozenset(
         "archives.gov",
         "nationalarchives.gov.uk",
         "loc.gov",
+        "usgs.gov",
+        "go.jp",
+        "metro.tokyo.lg.jp",
+        "japan.go.jp",
+        "kunaicho.go.jp",
+        "mofa.go.jp",
+        "stat.go.jp",
+        "gsi.go.jp",
+        "cas.go.jp",
+        "lg.jp",
     }
 )
 
@@ -215,7 +243,7 @@ _LOW_PRIORITY_EXACT = frozenset(
     }
 )
 
-_GOVERNMENT_SUFFIXES = (".gov", ".gov.uk", ".gov.au", ".gov.in", ".mil")
+_GOVERNMENT_SUFFIXES = (".gov", ".gov.uk", ".gov.au", ".gov.in", ".nic.in", ".gc.ca", ".canada.ca", ".mil", ".go.jp", ".lg.jp")
 _ACADEMIC_SUFFIXES = (".edu", ".ac.uk", ".ac.in", ".ac.jp", ".ac.za")
 
 _LOW_PRIORITY_HOST_PATTERNS = re.compile(

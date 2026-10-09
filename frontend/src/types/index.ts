@@ -217,6 +217,18 @@ export const ExperimentStatus = {
 
 export type ExperimentStatus = (typeof ExperimentStatus)[keyof typeof ExperimentStatus]
 
+export interface ModelVerifierVerdictRecord {
+  modelId: string
+  modelName: string
+  model?: string
+  provider: string
+  verdict: 'YES' | 'NO' | 'NOT SURE' | 'FAILED' | 'PENDING' | string
+  rationale?: string
+  error?: string | null
+  contribution?: number | null
+  status: 'completed' | 'failed' | 'pending' | string
+}
+
 export interface MutationRecord {
   id: string
   kind: MutationKind
@@ -228,6 +240,7 @@ export interface MutationRecord {
   reasoning: string
   verified: boolean
   parseFailed?: boolean
+  verdicts?: ModelVerifierVerdictRecord[]
 }
 
 export interface AnswerModelOption {
@@ -253,6 +266,16 @@ export interface VerifierModelInfo {
   status: string
 }
 
+export interface IndependentAiVerdict {
+  modelId: string
+  modelName: string
+  provider: string
+  verdict: 'YES' | 'NO' | 'NOT SURE' | 'FAILED' | 'PENDING' | string
+  rationale?: string
+  error?: string | null
+  status: 'completed' | 'failed' | 'pending' | string
+}
+
 export interface AnalysisResult {
   id: string
   question: string
@@ -272,6 +295,7 @@ export interface AnalysisResult {
   verificationSummary?: VerificationSummary | null
   answerModel?: AnswerModelInfo | null
   verifiers?: VerifierModelInfo[]
+  aiVerdicts?: IndependentAiVerdict[]
   timing?: {
     answerMs?: number | null
     mutationMs?: number | null

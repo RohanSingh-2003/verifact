@@ -82,11 +82,11 @@ async def run_evaluation(
     chosen_threshold = settings.threshold if threshold is None else threshold
     limit = max_questions or settings.max_questions
     examples = bundle.examples[:limit]
-    generator = generator_model or settings.generator_model_a
-    verifier = verifier_model or settings.verifier_model_a
+    generator = generator_model or getattr(settings, "generator_model", "gemma4:26b")
+    verifier = verifier_model or getattr(settings, "verifier_model", "gemma4:26b")
     if settings.llm_mode == "live":
         if not settings.api_key_configured:
-            raise EvaluationConfigError("Live evaluations require a configured OPENAI_API_KEY.")
+            raise EvaluationConfigError("Live evaluations require configured cloud LLM credentials.")
         try:
             settings.require_model(generator)
             settings.require_model(verifier)

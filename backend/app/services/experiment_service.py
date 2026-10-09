@@ -103,14 +103,12 @@ def validate_request(payload: ExperimentRunRequest, settings: Settings) -> None:
     if not 0.0 <= payload.threshold <= 1.0:
         raise ExperimentConfigError("Threshold must be between 0 and 1.")
     if settings.llm_mode == "live" and not settings.api_key_configured:
-        if settings.is_ollama:
-            raise ExperimentConfigError("Live Ollama mode is not ready. Check OLLAMA_BASE_URL and model settings.")
-        raise ExperimentConfigError("Live experiments require a configured OPENAI_API_KEY.")
+        raise ExperimentConfigError("Live experiments require configured cloud LLM credentials.")
     if settings.llm_mode == "live":
         mock_ids = {"model-a", "model-b", "model_a", "model_b"}
         if any(item.lower() in mock_ids for item in [*payload.generator_models, *payload.verifier_models]):
             raise ExperimentConfigError(
-                "Live experiments require provider model names (for example gpt-4o-mini), not mock ids."
+                "Live experiments require supported cloud model names, not mock ids."
             )
     for model in [*payload.generator_models, *payload.verifier_models]:
         try:

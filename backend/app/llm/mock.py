@@ -8,19 +8,24 @@ from app.metaqa.scoring import MutationType
 
 MockScenario = Literal["reliable", "hallucinated", "uncertain", "mixed", "malformed_verifier"]
 
-ORIGINAL = "Sydney is the capital of Australia."
+# ── Canonical Factual Fixture & Deliberately False Negative Fixtures ────────
+# Factually correct canonical reference statement:
+ORIGINAL = "Canberra is the capital of Australia."
+
+# Explicitly documented deliberately false answer for negative hallucination tests:
+DELIBERATE_HALLUCINATED_AUSTRALIA_ANSWER = "Sydney is the capital of Australia."
 
 DEFAULT_MUTATIONS: list[dict[str, str]] = [
-    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "Australia's capital city is Sydney."},
-    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "Sydney serves as the capital of Australia."},
-    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "The national capital of Australia is Sydney."},
-    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "Sydney is Australia's capital city."},
-    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "The Australian capital is the city of Sydney."},
-    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "The capital of Australia is Canberra."},
-    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "Sydney is not the capital of Australia."},
-    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "Canberra, not Sydney, is the capital of Australia."},
+    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "Australia's capital city is Canberra."},
+    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "Canberra serves as the capital of Australia."},
+    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "The national capital of Australia is Canberra."},
+    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "Canberra is Australia's capital city."},
+    {"type": MutationType.SYNONYM.value, "original_text": ORIGINAL, "mutated_text": "The Australian capital is the city of Canberra."},
+    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "The capital of Australia is Sydney."},
+    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "Canberra is not the capital of Australia."},
+    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "Sydney, not Canberra, is the capital of Australia."},
     {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "The capital of Australia is Melbourne."},
-    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "Australia does not have Sydney as its capital city."},
+    {"type": MutationType.ANTONYM.value, "original_text": ORIGINAL, "mutated_text": "Australia does not have Canberra as its capital city."},
 ]
 
 SCENARIO_VERDICTS: dict[str, list[str]] = {
@@ -40,7 +45,7 @@ _BUILTIN_ANSWERS: dict[str, str] = {
     "who formulated the three laws of motion": "Isaac Newton formulated the three laws of motion.",
     "who wrote hamlet": "William Shakespeare wrote Hamlet.",
     "what is 2 + 2": "2 + 2 equals 4.",
-    "what is the capital of australia": "Sydney is the capital of Australia.",
+    "what is the capital of australia": "Canberra is the capital of Australia.",
     "explain recursion in simple terms": "Recursion is a programming technique where a function solves a problem by calling itself with a smaller input until it reaches a base case.",
     "what causes a solar eclipse": "A solar eclipse occurs when the Moon passes between the Earth and the Sun, temporarily blocking sunlight from reaching Earth.",
     "who wrote pride and prejudice": "Jane Austen wrote Pride and Prejudice.",
@@ -268,8 +273,10 @@ class MockLLMClient(LLMClient):
         answers_by_model: dict[str, dict[str, str]] | None = None,
         verdicts_by_model: dict[str, list[str]] | None = None,
         mutations_by_model: dict[str, list[dict[str, str]]] | None = None,
+        json_response: dict[str, Any] | None = None,
     ) -> None:
         self.scenario = scenario
+        self.json_response = json_response
         self._explicit_answer = answer is not None
         self.answer = answer or ORIGINAL
         self._explicit_mutations = mutations is not None
@@ -346,6 +353,19 @@ class MockLLMClient(LLMClient):
         self.captured_user_prompts.append(user_prompt)
         question = extract_question(user_prompt)
         self._apply_question_scenario(question)
+        if self.json_response is not None:
+            return dict(self.json_response)
+        if "Generated Answer to evaluate:" in user_prompt or "independent AI verifier" in system_prompt.lower():
+            self.verify_calls += 1
+            if self.fail_on == "verify":
+                raise LLMError("mock verifier failure")
+            verdict = "YES"
+            if self.scenario == "hallucinated":
+                verdict = "NO"
+            elif self.scenario == "uncertain":
+                verdict = "NOT SURE"
+            return {"verdict": verdict, "rationale": f"Deterministic independent verification: {verdict}."}
+
         if "Statement to judge:" in user_prompt or "Statement to evaluate:" in user_prompt:
             self.verify_calls += 1
             statement = _extract_statement(user_prompt)
@@ -628,6 +648,10 @@ _REVERSAL_MARKERS: tuple[str, ...] = (
     "never",
     "opposite is true",
     ", not ",
+    "the capital of australia is sydney",
+    "the capital of australia is melbourne",
+    "sydney is the capital",
+    "melbourne is the capital",
 )
 
 

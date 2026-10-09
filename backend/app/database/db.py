@@ -63,6 +63,8 @@ def _ensure_sqlite_columns() -> None:
         statements.append("ALTER TABLE runs ADD COLUMN web_evidence_error TEXT DEFAULT ''")
     if run_cols and "web_evidence_json" not in run_cols:
         statements.append("ALTER TABLE runs ADD COLUMN web_evidence_json TEXT DEFAULT ''")
+    if run_cols and "ai_verdicts_json" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN ai_verdicts_json TEXT DEFAULT ''")
     if run_cols and "answer_ms" not in run_cols:
         statements.append("ALTER TABLE runs ADD COLUMN answer_ms FLOAT")
     if run_cols and "mutation_ms" not in run_cols:
@@ -82,6 +84,8 @@ def _ensure_sqlite_columns() -> None:
         statements.append("ALTER TABLE mutations ADD COLUMN verified BOOLEAN DEFAULT 1")
     if mutation_cols and "position" not in mutation_cols:
         statements.append("ALTER TABLE mutations ADD COLUMN position INTEGER DEFAULT 0")
+    if mutation_cols and "verdicts_json" not in mutation_cols:
+        statements.append("ALTER TABLE mutations ADD COLUMN verdicts_json TEXT DEFAULT ''")
     exp_cols = _sqlite_column_names("experiments")
     if exp_cols:
         additions = {

@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from app.config import Settings, get_settings
 from app.database.db import get_db
 from app.llm.base import LLMClient
-from app.llm.client import OpenAICompatibleClient
-from app.llm.ollama import OllamaClient
+from app.llm.providers import ModelClientLLMAdapter
+from app.llm.registry import DEFAULT_MODEL_ID, get_model_client
 
 
 @lru_cache
@@ -21,11 +21,8 @@ def get_llm_client() -> LLMClient:
                 "What is the capital of Australia?": "hallucinated",
             },
         )
-    if settings.llm_provider == "ollama":
-        return OllamaClient(settings)
-    if settings.llm_provider == "openai_compatible":
-        return OpenAICompatibleClient(settings)
-    raise RuntimeError(f"Unsupported LLM_PROVIDER: {settings.llm_provider}")
+    client = get_model_client(DEFAULT_MODEL_ID, settings)
+    return ModelClientLLMAdapter(client)
 
 
 @lru_cache

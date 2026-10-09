@@ -5,14 +5,15 @@ import logging
 from typing import Any
 
 from app.config import Settings
+from app.llm.cloudflare import CloudflareClient
 from app.llm.providers import (
     GeminiClientAdapter,
     GroqClient,
-    MistralClient,
     MockModelClient,
     ModelClient,
-    NvidiaClient,
+    ModelClientLLMAdapter,
     OllamaCloudClient,
+    OpenRouterClient,
 )
 
 logger = logging.getLogger("verifact.llm.registry")
@@ -38,13 +39,13 @@ MODEL_REGISTRY: dict[str, AnswerModelDefinition] = {
         default_model_name="gemma4:26b",
         env_key_name="OLLAMA_API_KEY",
     ),
-    "nemotron": AnswerModelDefinition(
-        id="nemotron",
-        display_name="NVIDIA Nemotron",
-        provider="nvidia",
-        provider_display="NVIDIA",
-        default_model_name="nvidia/llama-3.1-nemotron-70b-instruct",
-        env_key_name="NVIDIA_API_KEY",
+    "glm": AnswerModelDefinition(
+        id="glm",
+        display_name="GLM-4.7-Flash",
+        provider="cloudflare",
+        provider_display="Cloudflare Workers AI",
+        default_model_name="@cf/zai-org/glm-4.7-flash",
+        env_key_name="CLOUDFLARE_API_TOKEN",
     ),
     "qwen": AnswerModelDefinition(
         id="qwen",
@@ -54,13 +55,13 @@ MODEL_REGISTRY: dict[str, AnswerModelDefinition] = {
         default_model_name="qwen-2.5-32b",
         env_key_name="GROQ_API_KEY",
     ),
-    "mistral": AnswerModelDefinition(
-        id="mistral",
-        display_name="Mistral",
-        provider="mistral",
-        provider_display="Mistral AI",
-        default_model_name="mistral-small-latest",
-        env_key_name="MISTRAL_API_KEY",
+    "openrouter": AnswerModelDefinition(
+        id="openrouter",
+        display_name="OpenRouter",
+        provider="openrouter",
+        provider_display="OpenRouter",
+        default_model_name="liquid/lfm-2.5-2.6b:free",
+        env_key_name="OPENROUTER_API_KEY",
     ),
     "gemini": AnswerModelDefinition(
         id="gemini",
@@ -95,12 +96,12 @@ def resolve_model_id(identifier: str) -> str:
     # Partial matches
     if "gemma" in cleaned:
         return "gemma"
-    if "nemotron" in cleaned or "nvidia" in cleaned:
-        return "nemotron"
+    if "glm" in cleaned or "zhipu" in cleaned or "cloudflare" in cleaned:
+        return "glm"
     if "qwen" in cleaned or "groq" in cleaned:
         return "qwen"
-    if "mistral" in cleaned:
-        return "mistral"
+    if "openrouter" in cleaned or "liquid" in cleaned:
+        return "openrouter"
     if "gemini" in cleaned:
         return "gemini"
 
@@ -122,7 +123,7 @@ def validate_answer_model(raw_model: str | None) -> str:
 
 
 def is_model_configured(model_id: str, settings: Settings) -> bool:
-    """Return whether the provider for this model has credentials configured."""
+    """Return whether the cloud provider for this model has credentials configured."""
     if settings.llm_mode == "mock":
         return True
 
@@ -130,14 +131,20 @@ def is_model_configured(model_id: str, settings: Settings) -> bool:
     if mid == "gemma":
         key = getattr(settings, "ollama_api_key", "").strip()
         return bool(key) and not key.startswith("replace-with-") and key != "ollama"
-    if mid == "nemotron":
-        key = getattr(settings, "nvidia_api_key", "").strip()
-        return bool(key) and not key.startswith("replace-with-")
+    if mid == "glm":
+        token = getattr(settings, "cloudflare_api_token", "").strip()
+        account_id = getattr(settings, "cloudflare_account_id", "").strip()
+        return (
+            bool(token)
+            and not token.startswith("replace-with-")
+            and bool(account_id)
+            and not account_id.startswith("replace-with-")
+        )
     if mid == "qwen":
         key = getattr(settings, "groq_api_key", "").strip()
         return bool(key) and not key.startswith("replace-with-")
-    if mid == "mistral":
-        key = getattr(settings, "mistral_api_key", "").strip()
+    if mid == "openrouter":
+        key = getattr(settings, "openrouter_api_key", "").strip()
         return bool(key) and not key.startswith("replace-with-")
     if mid == "gemini":
         key = getattr(settings, "gemini_api_key", "").strip()
@@ -167,11 +174,12 @@ def get_model_client(model_id: str, settings: Settings) -> ModelClient:
             max_retries=settings.llm_max_retries,
         )
 
-    if canonical_id == "nemotron":
-        return NvidiaClient(
-            base_url=getattr(settings, "nvidia_base_url", "https://integrate.api.nvidia.com/v1"),
-            api_key=getattr(settings, "nvidia_api_key", ""),
-            model_name=getattr(settings, "nvidia_model", mdef.default_model_name),
+    if canonical_id == "glm":
+        return CloudflareClient(
+            base_url=getattr(settings, "cloudflare_base_url", "https://api.cloudflare.com/client/v4"),
+            api_token=getattr(settings, "cloudflare_api_token", ""),
+            account_id=getattr(settings, "cloudflare_account_id", ""),
+            model_name=getattr(settings, "cloudflare_model", mdef.default_model_name),
             timeout_seconds=settings.llm_timeout_seconds,
             max_retries=settings.llm_max_retries,
         )
@@ -185,13 +193,16 @@ def get_model_client(model_id: str, settings: Settings) -> ModelClient:
             max_retries=settings.llm_max_retries,
         )
 
-    if canonical_id == "mistral":
-        return MistralClient(
-            base_url=getattr(settings, "mistral_base_url", "https://api.mistral.ai/v1"),
-            api_key=getattr(settings, "mistral_api_key", ""),
-            model_name=getattr(settings, "mistral_model", mdef.default_model_name),
-            timeout_seconds=settings.llm_timeout_seconds,
-            max_retries=settings.llm_max_retries,
+    if canonical_id == "openrouter":
+        return OpenRouterClient(
+            base_url=getattr(settings, "openrouter_base_url", "https://openrouter.ai/api/v1"),
+            api_key=getattr(settings, "openrouter_api_key", ""),
+            model_name=(getattr(settings, "openrouter_model", "") or "").strip() or mdef.default_model_name,
+            timeout_seconds=getattr(settings, "openrouter_timeout_seconds", settings.llm_timeout_seconds),
+            max_retries=getattr(settings, "openrouter_max_retries", settings.llm_max_retries),
+            initial_retry_wait=getattr(settings, "openrouter_initial_retry_wait", 1.0),
+            max_retry_wait=getattr(settings, "openrouter_max_retry_wait", 30.0),
+            total_retry_timeout=getattr(settings, "openrouter_total_retry_timeout", 60.0),
         )
 
     if canonical_id == "gemini":

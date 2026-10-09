@@ -56,17 +56,18 @@ class SourceStrategy:
 _STRATEGIES: dict[QuestionType, SourceStrategy] = {
     QuestionType.GENERAL_FACT: SourceStrategy(
         question_type=QuestionType.GENERAL_FACT,
-        labels=("Encyclopaedia Britannica", "Official institutions & archives", "Reference sources"),
+        labels=("Official institutions, archives & government portals", "Reference & secondary sources"),
         preferred_domains=(
-            "britannica.com",
             "loc.gov",
-            "si.edu",
             "archives.gov",
-            "india.gov.in",
-            "gov.uk",
+            "si.edu",
             "whitehouse.gov",
+            "gov.uk",
+            "india.gov.in",
+            "gov.au",
+            "canada.ca",
         ),
-        secondary_domains=("en.wikipedia.org", "encyclopedia.com"),
+        secondary_domains=("britannica.com", "reuters.com", "apnews.com", "en.wikipedia.org", "encyclopedia.com"),
     ),
     QuestionType.SCIENCE: SourceStrategy(
         question_type=QuestionType.SCIENCE,

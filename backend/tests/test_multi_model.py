@@ -7,11 +7,11 @@ from fastapi.testclient import TestClient
 
 from app.api.deps import get_llm_client
 from app.config import Settings, get_settings
+from app.llm.cloudflare import CloudflareClient
 from app.llm.mock import MockLLMClient
 from app.llm.providers import (
     GroqClient,
-    MistralClient,
-    NvidiaClient,
+    OpenRouterClient,
     OllamaCloudClient,
 )
 from app.llm.registry import (
@@ -66,31 +66,31 @@ def test_selecting_qwen() -> None:
     assert "gemma" in verifier_ids
 
 
-# 4. Selecting Nemotron
-def test_selecting_nemotron() -> None:
+# 4. Selecting GLM-4.7-Flash
+def test_selecting_glm() -> None:
     client = _client()
-    resp = client.post("/api/detect", json={"question": "Explain relativity.", "answer_model": "nemotron"})
+    resp = client.post("/api/detect", json={"question": "Explain relativity.", "answer_model": "glm"})
     assert resp.status_code == 200
     data = resp.json()
-    assert data["answer_model"]["id"] == "nemotron"
-    assert data["answer_model"]["name"] == "NVIDIA Nemotron"
-    assert data["answer_model"]["provider"] == "NVIDIA"
+    assert data["answer_model"]["id"] == "glm"
+    assert data["answer_model"]["name"] == "GLM-4.7-Flash"
+    assert data["answer_model"]["provider"] == "Cloudflare Workers AI"
     verifier_ids = [v["id"] for v in data["verifiers"]]
-    assert "nemotron" not in verifier_ids
+    assert "glm" not in verifier_ids
     assert "gemma" in verifier_ids
 
 
-# 5. Selecting Mistral
-def test_selecting_mistral() -> None:
+# 5. Selecting OpenRouter
+def test_selecting_openrouter() -> None:
     client = _client()
-    resp = client.post("/api/detect", json={"question": "Explain thermodynamics.", "answer_model": "mistral"})
+    resp = client.post("/api/detect", json={"question": "Explain thermodynamics.", "answer_model": "openrouter"})
     assert resp.status_code == 200
     data = resp.json()
-    assert data["answer_model"]["id"] == "mistral"
-    assert data["answer_model"]["name"] == "Mistral"
-    assert data["answer_model"]["provider"] == "Mistral AI"
+    assert data["answer_model"]["id"] == "openrouter"
+    assert data["answer_model"]["name"] == "OpenRouter"
+    assert data["answer_model"]["provider"] == "OpenRouter"
     verifier_ids = [v["id"] for v in data["verifiers"]]
-    assert "mistral" not in verifier_ids
+    assert "openrouter" not in verifier_ids
     assert "gemini" in verifier_ids
 
 
@@ -109,7 +109,7 @@ def test_selecting_gemini() -> None:
 
 
 # 7. Selected answer model is excluded from verifier pool
-@pytest.mark.parametrize("model_id", ["gemma", "nemotron", "qwen", "mistral", "gemini"])
+@pytest.mark.parametrize("model_id", ["gemini", "gemma", "glm", "qwen", "openrouter"])
 def test_selected_answer_model_excluded_from_verifier_pool(model_id: str) -> None:
     client = _client()
     resp = client.post("/api/detect", json={"question": "What is speed of light?", "answer_model": model_id})
@@ -188,7 +188,7 @@ def test_api_keys_are_never_returned_in_api_responses() -> None:
     ]
 
     # Sensitive patterns to check
-    sensitive_markers = ["AQ.", "tvly-", "ollama-cloud-secret", "sk-proj-", "nvapi-"]
+    sensitive_markers = ["AQ.", "tvly-", "ollama-cloud-secret", "sk-proj-", "cf-token-"]
 
     for resp in endpoints:
         text = resp.text
@@ -220,8 +220,184 @@ def test_get_models_endpoint() -> None:
     assert "default_model" in data
     assert data["default_model"] == "gemma"
     ids = [m["id"] for m in data["models"]]
-    assert ids == ["gemma", "nemotron", "qwen", "mistral", "gemini"]
+    assert ids == ["gemma", "glm", "qwen", "openrouter", "gemini"]
     for m in data["models"]:
         assert "api_key" not in m
         assert "name" in m
         assert "provider_display" in m
+
+
+# 14. Test 1: Selected = Gemma
+def test_selected_gemma_generates_and_all_others_verify() -> None:
+    client = _client()
+    resp = client.post(
+        "/api/detect",
+        json={"question": "What is the speed of sound in air?", "answer_model": "gemma"},
+    )
+    assert resp.status_code == 200
+    run_id = resp.json()["run_id"]
+    data = client.get(f"/api/runs/{run_id}").json()
+
+    assert data["answer_model"]["id"] == "gemma"
+    assert data["answer_model"]["name"] == "Gemma 4:26B"
+    assert "gemma" in data["mutation_generator_model"].lower() or "gemma" in data["base_answer"]["model"].lower()
+
+    mutations = data.get("mutations", [])
+    assert len(mutations) > 0, "Mutations must be generated"
+    for m in mutations:
+        verifier_ids = {v["model_id"] for v in m["verdicts"]}
+        assert verifier_ids == {"glm", "qwen", "openrouter", "gemini"}
+        assert "gemma" not in verifier_ids, "Gemma must NOT verify its own mutations"
+
+
+# 15. Test 2: Selected = Qwen
+def test_selected_qwen_generates_and_all_others_verify() -> None:
+    client = _client()
+    resp = client.post(
+        "/api/detect",
+        json={"question": "What is the speed of sound in air?", "answer_model": "qwen"},
+    )
+    assert resp.status_code == 200
+    run_id = resp.json()["run_id"]
+    data = client.get(f"/api/runs/{run_id}").json()
+
+    assert data["answer_model"]["id"] == "qwen"
+    assert data["answer_model"]["name"] == "Qwen"
+
+    mutations = data.get("mutations", [])
+    assert len(mutations) > 0, "Mutations must be generated"
+    for m in mutations:
+        verifier_ids = {v["model_id"] for v in m["verdicts"]}
+        assert verifier_ids == {"gemma", "glm", "openrouter", "gemini"}
+        assert "qwen" not in verifier_ids, "Qwen must NOT verify its own mutations"
+
+
+# 16. Test 3: Selected = Gemini
+def test_selected_gemini_generates_and_all_others_verify() -> None:
+    client = _client()
+    resp = client.post(
+        "/api/detect",
+        json={"question": "What is the speed of sound in air?", "answer_model": "gemini"},
+    )
+    assert resp.status_code == 200
+    run_id = resp.json()["run_id"]
+    data = client.get(f"/api/runs/{run_id}").json()
+
+    assert data["answer_model"]["id"] == "gemini"
+    assert data["answer_model"]["name"] == "Gemini Flash 3.8"
+
+    mutations = data.get("mutations", [])
+    assert len(mutations) > 0, "Mutations must be generated"
+    for m in mutations:
+        verifier_ids = {v["model_id"] for v in m["verdicts"]}
+        assert verifier_ids == {"gemma", "glm", "qwen", "openrouter"}
+        assert "gemini" not in verifier_ids, "Gemini must NOT verify its own mutations"
+
+
+# 17. Test 4: Verifier models never receive mutation-generation instructions
+def test_verifier_models_never_receive_mutation_generation_instructions() -> None:
+    from app.llm.prompts import VERIFY_SYSTEM, VERIFY_USER
+
+    forbidden_prompts = [
+        "generate mutations",
+        "generate synonym mutations",
+        "generate antonym mutations",
+        "generate exactly",
+        "create mutations",
+        "already accepted mutations",
+        "extract factual claims",
+    ]
+
+    verifier_prompt = f"{VERIFY_SYSTEM}\n{VERIFY_USER}".lower()
+    for phrase in forbidden_prompts:
+        assert phrase not in verifier_prompt, (
+            f"Verifier prompt improperly contains mutation generation instruction: '{phrase}'"
+        )
+
+
+# 18. Test 5: Verify that each verifier makes an independent API call
+@pytest.mark.asyncio
+async def test_each_verifier_makes_independent_api_call() -> None:
+    from app.metaqa.mutation import GeneratedMutation
+    from app.metaqa.scoring import MutationType
+    from app.metaqa.multi_verifier import verify_mutation_across_models
+
+    mutation = GeneratedMutation(
+        type=MutationType.SYNONYM,
+        original_text="Paris is the capital of France.",
+        mutated_text="The capital of France is Paris.",
+    )
+
+    mock_llm = MockLLMClient()
+    settings = get_settings()
+    scored = await verify_mutation_across_models(
+        mutation=mutation,
+        question="What is the capital of France?",
+        answer="Paris is the capital of France.",
+        verifier_model_ids=["glm", "qwen", "openrouter", "gemini"],
+        settings=settings,
+        test_llm=mock_llm,
+    )
+
+    assert len(scored.verdicts) == 4
+    model_ids = [v.model_id for v in scored.verdicts]
+    assert model_ids == ["glm", "qwen", "openrouter", "gemini"]
+    for v in scored.verdicts:
+        assert v.status in {"completed", "failed"}
+        assert v.verdict in {"YES", "NO", "NOT SURE", "FAILED"}
+
+
+# 19. Test 6: Verify that a failed verifier is not converted into NOT SURE
+@pytest.mark.asyncio
+async def test_failed_verifier_is_not_converted_into_not_sure() -> None:
+    from app.metaqa.mutation import GeneratedMutation
+    from app.metaqa.scoring import MutationType
+    from app.metaqa.multi_verifier import evaluate_mutation_for_model
+
+    mutation = GeneratedMutation(
+        type=MutationType.SYNONYM,
+        original_text="The Earth revolves around the Sun.",
+        mutated_text="The Sun is orbited by the Earth.",
+    )
+
+    mock_llm = MockLLMClient(fail_on="verify")
+    settings = get_settings()
+
+    result = await evaluate_mutation_for_model(
+        "qwen",
+        question="Does the Earth revolve around the Sun?",
+        answer="Yes, the Earth revolves around the Sun.",
+        mutation=mutation,
+        settings=settings,
+        test_llm=mock_llm,
+    )
+
+    assert result.verdict == "FAILED"
+    assert result.status == "failed"
+    assert result.verdict != "NOT SURE", "Failed verifier call must NEVER be converted to NOT SURE"
+    assert result.contribution is None, "Failed verifier must have contribution None (excluded from score)"
+    assert result.error is not None
+
+
+# 20. Test 7: Verify that the expected verdict is NOT included in the verifier prompt
+def test_expected_verdict_not_included_in_verifier_prompt() -> None:
+    from app.llm.prompts import VERIFY_SYSTEM, VERIFY_USER
+
+    forbidden_leakage = [
+        "expected verdict",
+        "expected:",
+        "expected answer",
+        "the correct verdict is",
+        "ground truth",
+        "synonym mutation",
+        "antonym mutation",
+        "expected outcome",
+    ]
+
+    combined = f"{VERIFY_SYSTEM}\n{VERIFY_USER}".lower()
+    for leak in forbidden_leakage:
+        assert leak not in combined, (
+            f"Verifier prompt improperly reveals expected verdict or test type: '{leak}'"
+        )
+
+

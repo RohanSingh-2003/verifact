@@ -114,7 +114,7 @@ def _token_priority(token: str) -> tuple[int, int]:
 def claim_to_search_query(
     claim_text: str,
     *,
-    max_terms: int = 10,
+    max_terms: int = 12,
     question_type: str | None = None,
     question_text: str | None = None,
 ) -> str:
@@ -187,4 +187,49 @@ def claim_to_search_query(
         return f"{result} official documentation"
 
     return result
+
+
+def claim_to_search_queries(
+    claim_text: str,
+    *,
+    question_type: str | None = None,
+    question_text: str | None = None,
+) -> list[str]:
+    """Generate multiple prioritized search queries for a claim (primary + alternative fallbacks).
+
+    Extracts key entities, subclaims, and specific factual components for targeted retrieval.
+    """
+    primary = claim_to_search_query(
+        claim_text,
+        question_type=question_type,
+        question_text=question_text,
+    )
+    if not primary:
+        return []
+
+    queries: list[str] = [primary]
+
+    # Check for compound claims and generate component-focused queries
+    from app.web_evidence.relevance import extract_claim_anchors_and_concepts, extract_claim_components
+
+    components = extract_claim_components(claim_text)
+    if len(components) > 1:
+        anchors, concepts = extract_claim_anchors_and_concepts(claim_text)
+        anchor_prefix = " ".join(anchors[:2]) if anchors else ""
+
+        # Alternative query: entity + core subclaims
+        for comp in components:
+            cq = claim_to_search_query(comp, question_type=question_type)
+            if cq and cq not in queries and len(queries) < 3:
+                queries.append(cq)
+
+        if anchor_prefix and concepts:
+            top_concepts = [c for c in concepts if not any(c in a.casefold() for a in anchors)][:5]
+            if top_concepts:
+                alt = f"{anchor_prefix} {' '.join(top_concepts)}".strip()
+                if alt and alt not in queries and len(queries) < 3:
+                    queries.append(alt)
+
+    return queries
+
 

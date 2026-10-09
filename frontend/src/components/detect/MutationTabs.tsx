@@ -10,17 +10,9 @@ interface MutationTableProps {
 
 export function MutationTable({ mutations }: MutationTableProps) {
   return (
-    <div className="panel overflow-hidden">
-      <div className="hidden border-b border-line bg-surface-muted/50 px-4 py-2.5 text-[11px] font-semibold tracking-[0.06em] text-ink-muted uppercase md:grid md:grid-cols-[minmax(0,1fr)_5.5rem_5.75rem_5.75rem_5.5rem_1rem] md:gap-3">
-        <span>Test version</span>
-        <span>Type</span>
-        <span>AI verdict</span>
-        <span>Expected</span>
-        <span className="text-right">Score contrib.</span>
-        <span className="sr-only">Expand</span>
-      </div>
-      {mutations.map((mutation) => (
-        <MutationRow key={mutation.id} mutation={mutation} />
+    <div className="panel overflow-hidden divide-y divide-line">
+      {mutations.map((mutation, idx) => (
+        <MutationRow key={mutation.id} mutation={mutation} index={idx + 1} />
       ))}
     </div>
   )

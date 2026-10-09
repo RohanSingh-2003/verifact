@@ -130,7 +130,7 @@ class TestMockGeminiResponses:
         result = await client.complete_json(
             model="gemini-2.5-flash",
             system_prompt="You judge statements.",
-            user_prompt="Statement to judge:\nSydney is the capital city of Australia.",
+            user_prompt="Statement to judge:\nCanberra is the capital city of Australia.",
             max_tokens=96,
         )
         assert result["verdict"] in ("YES", "NO", "NOT SURE")

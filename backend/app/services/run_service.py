@@ -69,17 +69,17 @@ def classify_analysis_failure(
 
     if "gemini" in lower or "verif" in lower or stage_value == RunStatus.VERIFYING_MUTATIONS.value:
         if "429" in lower or "rate" in lower or "quota" in lower:
-            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 429 (rate limit)"
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Verifier API returned HTTP 429 (rate limit)"
         if "503" in lower or "unavailable" in lower or "high demand" in lower:
-            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 503 (service unavailable)"
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Verifier API returned HTTP 503 (service unavailable)"
         if "401" in lower or "403" in lower or "unauthorized" in lower:
-            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 401/403 (unauthorized). Check GEMINI_API_KEY."
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Verifier API returned HTTP 401/403 (unauthorized). Check provider credentials."
         if "400" in lower or "bad request" in lower or "invalid" in lower:
-            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API returned HTTP 400 (invalid request)."
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Verifier API returned HTTP 400 (invalid request)."
         if "timeout" in lower:
-            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Gemini API request timed out."
-        if "gemini" in lower:
-            return RunStatus.VERIFICATION_FAILED, "Gemini verification unavailable. Check GEMINI_API_KEY configuration."
+            return RunStatus.VERIFICATION_FAILED, "FAILED\nReason: Verifier API request timed out."
+        if message and not message.startswith("FAILED"):
+            return RunStatus.VERIFICATION_FAILED, f"FAILED\nReason: {message}"
         return RunStatus.VERIFICATION_FAILED, VERIFICATION_ERROR
     if "score" in lower or stage_value == RunStatus.CALCULATING_SCORE.value:
         return RunStatus.SCORING_FAILED, SCORING_ERROR
@@ -148,6 +148,7 @@ def create_answer_ready_run(
     threshold: float,
     llm_mode: str = "live",
     answer_ms: float | None = None,
+    ai_verdicts_json: str = "",
 ) -> Run:
     run = Run(
         id=new_id(),
@@ -164,6 +165,7 @@ def create_answer_ready_run(
         web_evidence_status=WebEvidenceStatus.PENDING.value,
         web_evidence_error="",
         web_evidence_json="",
+        ai_verdicts_json=ai_verdicts_json,
         answer_ms=answer_ms,
     )
     db.add(run)
@@ -296,6 +298,7 @@ def persist_pending_mutations(
     *,
     mutations: list[GeneratedMutation],
     verifier_model: str,
+    verifier_models: list[str] | None = None,
     mutation_ms: float | None = None,
 ) -> None:
     """Persist generated mutations before verification so the API can show them."""
@@ -304,6 +307,25 @@ def persist_pending_mutations(
     ).scalar_one_or_none()
     if run is None:
         return
+
+    initial_verdicts_json = ""
+    if verifier_models:
+        from app.llm.registry import MODEL_REGISTRY
+        pending_list = [
+            {
+                "model_id": mid,
+                "model_name": MODEL_REGISTRY[mid].display_name if mid in MODEL_REGISTRY else mid,
+                "model": MODEL_REGISTRY[mid].display_name if mid in MODEL_REGISTRY else mid,
+                "provider": MODEL_REGISTRY[mid].provider_display if mid in MODEL_REGISTRY else "",
+                "verdict": "PENDING",
+                "rationale": "",
+                "error": None,
+                "contribution": None,
+                "status": "pending",
+            }
+            for mid in verifier_models
+        ]
+        initial_verdicts_json = json.dumps(pending_list, ensure_ascii=False)
 
     run.mutations.clear()
     for index, item in enumerate(mutations):
@@ -321,6 +343,7 @@ def persist_pending_mutations(
                 parse_failed=False,
                 verified=False,
                 position=index,
+                verdicts_json=initial_verdicts_json,
             )
         )
     run.status = RunStatus.MUTATIONS_READY.value
@@ -348,6 +371,11 @@ def update_mutation_verification(
             item.rationale = scored.rationale
             item.parse_failed = scored.parse_failed or scored.unavailable
             item.verified = not scored.unavailable and not scored.parse_failed and scored.verdict is not None
+            if getattr(scored, "verdicts", None):
+                item.verdicts_json = json.dumps(
+                    [v.model_dump() if hasattr(v, "model_dump") else dict(v) for v in scored.verdicts],
+                    ensure_ascii=False,
+                )
             break
     db.flush()
 
@@ -389,6 +417,12 @@ def complete_run_analysis(
         existing = by_position.get(index)
         is_verified = not scored.unavailable and not scored.parse_failed and scored.verdict is not None
         verdict_str = scored.verdict.value if scored.verdict is not None else ""
+        verdicts_json = ""
+        if getattr(scored, "verdicts", None):
+            verdicts_json = json.dumps(
+                [v.model_dump() if hasattr(v, "model_dump") else dict(v) for v in scored.verdicts],
+                ensure_ascii=False,
+            )
         if existing is None:
             run.mutations.append(
                 Mutation(
@@ -404,6 +438,7 @@ def complete_run_analysis(
                     parse_failed=scored.parse_failed or scored.unavailable,
                     verified=is_verified,
                     position=index,
+                    verdicts_json=verdicts_json,
                 )
             )
         else:
@@ -417,6 +452,8 @@ def complete_run_analysis(
             existing.rationale = scored.rationale
             existing.parse_failed = scored.parse_failed or scored.unavailable
             existing.verified = is_verified
+            if verdicts_json:
+                existing.verdicts_json = verdicts_json
     db.flush()
     db.refresh(run)
     return run
@@ -506,6 +543,7 @@ def _to_run_summary(run: Run) -> RunSummary:
 
 def _mutation_out(item: Mutation) -> MutationOut:
     from app.metaqa.scoring import Verdict as VerdictEnum
+    from app.schemas.detect import ModelVerifierVerdict
 
     verified = bool(getattr(item, "verified", True)) and bool(item.verdict) and not bool(item.parse_failed)
     verdict = None
@@ -521,6 +559,29 @@ def _mutation_out(item: Mutation) -> MutationOut:
         if item.expected_verdict in VerdictEnum._value2member_map_
         else VerdictEnum.YES
     )
+    verdicts_list: list[ModelVerifierVerdict] = []
+    if getattr(item, "verdicts_json", None):
+        try:
+            raw_v = json.loads(item.verdicts_json)
+            if isinstance(raw_v, list):
+                verdicts_list = [ModelVerifierVerdict.model_validate(v) for v in raw_v]
+        except Exception:
+            pass
+
+    if not verdicts_list and getattr(item, "verifier_model", None):
+        verdicts_list = [
+            ModelVerifierVerdict(
+                model_id="verifier",
+                model_name=item.verifier_model,
+                model=item.verifier_model,
+                provider="Cloud",
+                verdict=item.verdict or "PENDING",
+                rationale=item.rationale or "",
+                contribution=contribution,
+                status="completed" if verified else ("failed" if item.parse_failed else "pending"),
+            )
+        ]
+
     return MutationOut(
         id=item.id,
         type=item.type,
@@ -533,6 +594,7 @@ def _mutation_out(item: Mutation) -> MutationOut:
         rationale=item.rationale or ("Verification failed" if not verified else ""),
         parse_failed=bool(item.parse_failed) or not verified,
         verified=verified,
+        verdicts=verdicts_list,
     )
 
 
@@ -561,9 +623,6 @@ def to_detect_response(run: Run) -> DetectResponse:
         except (json.JSONDecodeError, TypeError, KeyError):
             web_timing = {}
 
-    from app.llm.ollama import get_ollama_call_count
-
-    ollama_count = get_ollama_call_count()
     web_total = web_timing.get("web_total_ms")
     metaqa_total = run.total_ms if complete else None
     answer_ms = run.answer_ms
@@ -590,7 +649,7 @@ def to_detect_response(run: Run) -> DetectResponse:
         total_analysis_ms=tot_analysis or web_timing.get("total_analysis_ms"),
         number_of_tavily_searches=web_evidence.searches_used if web_evidence else 0,
         number_of_web_claims=len(web_evidence.claims) if web_evidence else 0,
-        number_of_ollama_calls=ollama_count if ollama_count > 0 else None,
+        number_of_ollama_calls=None,
     )
     classification = (
         Classification(run.classification)
@@ -615,6 +674,7 @@ def to_detect_response(run: Run) -> DetectResponse:
     from app.config import get_settings
     from app.llm.registry import MODEL_REGISTRY, get_verifier_pool, resolve_model_id
     from app.schemas.detect import AnswerModelOut, VerifierModelOut
+    from app.services.independent_verifiers import load_independent_verdicts
 
     app_settings = get_settings()
     ans_model_id = resolve_model_id(run.generator_model) or "gemma"
@@ -633,6 +693,7 @@ def to_detect_response(run: Run) -> DetectResponse:
         )
         for v in get_verifier_pool(ans_model_id, app_settings)
     ]
+    ai_verdicts_info = load_independent_verdicts(run, ans_model_id, app_settings)
 
     return DetectResponse(
         run_id=run.id,
@@ -654,6 +715,7 @@ def to_detect_response(run: Run) -> DetectResponse:
         verification_summary=VerificationSummaryOut.model_validate(summary_payload),
         answer_model=answer_model_info,
         verifiers=verifier_pool_info,
+        ai_verdicts=ai_verdicts_info,
         created_at=run.created_at,
         timing=timing,
     )

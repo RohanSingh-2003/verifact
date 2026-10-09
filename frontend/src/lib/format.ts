@@ -85,9 +85,13 @@ export function formatModelDisplay(model: string | null | undefined): string | n
 }
 
 export function formatProviderDisplay(provider: string | null | undefined, model?: string): string {
-  if (model?.toLowerCase().includes('gemini')) return 'Google Gemini'
+  if (model?.toLowerCase().includes('gemini')) return 'Google'
   if (!provider) return ''
-  if (provider === 'ollama') return 'Ollama'
+  if (provider === 'ollama') return 'Ollama Cloud'
+  if (provider === 'cloudflare') return 'Cloudflare Workers AI'
+  if (provider === 'groq') return 'Alibaba / Groq'
+  if (provider === 'openrouter') return 'OpenRouter'
+  if (provider === 'gemini') return 'Google'
   if (provider === 'openai_compatible') return 'OpenAI Compatible'
   return provider.charAt(0).toUpperCase() + provider.slice(1)
 }

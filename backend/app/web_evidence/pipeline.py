@@ -10,8 +10,9 @@ from app.llm.base import LLMClient, LLMError
 from app.web_evidence.claims import extract_web_claims
 from app.web_evidence.classifier import QuestionClassification, classify_question
 from app.web_evidence.dedupe import dedupe_sources
-from app.web_evidence.question_types import QUESTION_TYPE_LABELS
+from app.web_evidence.question_types import QUESTION_TYPE_LABELS, QuestionType
 from app.web_evidence.search_query import claim_to_search_query
+from app.web_evidence.authority import CountryAuthority, resolve_authority_strategy
 from app.web_evidence.source_quality import classify_source_type, normalize_source_type_value
 from app.web_evidence.strategies import SourceStrategy, get_source_strategy
 from app.web_evidence.types import (
@@ -48,9 +49,10 @@ def _annotate_sources(
 ) -> list[WebSource]:
     enriched: list[WebSource] = []
     for source in sources:
-        source_type = normalize_source_type_value(
-            source.source_type or classify_source_type(source.domain, source.url).value
-        )
+        raw_type = source.source_type
+        if not raw_type or raw_type.upper() in {"GENERAL", "GENERAL_WEB"}:
+            raw_type = classify_source_type(source.domain, source.url).value
+        source_type = normalize_source_type_value(raw_type)
         enriched.append(
             WebSource(
                 title=source.title,
@@ -70,11 +72,33 @@ def _annotate_and_sort_sources(
     sources: list[WebSource],
     *,
     question_type: str,
+    claim_text: str = "",
+    detected_countries: list[CountryAuthority] | None = None,
 ) -> list[WebSource]:
-    """Annotate sources and sort them so authoritative and primary sources appear first."""
+    """Annotate sources and sort them using composite priority (authority + topical relevance).
+
+    Filters out off-topic / irrelevant sources before returning.
+    """
+    from app.web_evidence.relevance import (
+        compute_source_priority,
+        filter_topically_relevant_sources,
+    )
     from app.web_evidence.source_quality import source_tier_rank
 
     annotated = _annotate_sources(dedupe_sources(sources), question_type=question_type)
+    if claim_text:
+        relevant = filter_topically_relevant_sources(
+            claim_text, annotated, min_threshold=0.20, detected_countries=detected_countries
+        )
+        if relevant:
+            relevant.sort(
+                key=lambda s: -compute_source_priority(
+                    claim_text, s, detected_countries=detected_countries
+                )
+            )
+            return relevant
+        return []
+
     # Lower tier rank = higher priority (Tier 1 Primary < Tier 2 Academic < ... < Tier 6 Low Priority)
     annotated.sort(key=lambda s: (source_tier_rank(s.source_type), -(s.relevance_score or 0.0)))
     return annotated
@@ -110,6 +134,47 @@ async def _search_once(
     )
 
 
+def is_evidence_sufficient_for_claim(
+    claim_text: str,
+    sources: list[WebSource],
+    detected_countries: list[CountryAuthority] | None = None,
+) -> bool:
+    """Check whether retrieved sources contain sufficient coverage for the claim.
+
+    Evaluates topical relevance, ensures sources are on-topic, and detects compound assertions
+    (evaluating subclaim coverage). Returns False if evidence is missing or off-topic,
+    so supplementary fallback retrieval can be performed if search budget permits.
+    """
+    if not sources:
+        return False
+    from app.web_evidence.verifier import sources_have_usable_snippets
+    from app.web_evidence.relevance import (
+        filter_topically_relevant_sources,
+        evaluate_compound_components_coverage,
+    )
+
+    if not sources_have_usable_snippets(sources):
+        return False
+
+    # Filter for topical relevance
+    relevant = filter_topically_relevant_sources(
+        claim_text, sources, min_threshold=0.20, detected_countries=detected_countries
+    )
+    if not relevant:
+        return False
+
+    total_words = sum(len((s.snippet or "").split()) for s in relevant)
+    if total_words < 15:
+        return False
+
+    # Check compound components coverage across relevant sources
+    is_fully_covered, _supported, missing = evaluate_compound_components_coverage(claim_text, relevant)
+    if not is_fully_covered and missing:
+        return False
+
+    return True
+
+
 async def _search_claims_concurrent(
     search: WebSearchClient,
     claims: list[ExtractedClaim],
@@ -123,37 +188,63 @@ async def _search_claims_concurrent(
     topic: str,
     question_type: str,
 ) -> tuple[list[tuple[str, str, str, list[WebSource], bool]], int, int, bool, str | None, float]:
-    """Search claims using a multi-pass strategy within max_searches budget.
+    """Search claims using an authority-aware multi-pass strategy within max_searches budget.
 
-    Pass 1: Preferred authoritative domains for the question type.
-    Pass 2: Broader reputable secondary domains (if preferred returned no results).
-    Pass 3: General web search fallback (if still no results, sorted by tier rank).
+    Pass 1: Government-first and authoritative domains tailored to the specific claim / country.
+    Pass 2: Supplementary search (targeted alternative query or secondary/broader web) if Pass 1
+            yielded no hits, irrelevant hits, or partial coverage for compound claims.
+    Pass 3: Combines official and supplementary sources, filtered by topical relevance and sorted by composite priority.
     """
     from app.web_evidence.verifier import sources_have_usable_snippets
+    from app.web_evidence.search_query import claim_to_search_queries
 
-    prepared: list[tuple[ExtractedClaim, str]] = []
+    prepared: list[tuple[ExtractedClaim, str, list[str], list[str], list[CountryAuthority]]] = []
     empty_query: list[tuple[str, str, str, list[WebSource], bool]] = []
     for claim in claims:
-        query = claim_to_search_query(
+        queries = claim_to_search_queries(
             claim.text,
             question_type=question_type,
             question_text=question_text,
         )
+        query = queries[0] if queries else ""
         if not query:
             empty_query.append((claim.id, claim.text, "", [], False))
         else:
-            prepared.append((claim, query))
+            try:
+                parsed_qtype = QuestionType(question_type)
+            except (ValueError, TypeError):
+                parsed_qtype = QuestionType.GENERAL_FACT
+
+            claim_strategy = resolve_authority_strategy(
+                claim.text,
+                question_text=question_text,
+                base_type=parsed_qtype,
+            )
+            claim_pref = (
+                list(preferred_domains)
+                if preferred_domains is not None
+                else list(claim_strategy.preferred_include_domains)
+            )
+            claim_sec = (
+                list(secondary_domains)
+                if secondary_domains is not None
+                else list(claim_strategy.secondary_include_domains)
+            )
+            prepared.append(
+                (claim, query, claim_pref, claim_sec, list(getattr(claim_strategy, "detected_countries", [])))
+            )
 
     budget = min(len(prepared), max_searches)
     batch = prepared[:budget]
     deferred = prepared[budget:]
 
-    pref_list = [d for d in (preferred_domains or []) if d and d.strip()]
-    sec_list = [d for d in (secondary_domains or []) if d and d.strip()]
-
     async def pass1(
-        claim: ExtractedClaim, query: str
-    ) -> tuple[str, ExtractedClaim, str, list[WebSource], Exception | None]:
+        claim: ExtractedClaim,
+        query: str,
+        pref_list: list[str],
+        sec_list: list[str],
+        countries: list[CountryAuthority],
+    ) -> tuple[str, ExtractedClaim, str, list[WebSource], list[str], list[CountryAuthority], Exception | None]:
         try:
             hits = await _search_once(
                 search,
@@ -164,60 +255,72 @@ async def _search_claims_concurrent(
                 topic=topic,
                 question_type=question_type,
             )
-            return ("ok", claim, query, hits, None)
+            return ("ok", claim, query, hits, sec_list, countries, None)
         except WebSearchAuthError as exc:
-            return ("auth", claim, query, [], exc)
+            return ("auth", claim, query, [], sec_list, countries, exc)
         except WebSearchError as exc:
-            return ("err", claim, query, [], exc)
+            return ("err", claim, query, [], sec_list, countries, exc)
 
     search_started = time.perf_counter()
-    pass1_results = await asyncio.gather(*[pass1(c, q) for c, q in batch]) if batch else []
+    pass1_results = (
+        await asyncio.gather(*[pass1(c, q, p, s, k) for c, q, p, s, k in batch]) if batch else []
+    )
     searches_used = len(batch)
 
     auth_failed = False
     search_error: str | None = None
     resolved_claims: list[tuple[str, str, str, list[WebSource], bool]] = []
-    needs_fallback: list[tuple[ExtractedClaim, str]] = []
+    needs_fallback: list[tuple[ExtractedClaim, str, list[WebSource], list[str], list[CountryAuthority]]] = []
 
-    for kind, claim, query, hits, exc in pass1_results:
+    for kind, claim, query, hits, sec_list, countries, exc in pass1_results:
         if kind == "auth":
             auth_failed = True
             search_error = str(exc) if exc else "Web search authentication failed."
             resolved_claims.append((claim.id, claim.text, query, [], False))
         elif kind == "err":
             search_error = str(exc) if exc else "Web search failed."
-            # On network error on preferred pass, queue for fallback if budget permits
-            if pref_list:
-                needs_fallback.append((claim, query))
-            else:
-                resolved_claims.append((claim.id, claim.text, query, [], False))
+            needs_fallback.append((claim, query, [], sec_list, countries))
         else:
             usable = [h for h in hits if sources_have_usable_snippets([h])]
-            if usable:
-                unique = _annotate_and_sort_sources(usable, question_type=question_type)
-                resolved_claims.append((claim.id, claim.text, query, unique, False))
-            elif pref_list:
-                # Preferred domains returned 0 usable hits — try fallback!
-                needs_fallback.append((claim, query))
+            if usable and is_evidence_sufficient_for_claim(claim.text, usable, detected_countries=countries):
+                unique = _annotate_and_sort_sources(
+                    usable,
+                    question_type=question_type,
+                    claim_text=claim.text,
+                    detected_countries=countries,
+                )
+                if unique:
+                    resolved_claims.append((claim.id, claim.text, query, unique, False))
+                else:
+                    needs_fallback.append((claim, query, usable, sec_list, countries))
             else:
-                unique = _annotate_and_sort_sources(hits, question_type=question_type)
-                resolved_claims.append((claim.id, claim.text, query, unique, False))
+                # 0 hits, unusable snippet, irrelevant sources, or incomplete compound coverage -> trigger Pass 2
+                needs_fallback.append((claim, query, usable, sec_list, countries))
 
-    # PASS 2 & PASS 3: Fallback for claims with 0 preferred hits
+    # PASS 2 & PASS 3: Fallback / supplementary search for claims with 0 or insufficient hits
     remaining_budget = max(0, max_searches - searches_used)
     if needs_fallback and remaining_budget > 0 and not auth_failed:
         fallback_batch = needs_fallback[:remaining_budget]
         fallback_deferred = needs_fallback[remaining_budget:]
 
         async def run_fallback(
-            claim: ExtractedClaim, query: str
-        ) -> tuple[str, ExtractedClaim, str, list[WebSource], Exception | None]:
+            claim: ExtractedClaim,
+            query: str,
+            pass1_hits: list[WebSource],
+            sec_list: list[str],
+            countries: list[CountryAuthority],
+        ) -> tuple[str, ExtractedClaim, str, list[WebSource], list[CountryAuthority], Exception | None]:
+            alt_queries = claim_to_search_queries(
+                claim.text, question_type=question_type, question_text=question_text
+            )
+            fallback_query = alt_queries[1] if len(alt_queries) > 1 else query
+
             # Try secondary domains first if available
             if sec_list:
                 try:
                     hits2 = await _search_once(
                         search,
-                        query,
+                        fallback_query,
                         max_results=results_per_claim,
                         include_domains=sec_list,
                         days=days,
@@ -226,50 +329,98 @@ async def _search_claims_concurrent(
                     )
                     usable2 = [h for h in hits2 if sources_have_usable_snippets([h])]
                     if usable2:
-                        return ("ok", claim, query, usable2, None)
+                        return ("ok", claim, fallback_query, pass1_hits + usable2, countries, None)
                 except WebSearchError:
                     pass
 
-            # Fall back to general web search
+            # Fall back to general web search with targeted query
             try:
                 hits_gen = await _search_once(
                     search,
-                    query,
+                    fallback_query,
                     max_results=results_per_claim,
                     include_domains=None,
                     days=days,
                     topic=topic,
                     question_type=question_type,
                 )
-                return ("ok", claim, query, hits_gen, None)
+                usable_gen = [h for h in hits_gen if sources_have_usable_snippets([h])]
+                return ("ok", claim, fallback_query, pass1_hits + (usable_gen or hits_gen), countries, None)
             except WebSearchAuthError as exc:
-                return ("auth", claim, query, [], exc)
+                return ("auth", claim, fallback_query, pass1_hits, countries, exc)
             except WebSearchError as exc:
-                return ("err", claim, query, [], exc)
+                return ("err", claim, fallback_query, pass1_hits, countries, exc)
 
-        fb_results = await asyncio.gather(*[run_fallback(c, q) for c, q in fallback_batch])
+        fb_results = await asyncio.gather(
+            *[run_fallback(c, q, p1, s, k) for c, q, p1, s, k in fallback_batch]
+        )
         searches_used += len(fallback_batch)
 
-        for kind, claim, query, hits, exc in fb_results:
+        for kind, claim, query, hits, countries, exc in fb_results:
             if kind == "auth":
                 auth_failed = True
                 search_error = str(exc) if exc else "Web search authentication failed."
-                resolved_claims.append((claim.id, claim.text, query, [], True))
+                unique = (
+                    _annotate_and_sort_sources(
+                        hits,
+                        question_type=question_type,
+                        claim_text=claim.text,
+                        detected_countries=countries,
+                    )
+                    if hits
+                    else []
+                )
+                resolved_claims.append((claim.id, claim.text, query, unique, True))
             elif kind == "err":
                 search_error = str(exc) if exc else "Web search fallback failed."
-                resolved_claims.append((claim.id, claim.text, query, [], True))
+                unique = (
+                    _annotate_and_sort_sources(
+                        hits,
+                        question_type=question_type,
+                        claim_text=claim.text,
+                        detected_countries=countries,
+                    )
+                    if hits
+                    else []
+                )
+                resolved_claims.append((claim.id, claim.text, query, unique, True))
             else:
                 usable = [h for h in hits if sources_have_usable_snippets([h])]
-                unique = _annotate_and_sort_sources(usable or hits, question_type=question_type)
+                unique = _annotate_and_sort_sources(
+                    usable or hits,
+                    question_type=question_type,
+                    claim_text=claim.text,
+                    detected_countries=countries,
+                )
                 resolved_claims.append((claim.id, claim.text, query, unique, True))
 
-        for claim, query in fallback_deferred:
-            resolved_claims.append((claim.id, claim.text, query, [], True))
+        for claim, query, pass1_hits, _sec, countries in fallback_deferred:
+            unique = (
+                _annotate_and_sort_sources(
+                    pass1_hits,
+                    question_type=question_type,
+                    claim_text=claim.text,
+                    detected_countries=countries,
+                )
+                if pass1_hits
+                else []
+            )
+            resolved_claims.append((claim.id, claim.text, query, unique, True))
     else:
-        for claim, query in needs_fallback:
-            resolved_claims.append((claim.id, claim.text, query, [], True))
+        for claim, query, pass1_hits, _sec, countries in needs_fallback:
+            unique = (
+                _annotate_and_sort_sources(
+                    pass1_hits,
+                    question_type=question_type,
+                    claim_text=claim.text,
+                    detected_countries=countries,
+                )
+                if pass1_hits
+                else []
+            )
+            resolved_claims.append((claim.id, claim.text, query, unique, False))
 
-    for claim, query in deferred:
+    for claim, query, _p, _s, _k in deferred:
         resolved_claims.append((claim.id, claim.text, query, [], False))
 
     search_ms = (time.perf_counter() - search_started) * 1000
@@ -318,7 +469,12 @@ async def run_web_evidence(
 
     set_stage(WebEvidenceStatus.CLASSIFYING_QUESTION)
     classification = classify_question(question)
-    strategy = get_source_strategy(classification.type)
+    authority_strategy = resolve_authority_strategy(
+        answer,
+        question_text=question,
+        base_type=classification.type,
+    )
+    strategy = authority_strategy if authority_strategy.labels else get_source_strategy(classification.type)
     routing = _routing_fields(classification, strategy)
     logger.info(
         "Web Evidence routing type=%s confidence=%.2f freshness=%s domains=%s",
@@ -381,8 +537,8 @@ async def run_web_evidence(
     ) = await _search_claims_concurrent(
         search,
         claims,
-        preferred_domains=preferred_domains,
-        secondary_domains=secondary_domains,
+        preferred_domains=None,
+        secondary_domains=None,
         question_text=question,
         results_per_claim=results_per_claim,
         max_searches=max_searches,
@@ -443,6 +599,27 @@ async def run_web_evidence(
         if not sources and verdict is EvidenceVerdict.CONTRADICTED:
             verdict = EvidenceVerdict.INSUFFICIENT_EVIDENCE
             reason = "No web sources were retrieved for this claim."
+
+        # Compound-claim verification: if evidence only supports some components,
+        # retain INSUFFICIENT_EVIDENCE unless all components are covered.
+        if verdict is EvidenceVerdict.SUPPORTED and sources:
+            from app.web_evidence.relevance import evaluate_compound_components_coverage
+
+            is_fully_covered, supported_comps, missing_comps = evaluate_compound_components_coverage(
+                claim_text, sources
+            )
+            if not is_fully_covered and missing_comps:
+                verdict = EvidenceVerdict.INSUFFICIENT_EVIDENCE
+                if supported_comps:
+                    reason = (
+                        f"Evidence supports '{supported_comps[0]}', but does not establish "
+                        f"the remaining components: {', '.join(missing_comps)}."
+                    )
+                else:
+                    reason = (
+                        f"Available evidence does not verify all components of the claim: "
+                        f"{', '.join(missing_comps)}."
+                    )
 
         enriched_sources: list[WebSource] = []
         for src in sources:

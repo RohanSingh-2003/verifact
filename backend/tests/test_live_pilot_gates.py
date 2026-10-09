@@ -52,23 +52,30 @@ def test_settings_endpoint_has_no_secrets() -> None:
 
 
 def test_live_rejects_missing_key() -> None:
-    settings = detector_settings(llm_mode="live", openai_api_key="replace-with-your-key")
-    payload = ExperimentRunRequest(generator_models=["gpt-4o-mini", "gpt-4o"], verifier_models=["gpt-4o-mini", "gpt-4o"])
+    settings = detector_settings(
+        llm_mode="live",
+        gemini_api_key="",
+        groq_api_key="",
+        openrouter_api_key="",
+        ollama_api_key="",
+        cloudflare_api_token="",
+    )
+    payload = ExperimentRunRequest(generator_models=["gemma4:26b", "qwen-2.5-32b"], verifier_models=["gemma4:26b", "qwen-2.5-32b"])
     try:
         validate_request(payload, settings)
         raise AssertionError("expected ExperimentConfigError")
     except ExperimentConfigError as exc:
-        assert "OPENAI_API_KEY" in str(exc)
+        assert "credentials" in str(exc).lower() or "configured" in str(exc).lower()
 
 
 def test_live_rejects_mock_model_ids() -> None:
-    settings = detector_settings(llm_mode="live", openai_api_key="sk-test-not-used")
+    settings = detector_settings(llm_mode="live", gemini_api_key="AIza-test-live-key")
     payload = ExperimentRunRequest()
     try:
         validate_request(payload, settings)
         raise AssertionError("expected ExperimentConfigError")
     except ExperimentConfigError as exc:
-        assert "provider model names" in str(exc)
+        assert "model names" in str(exc)
 
 
 async def test_live_confirm_required_before_llm(tmp_path: Path) -> None:
@@ -82,7 +89,7 @@ async def test_live_confirm_required_before_llm(tmp_path: Path) -> None:
     )
     init_db()
     db = SessionLocal()
-    settings = detector_settings(llm_mode="live", openai_api_key="sk-test-not-used")
+    settings = detector_settings(llm_mode="live", gemini_api_key="AIza-test-live-key")
     try:
         await run_experiment(
             llm=MockLLMClient(),
@@ -90,8 +97,8 @@ async def test_live_confirm_required_before_llm(tmp_path: Path) -> None:
             settings=settings,
             payload=ExperimentRunRequest(
                 dataset=str(path),
-                generator_models=["gpt-4o-mini", "gpt-4o"],
-                verifier_models=["gpt-4o-mini", "gpt-4o"],
+                generator_models=["gemma4:26b", "qwen-2.5-32b"],
+                verifier_models=["gemma4:26b", "qwen-2.5-32b"],
                 confirm_live_run=False,
             ),
         )

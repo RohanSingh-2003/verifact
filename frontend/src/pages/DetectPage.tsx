@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom'
 import { detectRun, getAvailableModels, getHealth, getRun } from '../services/api'
 import { EXAMPLE_QUESTIONS } from '../data/exampleQuestions'
 import { AnswerCard } from '../components/detect/AnswerCard'
-import { AnswerModelSelector } from '../components/detect/AnswerModelSelector'
 import {
   AnalysisProgress,
   type ProgressStepItem,
@@ -204,9 +203,9 @@ export function DetectPage() {
   const [selectedAnswerModel, setSelectedAnswerModel] = useState('gemma')
   const [availableModels, setAvailableModels] = useState<AnswerModelOption[]>([
     { id: 'gemma', name: 'Gemma 4:26B', provider: 'ollama', providerDisplay: 'Ollama Cloud', modelName: 'gemma4:26b', configured: true, isDefault: true },
-    { id: 'nemotron', name: 'NVIDIA Nemotron', provider: 'nvidia', providerDisplay: 'NVIDIA', modelName: 'nvidia/llama-3.1-nemotron-70b-instruct', configured: false, isDefault: false },
+    { id: 'glm', name: 'GLM-4.7-Flash', provider: 'cloudflare', providerDisplay: 'Cloudflare Workers AI', modelName: '@cf/zai-org/glm-4.7-flash', configured: false, isDefault: false },
     { id: 'qwen', name: 'Qwen', provider: 'groq', providerDisplay: 'Alibaba / Groq', modelName: 'qwen-2.5-32b', configured: false, isDefault: false },
-    { id: 'mistral', name: 'Mistral', provider: 'mistral', providerDisplay: 'Mistral AI', modelName: 'mistral-small-latest', configured: false, isDefault: false },
+    { id: 'openrouter', name: 'OpenRouter', provider: 'openrouter', providerDisplay: 'OpenRouter', modelName: 'liquid/lfm-2.5-2.6b:free', configured: false, isDefault: false },
     { id: 'gemini', name: 'Gemini Flash 3.8', provider: 'gemini', providerDisplay: 'Google', modelName: 'gemini-3.8-flash', configured: true, isDefault: false },
   ])
 
@@ -417,21 +416,15 @@ export function DetectPage() {
 
       <MethodOverview />
 
-      <div className="mb-4">
-        <AnswerModelSelector
-          models={availableModels}
-          selectedId={selectedAnswerModel}
-          onSelect={setSelectedAnswerModel}
-          disabled={inputLocked}
-        />
-      </div>
-
       <QuestionInput
         value={question}
         onChange={setQuestion}
         onSubmit={() => void handleAnalyze()}
         loading={inputLocked}
         disabled={inputLocked}
+        models={availableModels}
+        selectedModelId={selectedAnswerModel}
+        onSelectModel={setSelectedAnswerModel}
       />
 
       {!result && !waitingForAnswer && !analyzing ? (

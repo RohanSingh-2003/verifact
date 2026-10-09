@@ -83,12 +83,12 @@ The cross-model configuration allows the same generated answer and mutation set 
 
 ---
 
-## 5. Local Ollama & Gemma 4:26b Implementation
+## 5. Cloud-API-Only Architecture & Gemma 4:26B Implementation
 
-- **Hardware Autonomy**: VeriFact integrates directly with local **Ollama** instances (`http://localhost:11434`), executing Google's **Gemma 4:26b** model.
-- **Reasoning Control (`think: false`)**: Gemma thinking models spend substantial token budgets on internal reasoning traces. VeriFact configures the native Ollama `/api/chat` client with `think: false` to guarantee well-formed, deterministic JSON outputs within concise token limits.
-- **Progressive UI Architecture**: Because 26B inference can take tens of seconds locally, VeriFact's progressive design presents the generated answer immediately upon completion (`answer_ready`), then runs MetaQA and Web Evidence as independent parallel pipelines. Failure of one verification branch does not hide the answer or cancel the other branch.
-- **Mock Mode for Development**: Full deterministic mock support allows running the complete suite of 252 automated backend unit tests and fast UI demonstrations without requiring GPU resources.
+- **Cloud-Only Inference**: VeriFact uses cloud/API-based LLM inference. Gemma 4:26B is accessed through Ollama Cloud (`https://ollama.com/api`); no local Ollama installation is required.
+- **Reasoning Control (`think: false`)**: Gemma thinking models spend substantial token budgets on internal reasoning traces. VeriFact configures the Ollama Cloud `/api/chat` client with `think: false` to guarantee well-formed, deterministic JSON outputs within concise token limits.
+- **Progressive UI Architecture**: VeriFact's progressive design presents the generated answer immediately upon completion (`answer_ready`), then runs MetaQA and Web Evidence as independent parallel pipelines. Failure of one verification branch does not hide the answer or cancel the other branch.
+- **Mock Mode for Development**: Full deterministic mock support allows running the complete suite of automated backend unit tests and fast UI demonstrations without requiring live API keys.
 
 ---
 

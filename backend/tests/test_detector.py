@@ -255,7 +255,7 @@ async def test_metaqa_scoring_unchanged_after_fix() -> None:
 
 
 async def test_unknown_question_gets_mock_prefix() -> None:
-    """An unknown question should return a '[MOCK]' prefixed answer, not the hardcoded Sydney string."""
+    """An unknown question should return a '[MOCK]' prefixed answer, not a hardcoded default answer."""
     llm = MockLLMClient(scenario="mixed")
     settings = detector_settings()
     result = await run_detection(
@@ -265,6 +265,7 @@ async def test_unknown_question_gets_mock_prefix() -> None:
     )
     assert result.base_answer.text.startswith("[MOCK]")
     assert "What is the meaning of life?" in result.base_answer.text
+    assert "Canberra" not in result.base_answer.text
     assert "Sydney" not in result.base_answer.text
 
 
@@ -394,12 +395,14 @@ async def test_mock_verifier_input_aware_semantic_discrimination() -> None:
     # Synonyms
     assert not _is_meaning_reversing("In other words, Isaac Newton formulated the laws of motion")
     assert not _is_meaning_reversing("Put simply, Paris is the capital of France")
-    assert not _is_meaning_reversing("Australia's capital city is Sydney.")
+    assert not _is_meaning_reversing("Australia's capital city is Canberra.")
     # Antonyms
     assert _is_meaning_reversing("It is not the case that Isaac Newton formulated the laws of motion")
     assert _is_meaning_reversing("Contrary to popular belief, Paris is not the capital")
     assert _is_meaning_reversing("This is false: 2 + 2 equals 4")
     assert _is_meaning_reversing("Actually, this claim is a misconception.")
+    assert _is_meaning_reversing("The capital of Australia is Sydney.")
+    assert _is_meaning_reversing("The capital of Australia is Melbourne.")
 
 
 async def test_mock_verifier_stateless_no_cross_contamination() -> None:

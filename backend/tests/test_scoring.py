@@ -102,8 +102,8 @@ def test_not_sure_rate_all_uncertain() -> None:
 def test_rationale_does_not_change_score() -> None:
     mutation = GeneratedMutation(
         type=MutationType.SYNONYM,
-        original_text="Sydney is the capital of Australia.",
-        mutated_text="Australia's capital city is Sydney.",
+        original_text="Canberra is the capital of Australia.",
+        mutated_text="Australia's capital city is Canberra.",
     )
     first = score_mutation(mutation, VerifierResult(verdict=Verdict.NO, rationale="First explanation."))
     second = score_mutation(

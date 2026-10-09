@@ -28,8 +28,8 @@ from app.metaqa.detector import run_detection
 def make_test_settings() -> Settings:
     return Settings(
         llm_mode="mock",
-        generator_model="gpt-4o-mini",
-        verifier_model="gpt-4o-mini",
+        generator_model="gemma4:26b",
+        verifier_model="gemma4:26b",
         mutation_synonym_count=3,
         mutation_antonym_count=3,
         hallucination_threshold=0.50,
@@ -65,6 +65,11 @@ def test_live_mode_unconfigured_credentials_error(monkeypatch: pytest.MonkeyPatc
     """When LIVE mode is active but API key is missing, API returns helpful 503."""
     monkeypatch.setenv("LLM_MODE", "live")
     monkeypatch.setenv("OPENAI_API_KEY", "")
+    monkeypatch.setenv("GROQ_API_KEY", "")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "")
+    monkeypatch.setenv("GEMINI_API_KEY", "")
+    monkeypatch.setenv("OLLAMA_API_KEY", "")
+    monkeypatch.setenv("CLOUDFLARE_API_TOKEN", "")
     get_settings.cache_clear()
     get_llm_client.cache_clear()
 
@@ -79,6 +84,7 @@ def test_live_mode_unconfigured_credentials_error(monkeypatch: pytest.MonkeyPatc
         assert "Live LLM mode is not configured" in detail
         assert "Demo / Mock Mode" in detail
     finally:
+        monkeypatch.undo()
         get_settings.cache_clear()
         get_llm_client.cache_clear()
 

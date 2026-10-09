@@ -94,7 +94,7 @@ VeriFact supports dynamic multi-model evaluation across five leading cloud model
 
 - **Dynamic Answer Generation**: The selected model generates the candidate answer.
 - **Dynamic Verifier Pool**: All other available models automatically become independent cross-model verifiers (the selected model is strictly excluded from its own verifier pool).
-- **100% Cloud-Based Inference**: All models run through official cloud APIs. There is **no local model inference** (no calls to `localhost:11434`).
+- **100% Cloud-Based Inference**: VeriFact uses cloud/API-based LLM inference. Gemma 4:26B is accessed through Ollama Cloud; no local Ollama installation is required. There are no calls to `localhost:11434`.
 - **Independent Verification**: Verifiers independently judge consistency. Verifiers are never given expected verdicts, scores, or ground-truth labels.
 - **Scientific Caveat**: Model agreement across independent verifiers is an indicator of consistency and robustness, **not absolute ground truth**.
 
@@ -103,9 +103,9 @@ VeriFact supports dynamic multi-model evaluation across five leading cloud model
 | Model | Display Name | Cloud Provider | Official API / Base URL | API Key Variable |
 | :--- | :--- | :--- | :--- | :--- |
 | **Gemma 4:26B** *(Default)* | Gemma 4:26B | Ollama Cloud | `https://ollama.com/api` (Cloud API) | `OLLAMA_API_KEY` |
-| **NVIDIA Nemotron** | NVIDIA Nemotron | NVIDIA | `https://integrate.api.nvidia.com/v1` | `NVIDIA_API_KEY` |
+| **GLM-4.7-Flash** | GLM-4.7-Flash | Cloudflare Workers AI | `https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/@cf/zai-org/glm-4.7-flash` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
 | **Qwen** | Qwen | Alibaba / Groq | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` |
-| **Mistral** | Mistral | Mistral AI | `https://api.mistral.ai/v1` | `MISTRAL_API_KEY` |
+| **OpenRouter** | OpenRouter | OpenRouter (Liquid AI) | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
 | **Gemini Flash 3.8** | Gemini Flash 3.8 | Google | Google Gemini API (`gemini-3.8-flash`) | `GEMINI_API_KEY` |
 
 ---
@@ -117,7 +117,7 @@ VeriFact supports dynamic multi-model evaluation across five leading cloud model
                               ↓
                       Answer Model Selector
             [ Gemma 4:26B (Ollama Cloud) - Default ]
-            [ NVIDIA Nemotron | Qwen | Mistral | Gemini ]
+            [ GLM-4.7-Flash | Qwen | OpenRouter | Gemini ]
                               ↓
                    Selected Model Generates Answer
                               ↓
@@ -162,7 +162,7 @@ VeriFact supports dynamic multi-model evaluation across five leading cloud model
 - **Dynamic Model Selection**: Select any configured cloud model as the primary answer generator from the Detect UI or via the API (`answer_model: "gemma"`).
 - **Default Answer Model**: **Gemma 4:26B**, accessed through the official **Ollama Cloud API** (`https://ollama.com/api`), not local daemon inference.
 - **Exclusion Guarantee**: When model $M$ is chosen as the answer model, the verifier pool is dynamically computed as $\text{AllModels} \setminus \{M\}$. Model $M$ will never judge its own answer.
-- **Provider Isolation**: Provider-specific HTTP and payload mechanics are isolated within dedicated clients (`OllamaCloudClient`, `NvidiaClient`, `GroqClient`, `MistralClient`, `GeminiClientAdapter`).
+- **Provider Isolation**: Provider-specific HTTP and payload mechanics are isolated within dedicated clients (`OllamaCloudClient`, `CloudflareClient`, `GroqClient`, `OpenRouterClient`, `GeminiClientAdapter`).
 - **Immediate Answer Return**: The generated answer is saved to SQLite with status `answer_ready` and returned to the UI immediately, displaying the model and cloud provider badge. Users can read the answer while both verification branches proceed in parallel.
 
 ---
@@ -462,20 +462,8 @@ ENVIRONMENT=development
 FRONTEND_ORIGIN=http://localhost:5173
 DATABASE_URL=sqlite:///./data/verifact.db
 
-# Execution Mode: "live" (Ollama + APIs) or "mock" (offline test fixtures)
+# Execution Mode: "live" (Cloud APIs) or "mock" (offline test fixtures)
 LLM_MODE=live
-LLM_PROVIDER=ollama
-
-# Local Ollama Configuration
-OLLAMA_BASE_URL=http://localhost:11434/v1
-OLLAMA_API_KEY=ollama
-OLLAMA_ALLOWED_MODELS=gemma4:26b
-OLLAMA_KEEP_ALIVE=30m
-
-# Answer & Mutation Models
-GENERATOR_MODEL=gemma4:26b
-VERIFIER_MODEL=gemma4:26b
-MUTATION_MODEL=
 
 # MetaQA Parameters
 SYNONYM_COUNT=3
@@ -492,20 +480,21 @@ OLLAMA_API_KEY=
 OLLAMA_CLOUD_BASE_URL=https://ollama.com/api
 OLLAMA_CLOUD_MODEL=gemma4:26b
 
-# 2. NVIDIA Nemotron via NVIDIA API
-NVIDIA_API_KEY=
-NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-NVIDIA_MODEL=nvidia/llama-3.1-nemotron-70b-instruct
+# 2. GLM-4.7-Flash via Cloudflare Workers AI
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_ACCOUNT_ID=
+CLOUDFLARE_BASE_URL=https://api.cloudflare.com/client/v4
+CLOUDFLARE_MODEL=@cf/zai-org/glm-4.7-flash
 
 # 3. Qwen via Groq API
 GROQ_API_KEY=
 GROQ_BASE_URL=https://api.groq.com/openai/v1
 GROQ_MODEL=qwen-2.5-32b
 
-# 4. Mistral via Mistral AI API
-MISTRAL_API_KEY=
-MISTRAL_BASE_URL=https://api.mistral.ai/v1
-MISTRAL_MODEL=mistral-small-latest
+# 4. OpenRouter via OpenAI-compatible API
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=liquid/lfm-2.5-2.6b:free
 
 # 5. Google Gemini API
 GEMINI_API_KEY=

@@ -11,9 +11,8 @@ from app.api.deps import db_dep, get_gemini_verifier_client, get_llm_client, set
 from app.config import Settings, get_settings
 from app.database.db import SessionLocal
 from app.llm.base import LLMClient, LLMError, LLMTimeoutError
-from app.llm.client import OpenAICompatibleClient
 from app.llm.mock import MockLLMClient
-from app.llm.ollama import OllamaClient
+from app.llm.providers import ModelClientLLMAdapter
 from app.metaqa.detector import BaseAnswer, generate_answer, run_metaqa_analysis
 from app.metaqa.detector import MetaqaVerificationUnavailable
 from app.schemas.detect import DetectRequest, DetectResponse, RunStatus
@@ -37,53 +36,7 @@ logger = logging.getLogger("verifact.api.detect")
 router = APIRouter(tags=["detect"])
 
 
-def _new_llm_client(settings: Settings) -> LLMClient:
-    """Fresh client for background MetaQA (avoid reusing request-scoped httpx loops)."""
-    if settings.llm_provider == "ollama":
-        return OllamaClient(settings)
-    if settings.llm_provider == "openai_compatible":
-        return OpenAICompatibleClient(settings)
-    raise RuntimeError(f"Unsupported LLM_PROVIDER: {settings.llm_provider}")
 
-
-class _ModelClientLLMAdapter(LLMClient):
-    """Adapts a ModelClient to the LLMClient interface for MetaQA analysis."""
-
-    def __init__(self, inner: Any) -> None:
-        self._inner = inner
-
-    async def complete_text(
-        self,
-        *,
-        model: str,
-        system_prompt: str,
-        user_prompt: str,
-        max_tokens: int | None = None,
-    ) -> str:
-        return await self._inner.complete_text(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            max_tokens=max_tokens,
-        )
-
-    async def complete_json(
-        self,
-        *,
-        model: str,
-        system_prompt: str,
-        user_prompt: str,
-        max_tokens: int | None = None,
-    ) -> dict[str, Any]:
-        return await self._inner.complete_json(
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            max_tokens=max_tokens,
-        )
-
-    async def aclose(self) -> None:
-        close = getattr(self._inner, "aclose", None)
-        if close is not None:
-            await close()
 
 
 def _new_verifier_for_pool(
@@ -109,13 +62,13 @@ def _new_verifier_for_pool(
         return client, settings.gemini_verifier_model
 
     # If Gemini is the answer model, or not configured, pick another configured candidate
-    for candidate_id in ("gemma", "qwen", "mistral", "nemotron"):
+    for candidate_id in ("gemma", "glm", "qwen", "openrouter"):
         if candidate_id == selected_answer_model:
             continue
         if is_model_configured(candidate_id, settings):
             model_client = get_model_client(candidate_id, settings)
             mdef = MODEL_REGISTRY[candidate_id]
-            return _ModelClientLLMAdapter(model_client), mdef.default_model_name
+            return ModelClientLLMAdapter(model_client), mdef.default_model_name
 
     return None, ""
 
@@ -147,41 +100,32 @@ async def _continue_metaqa_analysis(
 ) -> None:
     """Background MetaQA continuation on the app event loop. Fresh DB session.
 
-    Mock mode reuses the request LLM (deterministic / test overrides).
-    Dynamic verifier pool excludes the selected answer model.
+    RESEARCH ARCHITECTURE:
+    1. Selected model generates answer + mutations.
+    2. ALL OTHER AVAILABLE MODELS in MODEL_REGISTRY independently verify every mutation.
+    3. Selected model is NEVER included as a verifier.
     """
     settings = get_settings()
     owns_client = False
-    owns_verifier = False
     is_test_mock = isinstance(request_llm, MockLLMClient)
     if is_test_mock and request_llm is not None:
         llm = request_llm
     else:
-        llm = _new_llm_client(settings)
+        from app.llm.registry import get_model_client
+        model_client = get_model_client(selected_answer_model, settings)
+        llm = ModelClientLLMAdapter(model_client)
         owns_client = True
 
-    verifier_model_name = settings.effective_verifier_model
-    if is_test_mock and request_verifier_llm is not None:
-        verifier_llm = request_verifier_llm
-    elif is_test_mock and request_llm is not None and isinstance(request_llm, MockLLMClient):
-        from app.llm.gemini import MockGeminiClient
-        verifier_llm = MockGeminiClient(inner=request_llm)
-    else:
-        verifier_llm, pool_verifier_name = _new_verifier_for_pool(
-            settings,
-            selected_answer_model=selected_answer_model,
-        )
-        if pool_verifier_name:
-            verifier_model_name = pool_verifier_name
-        owns_verifier = True
+    from app.llm.registry import MODEL_REGISTRY, is_model_configured
+    verifier_model_ids = [m for m in MODEL_REGISTRY.keys() if m != selected_answer_model]
 
-    if verifier_llm is None:
+    if settings.llm_mode == "live" and not any(is_model_configured(m, settings) for m in verifier_model_ids):
         db = SessionLocal()
         try:
             fail_run_analysis(
                 db,
                 run_id,
-                f"No independent verifier available in verifier pool (answer model: {selected_answer_model}). Configure GEMINI_API_KEY or another cloud provider.",
+                f"No independent verifiers available in verifier pool (answer model: {selected_answer_model}). Configure cloud provider credentials.",
                 status=RunStatus.VERIFICATION_FAILED,
             )
             db.commit()
@@ -192,7 +136,7 @@ async def _continue_metaqa_analysis(
             db.close()
         return
 
-    verifier_model = verifier_model_name or settings.effective_verifier_model
+    verifier_summary_label = ", ".join(MODEL_REGISTRY[m].display_name for m in verifier_model_ids if m in MODEL_REGISTRY)
     db = SessionLocal()
     current_stage = RunStatus.ANSWER_READY.value
     try:
@@ -223,7 +167,8 @@ async def _continue_metaqa_analysis(
                     stage_db,
                     run_id,
                     mutations=mutations,
-                    verifier_model=verifier_model,
+                    verifier_model=verifier_summary_label,
+                    verifier_models=verifier_model_ids,
                     mutation_ms=mutation_ms,
                 )
                 stage_db.commit()
@@ -255,8 +200,9 @@ async def _continue_metaqa_analysis(
             answer=answer,
             settings=settings,
             generator_model=generator_model,
-            verifier_model=verifier_model,
-            verifier_llm=verifier_llm,
+            verifier_model=verifier_summary_label,
+            verifier_models=verifier_model_ids,
+            verifier_llm=request_verifier_llm if is_test_mock else None,
             answer_ms=answer_ms,
             on_stage=on_stage,
             on_mutations_ready=on_mutations_ready,
@@ -312,13 +258,7 @@ async def _continue_metaqa_analysis(
                     await close()
                 except Exception:
                     logger.exception("failed to close background llm client")
-        if owns_verifier and verifier_llm is not None:
-            close = getattr(verifier_llm, "aclose", None)
-            if close is not None:
-                try:
-                    await close()
-                except Exception:
-                    logger.exception("failed to close background gemini verifier client")
+
 
 
 async def _continue_web_evidence(
@@ -326,6 +266,7 @@ async def _continue_web_evidence(
     run_id: str,
     question: str,
     answer_text: str,
+    selected_answer_model: str = "gemma",
     request_llm: LLMClient | None = None,
 ) -> None:
     """Background Web Evidence pipeline — independent of MetaQA status/fields."""
@@ -334,7 +275,9 @@ async def _continue_web_evidence(
     if isinstance(request_llm, MockLLMClient) and request_llm is not None:
         llm = request_llm
     else:
-        llm = _new_llm_client(settings)
+        from app.llm.registry import get_model_client
+        model_client = get_model_client(selected_answer_model, settings)
+        llm = ModelClientLLMAdapter(model_client)
         owns_client = True
 
     def on_stage(stage: str) -> None:
@@ -412,6 +355,46 @@ async def _continue_web_evidence(
                     logger.exception("failed to close web evidence llm client")
 
 
+async def _continue_independent_verdicts(
+    *,
+    run_id: str,
+    question: str,
+    answer_text: str,
+    selected_answer_model: str = "gemma",
+    request_llm: LLMClient | None = None,
+) -> None:
+    """Background evaluation of the generated answer by all other models in MODEL_REGISTRY.
+
+    The selected answer model is NEVER included as a verifier.
+    """
+    settings = get_settings()
+    try:
+        from app.services.independent_verifiers import (
+            evaluate_all_independent_verifiers,
+            persist_independent_verdicts,
+        )
+
+        verdicts = await evaluate_all_independent_verifiers(
+            question=question,
+            answer=answer_text,
+            selected_answer_model_id=selected_answer_model,
+            settings=settings,
+            test_llm=request_llm,
+        )
+        db = SessionLocal()
+        try:
+            persist_independent_verdicts(db, run_id, verdicts)
+            db.commit()
+            logger.info("independent ai verdicts saved run_id=%s count=%d", run_id, len(verdicts))
+        except Exception:
+            db.rollback()
+            logger.exception("failed to persist independent verdicts run_id=%s", run_id)
+        finally:
+            db.close()
+    except Exception:
+        logger.exception("background independent verdicts evaluation crashed run_id=%s", run_id)
+
+
 @router.get("/api/models")
 def get_models(settings: Settings = Depends(settings_dep)) -> dict[str, Any]:
     """Return available answer models and their cloud provider readiness status."""
@@ -482,6 +465,8 @@ async def detect(
 
         answer_ms = round((time.perf_counter() - answer_started) * 1000, 1)
 
+        ai_verdicts_json = ""
+
         try:
             run = create_answer_ready_run(
                 db,
@@ -491,6 +476,7 @@ async def detect(
                 threshold=settings.threshold,
                 llm_mode=settings.llm_mode,
                 answer_ms=answer_ms,
+                ai_verdicts_json=ai_verdicts_json,
             )
             db.commit()
         except SQLAlchemyError as exc:
@@ -501,7 +487,7 @@ async def detect(
                 detail="Answer was generated but could not be saved.",
             ) from exc
 
-        # Schedule MetaQA and Web Evidence independently and concurrently.
+        # Schedule MetaQA, Web Evidence, and Independent AI Verification independently and concurrently.
         # Dynamic verifier pool automatically excludes the selected answer model.
         if is_test_mock and isinstance(llm, MockLLMClient):
             from app.llm.gemini import MockGeminiClient
@@ -523,6 +509,7 @@ async def detect(
                     run_id=run.id,
                     question=question,
                     answer_text=answer.text,
+                    selected_answer_model=canonical_model_id,
                     request_llm=llm if is_test_mock else None,
                 ),
                 return_exceptions=True,
@@ -536,14 +523,12 @@ async def detect(
                         label,
                         exc_info=outcome,
                     )
-            from app.llm.ollama import get_ollama_call_count
 
             tot_elapsed = round((time.perf_counter() - answer_started) * 1000, 1)
             logger.info(
-                "parallel verification completed run_id=%s total_analysis_ms=%.0f number_of_ollama_calls=%s",
+                "parallel verification completed run_id=%s total_analysis_ms=%.0f",
                 run.id,
                 tot_elapsed,
-                get_ollama_call_count(),
             )
 
         background_tasks.add_task(_run_parallel_verification)
