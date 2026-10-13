@@ -19,10 +19,16 @@ export function VerdictBadge({ verdict, status }: { verdict: string; status?: st
 
   if (isFailed) {
     const isRateLimit = norm.includes('RATE LIMIT') || norm.includes('RATE-LIMIT')
+    const isUnavailable = norm.includes('UNAVAILABLE') || norm.includes('HIGH DEMAND')
+    const failedLabel = isRateLimit
+      ? 'FAILED — Rate limit exceeded'
+      : isUnavailable
+        ? 'FAILED — Temporarily unavailable'
+        : 'FAILED'
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-red-700 dark:bg-red-950/60 dark:text-red-300">
         <AlertCircle className="h-3 w-3 shrink-0" />
-        {isRateLimit ? 'FAILED — Rate limit exceeded' : 'FAILED'}
+        {failedLabel}
       </span>
     )
   }

@@ -30,6 +30,10 @@ class LLMMalformedResponseError(LLMError):
     """Raised when the provider response cannot be parsed or is malformed."""
 
 
+class LLMUnavailableError(LLMError):
+    """Raised when the provider is temporarily unavailable (e.g. HTTP 503 / high demand)."""
+
+
 class LLMClient(ABC):
     """Provider-agnostic language model client used by MetaQA."""
 

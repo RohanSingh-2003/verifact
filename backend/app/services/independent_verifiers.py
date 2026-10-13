@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.database.models import Run
-from app.llm.base import LLMClient, LLMError, LLMRateLimitError
+from app.llm.base import LLMClient, LLMError, LLMRateLimitError, LLMUnavailableError
+from app.llm.gemini import _sanitize_error_message
 from app.llm.mock import MockLLMClient
 from app.llm.registry import (
     MODEL_REGISTRY,
@@ -226,7 +227,8 @@ async def evaluate_single_verifier(
             status="completed",
         )
     except LLMRateLimitError as exc:
-        logger.warning("Independent verifier %s rate limited: %s", model_id, exc)
+        sanitized = _sanitize_error_message(str(exc))
+        logger.warning("Independent verifier %s rate limited: %s", model_id, sanitized)
         return IndependentVerifierVerdict(
             model_id=model_id,
             model_name=model_name,
@@ -236,13 +238,31 @@ async def evaluate_single_verifier(
             rationale="",
             contradictory_claims=[],
             confidence=None,
-            error=f"API Error: {exc!s}",
+            error=f"API Error: {sanitized}",
+            status="failed",
+        )
+    except LLMUnavailableError as exc:
+        sanitized = _sanitize_error_message(str(exc))
+        logger.warning("Independent verifier %s temporarily unavailable: %s", model_id, sanitized)
+        return IndependentVerifierVerdict(
+            model_id=model_id,
+            model_name=model_name,
+            provider=provider_name,
+            verdict="FAILED — Service unavailable",
+            reasoning="",
+            rationale="",
+            contradictory_claims=[],
+            confidence=None,
+            error=f"API Error: {sanitized}",
             status="failed",
         )
     except LLMError as exc:
-        is_rl = "rate limit" in str(exc).lower() or "rate-limit" in str(exc).lower() or "429" in str(exc)
-        verdict_str = "FAILED — Rate limit exceeded" if is_rl else "FAILED"
-        logger.warning("Independent verifier %s failed with LLMError (is_rl=%s): %s", model_id, is_rl, exc)
+        sanitized = _sanitize_error_message(str(exc))
+        lower_str = sanitized.lower()
+        is_rl = "rate limit" in lower_str or "rate-limit" in lower_str or "429" in lower_str
+        is_unavail = "unavailable" in lower_str or "high demand" in lower_str or "503" in lower_str
+        verdict_str = "FAILED — Rate limit exceeded" if is_rl else ("FAILED — Service unavailable" if is_unavail else "FAILED")
+        logger.warning("Independent verifier %s failed with LLMError (is_rl=%s, is_unavail=%s): %s", model_id, is_rl, is_unavail, sanitized)
         return IndependentVerifierVerdict(
             model_id=model_id,
             model_name=model_name,
@@ -252,13 +272,16 @@ async def evaluate_single_verifier(
             rationale="",
             contradictory_claims=[],
             confidence=None,
-            error=f"API Error: {exc!s}",
+            error=f"API Error: {sanitized}",
             status="failed",
         )
     except Exception as exc:
-        is_rl = "rate limit" in str(exc).lower() or "rate-limit" in str(exc).lower() or "429" in str(exc)
-        verdict_str = "FAILED — Rate limit exceeded" if is_rl else "FAILED"
-        logger.exception("Independent verifier %s unexpected failure (is_rl=%s)", model_id, is_rl)
+        sanitized = _sanitize_error_message(str(exc))
+        lower_str = sanitized.lower()
+        is_rl = "rate limit" in lower_str or "rate-limit" in lower_str or "429" in lower_str
+        is_unavail = "unavailable" in lower_str or "high demand" in lower_str or "503" in lower_str
+        verdict_str = "FAILED — Rate limit exceeded" if is_rl else ("FAILED — Service unavailable" if is_unavail else "FAILED")
+        logger.exception("Independent verifier %s unexpected failure (is_rl=%s, is_unavail=%s)", model_id, is_rl, is_unavail)
         return IndependentVerifierVerdict(
             model_id=model_id,
             model_name=model_name,
@@ -268,7 +291,7 @@ async def evaluate_single_verifier(
             rationale="",
             contradictory_claims=[],
             confidence=None,
-            error=f"API Error: {exc!s}",
+            error=f"API Error: {sanitized}",
             status="failed",
         )
     finally:

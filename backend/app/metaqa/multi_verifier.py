@@ -7,7 +7,8 @@ import logging
 from typing import Any
 
 from app.config import Settings
-from app.llm.base import LLMClient, LLMRateLimitError, LLMTimeoutError
+from app.llm.base import LLMClient, LLMRateLimitError, LLMTimeoutError, LLMUnavailableError
+from app.llm.gemini import _sanitize_error_message
 from app.llm.mock import MockLLMClient
 from app.llm.prompts import VERIFY_SYSTEM, VERIFY_USER
 from app.llm.registry import (
@@ -148,40 +149,58 @@ async def evaluate_mutation_for_model(
         )
 
     except LLMRateLimitError as exc:
-        logger.warning("verifier rate limit model=%s statement=%r: %s", model_id, mutation.mutated_text[:60], exc)
+        sanitized = _sanitize_error_message(str(exc))
+        logger.warning("verifier rate limit model=%s statement=%r: %s", model_id, mutation.mutated_text[:60], sanitized)
         return ModelVerifierVerdict(
             model_id=model_id,
             model_name=model_name,
             provider=provider_name,
             verdict="FAILED — Rate limit exceeded",
             rationale="",
-            error=f"API Error: {exc!s}",
+            error=f"API Error: {sanitized}",
             status="failed",
             contribution=None,
         )
-    except LLMTimeoutError as exc:
-        logger.warning("verifier timeout model=%s statement=%r: %s", model_id, mutation.mutated_text[:60], exc)
+    except LLMUnavailableError as exc:
+        sanitized = _sanitize_error_message(str(exc))
+        logger.warning("verifier unavailable model=%s statement=%r: %s", model_id, mutation.mutated_text[:60], sanitized)
         return ModelVerifierVerdict(
             model_id=model_id,
             model_name=model_name,
             provider=provider_name,
-            verdict="FAILED",
+            verdict="FAILED — Service unavailable",
             rationale="",
-            error=f"API Error: Request timed out ({exc!s})",
+            error=f"API Error: {sanitized}",
+            status="failed",
+            contribution=None,
+        )
+    except LLMTimeoutError as exc:
+        sanitized = _sanitize_error_message(str(exc))
+        logger.warning("verifier timeout model=%s statement=%r: %s", model_id, mutation.mutated_text[:60], sanitized)
+        return ModelVerifierVerdict(
+            model_id=model_id,
+            model_name=model_name,
+            provider=provider_name,
+            verdict="FAILED — Timeout",
+            rationale="",
+            error=f"API Error: Request timed out ({sanitized})",
             status="failed",
             contribution=None,
         )
     except Exception as exc:  # noqa: BLE001 - Provider isolation: individual model failures must not crash parallel verification pool
-        is_rl = "rate limit" in str(exc).lower() or "rate-limit" in str(exc).lower() or "429" in str(exc)
-        verdict_str = "FAILED — Rate limit exceeded" if is_rl else "FAILED"
-        logger.warning("verifier error model=%s statement=%r (is_rl=%s): %s", model_id, mutation.mutated_text[:60], is_rl, exc)
+        sanitized = _sanitize_error_message(str(exc))
+        lower_str = sanitized.lower()
+        is_rl = "rate limit" in lower_str or "rate-limit" in lower_str or "429" in lower_str
+        is_unavail = "unavailable" in lower_str or "high demand" in lower_str or "503" in lower_str
+        verdict_str = "FAILED — Rate limit exceeded" if is_rl else ("FAILED — Service unavailable" if is_unavail else "FAILED")
+        logger.warning("verifier error model=%s statement=%r (is_rl=%s, is_unavail=%s): %s", model_id, mutation.mutated_text[:60], is_rl, is_unavail, sanitized)
         return ModelVerifierVerdict(
             model_id=model_id,
             model_name=model_name,
             provider=provider_name,
             verdict=verdict_str,
             rationale="",
-            error=f"API Error: {exc!s}",
+            error=f"API Error: {sanitized}",
             status="failed",
             contribution=None,
         )

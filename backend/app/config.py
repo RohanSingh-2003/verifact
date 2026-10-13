@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.8-flash"
     gemini_verifier_model: str = "gemini-3.8-flash"
     gemini_verify_concurrency: int = Field(default=3, ge=1, le=10)
+    gemini_max_retries: int = Field(default=3, ge=0, le=10)
+    gemini_initial_retry_delay: float = Field(default=1.0, ge=0.1, le=10.0)
+    gemini_max_retry_delay: float = Field(default=10.0, ge=1.0, le=60.0)
+    gemini_total_retry_timeout: float = Field(default=30.0, ge=5.0, le=120.0)
 
     # Provider & model parameters
     llm_provider: str = "cloud"

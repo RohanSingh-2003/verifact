@@ -520,3 +520,230 @@ class TestCrossModelIntegrity:
         assert generator.mutation_calls >= 1
         # Verifier should NOT have any mutation generation calls
         assert verifier._inner.mutation_calls == 0
+
+
+# ── 17. Regression Tests for Retries, Error Handling, and Isolation ─────────
+
+
+class TestGeminiRetriesAndErrorHandling:
+    @pytest.mark.asyncio
+    async def test_transient_503_followed_by_successful_retry(self):
+        """A transient 503 should trigger exponential backoff retry and succeed on the next attempt."""
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            max_retries=3,
+            initial_retry_delay=0.01,
+            max_retry_delay=0.05,
+            total_retry_timeout=10.0,
+        )
+
+        call_count = 0
+
+        class MockResponse:
+            text = '{"verdict": "YES", "rationale": "Consistent claim"}'
+            candidates: tuple = ()
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand.'}}")
+            return MockResponse()
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        res = await client.complete_json(
+            model="gemini-3.8-flash",
+            system_prompt="Test system",
+            user_prompt="Test user",
+        )
+
+        assert call_count == 2
+        assert res["verdict"] == "YES"
+        assert res["rationale"] == "Consistent claim"
+
+    @pytest.mark.asyncio
+    async def test_repeated_503_responses_exhausting_retry_budget(self):
+        """Repeated 503 errors must exhaust max_retries and raise GeminiUnavailableError with clear message."""
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            max_retries=2,
+            initial_retry_delay=0.01,
+            max_retry_delay=0.03,
+            total_retry_timeout=5.0,
+        )
+
+        call_count = 0
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("503 UNAVAILABLE. {'error': {'code': 503, 'message': 'This model is currently experiencing high demand.'}}")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        from app.llm.gemini import GeminiUnavailableError
+
+        with pytest.raises(GeminiUnavailableError) as exc_info:
+            await client.complete_json(
+                model="gemini-3.8-flash",
+                system_prompt="Test system",
+                user_prompt="Test user",
+            )
+
+        assert "temporarily unavailable due to high demand" in str(exc_info.value)
+        # 1 initial + 2 retries = 3 total attempts
+        assert call_count == 3
+        # Model was NOT silently changed or substituted
+        assert client._default_model == "gemini-3.8-flash"
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_auth_error_no_retry(self):
+        """HTTP 401/403 or unauthenticated must fail immediately without retrying."""
+        client = GeminiClient(
+            api_key="invalid-key",
+            default_model="gemini-3.8-flash",
+            max_retries=3,
+        )
+
+        call_count = 0
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("403 PERMISSION_DENIED. {'error': {'code': 403, 'message': 'API key not valid.'}}")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        from app.llm.gemini import GeminiAuthError
+
+        with pytest.raises(GeminiAuthError) as exc_info:
+            await client.complete_text(
+                model="gemini-3.8-flash",
+                system_prompt="Test",
+                user_prompt="Test",
+            )
+
+        assert call_count == 1
+        assert "401/403" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_model_not_found_no_retry(self):
+        """HTTP 404 or model not found must fail immediately without retrying or substituting."""
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-nonexistent",
+            max_retries=3,
+        )
+
+        call_count = 0
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("404 NOT_FOUND. {'error': {'code': 404, 'message': 'models/gemini-nonexistent not found'}}")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        from app.llm.gemini import GeminiModelNotFoundError
+
+        with pytest.raises(GeminiModelNotFoundError) as exc_info:
+            await client.complete_text(
+                model="gemini-nonexistent",
+                system_prompt="Test",
+                user_prompt="Test",
+            )
+
+        assert call_count == 1
+        assert "404" in str(exc_info.value)
+        assert "gemini-nonexistent" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_gemini_failure_alongside_successful_independent_verifiers(self, monkeypatch):
+        """When Gemini is unavailable, other independent verifiers must succeed and be aggregated."""
+        from app.llm.gemini import GeminiUnavailableError
+        from app.services.independent_verifiers import (
+            build_multi_model_summary,
+            evaluate_all_independent_verifiers,
+        )
+        from app.llm.providers import ModelClient
+
+        settings = _mock_settings(llm_mode="live")
+
+        class MockWorkingClient(ModelClient):
+            async def generate_answer(self, question, **kwargs):
+                return "Answer"
+
+            async def complete_text(self, **kwargs):
+                return "Text"
+
+            async def complete_json(self, **kwargs):
+                return {"verdict": "Correct", "reasoning": "Looks accurate.", "contradictory_claims": []}
+
+        class MockFailingGeminiClient(ModelClient):
+            async def generate_answer(self, question, **kwargs):
+                return "Answer"
+
+            async def complete_text(self, **kwargs):
+                raise GeminiUnavailableError("Google Gemini Flash 3.8 is temporarily unavailable due to high demand.")
+
+            async def complete_json(self, **kwargs):
+                raise GeminiUnavailableError("Google Gemini Flash 3.8 is temporarily unavailable due to high demand.")
+
+        def fake_get_model_client(mid, s):
+            if mid == "gemini":
+                return MockFailingGeminiClient()
+            return MockWorkingClient()
+
+        monkeypatch.setattr("app.services.independent_verifiers.get_model_client", fake_get_model_client)
+        monkeypatch.setattr("app.services.independent_verifiers.is_model_configured", lambda mid, s: True)
+
+        verdicts = await evaluate_all_independent_verifiers(
+            question="What is the capital of Australia?",
+            answer="Canberra is the capital of Australia.",
+            selected_answer_model_id="gemma",
+            settings=settings,
+        )
+
+        gemini_v = next((v for v in verdicts if v.model_id == "gemini"), None)
+        assert gemini_v is not None
+        assert gemini_v.status == "failed"
+        assert "Service unavailable" in gemini_v.verdict or "FAILED" in gemini_v.verdict
+        assert "temporarily unavailable due to high demand" in gemini_v.error
+
+        other_verdicts = [v for v in verdicts if v.model_id != "gemini"]
+        assert len(other_verdicts) > 0
+        for ov in other_verdicts:
+            assert ov.status == "completed"
+            assert ov.verdict == "Correct"
+
+        summary = build_multi_model_summary(verdicts)
+        assert summary.completed_verifiers == len(other_verdicts)
+        assert summary.failed_count == 1
+        assert summary.correct_count == len(other_verdicts)
+        assert summary.incorrect_count == 0
+
+    def test_no_api_key_leakage_in_sanitization(self):
+        """Sanitization must strip raw API keys and google API key patterns from errors and logs."""
+        from app.llm.gemini import _sanitize_error_message
+
+        secret_key = "AIzaSyTestSecretKey_1234567890abcdef"
+        raw_error = f"Request failed: https://generativelanguage.googleapis.com/v1beta/models?key={secret_key}&alt=json"
+
+        sanitized = _sanitize_error_message(raw_error, secret_key)
+        assert secret_key not in sanitized
+        assert "[MASKED" in sanitized or "key=[MASKED]" in sanitized

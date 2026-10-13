@@ -735,7 +735,10 @@ class GeminiClientAdapter(ModelClient):
         api_key: str,
         model_name: str = "gemini-3.8-flash",
         timeout_seconds: float = 30.0,
-        max_retries: int = 2,
+        max_retries: int = 3,
+        initial_retry_delay: float = 1.0,
+        max_retry_delay: float = 10.0,
+        total_retry_timeout: float = 30.0,
     ) -> None:
         from app.llm.gemini import GeminiClient
 
@@ -744,6 +747,9 @@ class GeminiClientAdapter(ModelClient):
             default_model=model_name,
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
+            initial_retry_delay=initial_retry_delay,
+            max_retry_delay=max_retry_delay,
+            total_retry_timeout=total_retry_timeout,
         )
         self.model_name = model_name
 

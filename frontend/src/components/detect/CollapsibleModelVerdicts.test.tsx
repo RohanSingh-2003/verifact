@@ -239,4 +239,26 @@ describe('MutationRow independent state integration', () => {
     const gemmaButtons = screen.getAllByRole('button', { name: /Gemma 4:26B/i })
     expect(gemmaButtons.length).toBe(1)
   })
+
+  // 10. VerdictBadge handles unavailable / high demand with clear label
+  it('renders FAILED — Temporarily unavailable badge when verdict is unavailable or high demand', () => {
+    const unavailableVerdicts: ModelVerifierVerdictRecord[] = [
+      {
+        modelId: 'gemini',
+        modelName: 'Gemini Flash 3.8',
+        model: 'gemini-3.8-flash',
+        provider: 'Google',
+        verdict: 'FAILED — Service unavailable',
+        error: "API Error: Google Gemini Flash 3.8 is temporarily unavailable due to high demand on Google's servers.",
+        status: 'failed',
+        contribution: null,
+      },
+    ]
+
+    render(<CollapsibleModelVerdicts verdicts={unavailableVerdicts} mutationId="m-unavail" />)
+    const trigger = screen.getByRole('button', { name: /AI Verdicts/i })
+    fireEvent.click(trigger)
+
+    expect(screen.getByText('FAILED — Temporarily unavailable')).toBeDefined()
+  })
 })
