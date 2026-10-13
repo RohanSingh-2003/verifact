@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { Layout } from './components/layout/Layout'
+import { ScrollToTop } from './components/layout/ScrollToTop'
 import { DetectPage } from './pages/DetectPage'
 import { HistoryPage } from './pages/HistoryPage'
 import { MetaQAPage } from './pages/MetaQAPage'
@@ -11,6 +12,7 @@ export default function App() {
   return (
     <ThemeProvider>
       <BrowserRouter>
+        <ScrollToTop />
         <Layout>
           <Routes>
             <Route path="/" element={<DetectPage />} />

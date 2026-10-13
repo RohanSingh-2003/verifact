@@ -176,9 +176,9 @@ export function Layout({ children }: { children: ReactNode }) {
       </div>
       <div className="min-w-0 flex-1">
         <MobileTopBar />
-        <div className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 lg:px-10 lg:pt-10 lg:pb-12">
+        <main id="main-content" className="mx-auto w-full max-w-[1120px] px-4 pt-6 pb-[calc(5.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-8 lg:px-10 lg:pt-10 lg:pb-12">
           {children}
-        </div>
+        </main>
       </div>
       <MobileNav />
     </div>
