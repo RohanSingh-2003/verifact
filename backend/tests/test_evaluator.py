@@ -22,8 +22,8 @@ def _result(example: DatasetExample, answer: str, score: float) -> DetectionResu
     )
 
 
-async def test_evaluation_with_mocked_detector(tmp_path) -> None:
-
+async def test_evaluation_with_mocked_detector(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     path = tmp_path / "mini.json"
     path.write_text(
         """

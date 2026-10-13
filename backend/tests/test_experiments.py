@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from fastapi.testclient import TestClient
 
 from app.database.db import SessionLocal, init_db
@@ -29,7 +31,8 @@ def _mini_dataset(tmp_path: Path) -> Path:
     return path
 
 
-async def test_2x2_fixed_mutations_and_no_duplicate_generation(tmp_path: Path) -> None:
+async def test_2x2_fixed_mutations_and_no_duplicate_generation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     path = _mini_dataset(tmp_path)
     init_db()
     db = SessionLocal()
@@ -88,7 +91,8 @@ async def test_2x2_fixed_mutations_and_no_duplicate_generation(tmp_path: Path) -
         db.close()
 
 
-async def test_experiment_persists_and_reloads(tmp_path: Path) -> None:
+async def test_experiment_persists_and_reloads(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     path = _mini_dataset(tmp_path)
     init_db()
     db = SessionLocal()
@@ -211,12 +215,20 @@ def test_experiment_rejects_one_model() -> None:
     assert response.status_code == 422
 
 
-def test_experiment_rejects_empty_dataset(tmp_path: Path) -> None:
+def test_experiment_rejects_empty_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     path = tmp_path / "empty.json"
     path.write_text('{"name": "empty", "version": "1.0", "examples": []}', encoding="utf-8")
     client = TestClient(app)
     response = client.post("/api/experiments/run", json={"dataset": str(path)})
     assert response.status_code == 400
+
+
+def test_experiment_rejects_path_traversal() -> None:
+    client = TestClient(app)
+    response = client.post("/api/experiments/run", json={"dataset": "../../app/main.py"})
+    assert response.status_code == 400
+    assert "Access denied" in response.json()["detail"]
 
 
 def test_experiment_rejects_invalid_threshold() -> None:

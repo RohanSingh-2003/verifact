@@ -56,12 +56,20 @@ def test_evaluation_unknown_dataset() -> None:
     assert response.status_code == 400
 
 
-def test_evaluation_empty_dataset(tmp_path) -> None:
+def test_evaluation_empty_dataset(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     path = tmp_path / "empty.json"
     path.write_text('{"name": "empty", "version": "1.0", "examples": []}', encoding="utf-8")
     client = TestClient(app)
     response = client.post("/api/evaluations/run", json={"dataset": str(path)})
     assert response.status_code == 400
+
+
+def test_evaluation_rejects_path_traversal() -> None:
+    client = TestClient(app)
+    response = client.post("/api/evaluations/run", json={"dataset": "../../backend/app/main.py"})
+    assert response.status_code == 400
+    assert "Access denied" in response.json()["detail"]
 
 
 def test_evaluation_sweep_export() -> None:

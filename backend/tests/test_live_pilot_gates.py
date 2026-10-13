@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.database.db import SessionLocal, init_db
@@ -78,7 +79,8 @@ def test_live_rejects_mock_model_ids() -> None:
         assert "model names" in str(exc)
 
 
-async def test_live_confirm_required_before_llm(tmp_path: Path) -> None:
+async def test_live_confirm_required_before_llm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     path = tmp_path / "mini.json"
     path.write_text(
         """{"name":"mini","version":"1.0","examples":[
@@ -109,7 +111,8 @@ async def test_live_confirm_required_before_llm(tmp_path: Path) -> None:
         db.close()
 
 
-async def test_max_questions_slices_dataset(tmp_path: Path) -> None:
+async def test_max_questions_slices_dataset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     path = tmp_path / "mini.json"
     path.write_text(
         """{"name":"mini","version":"1.0","examples":[

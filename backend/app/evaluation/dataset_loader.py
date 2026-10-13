@@ -9,7 +9,10 @@ from pydantic import ValidationError
 from app.evaluation.schemas import DatasetBundle, DatasetExample
 from app.metaqa.scoring import Classification
 
-DATASETS_DIR = Path(__file__).resolve().parents[2] / "data" / "datasets"
+import os
+import re
+
+DATASETS_DIR = (Path(__file__).resolve().parents[2] / "data" / "datasets").resolve()
 
 TRUTHFULQA_HINT = (
     "TruthfulQA is not bundled with VeriFact. Place a curated JSON or CSV file at "
@@ -17,36 +20,87 @@ TRUTHFULQA_HINT = (
     "Do not invent TruthfulQA items."
 )
 
+_WINDOWS_ABSOLUTE_PATTERN = re.compile(r"^[a-zA-Z]:[/\\]|^\\\\")
+
 
 class DatasetError(ValueError):
     """Raised when an evaluation dataset cannot be loaded or validated."""
 
 
-def default_dataset_path(name: str) -> Path:
-    cleaned = name.strip().lower()
+def _resolve_dataset_path(name_or_path: str | Path, base_dir: Path | None = None) -> Path:
+    """Internal resolver enforcing canonical path containment within base_dir (defaulting to DATASETS_DIR)."""
+    base = (base_dir or DATASETS_DIR).resolve()
+    cleaned = str(name_or_path).strip()
     if not cleaned:
         raise DatasetError("Dataset name cannot be empty.")
-    for suffix in (".json", ".csv"):
-        candidate = DATASETS_DIR / f"{cleaned}{suffix}"
-        if candidate.exists():
-            return candidate
-    return DATASETS_DIR / f"{cleaned}.json"
+
+    name_lower = cleaned.lower()
+    if name_lower in {"truthfulqa", "truthful_qa"}:
+        for suffix in (".json", ".csv"):
+            candidate = (base / f"truthfulqa{suffix}").resolve()
+            if candidate.is_relative_to(base) and candidate.exists():
+                return candidate
+        raise DatasetError(TRUTHFULQA_HINT)
+
+    # Cross-platform check: defensively handle Windows-style drive letters/UNC paths on any OS
+    if _WINDOWS_ABSOLUTE_PATTERN.match(cleaned):
+        if os.name != "nt":
+            raise DatasetError("Access denied: dataset must reside within the approved datasets directory.")
+        resolved = Path(cleaned).resolve()
+    else:
+        normalized_str = cleaned.replace("\\", "/")
+        raw_path = Path(normalized_str)
+        if raw_path.is_absolute():
+            resolved = raw_path.resolve()
+        elif raw_path.suffix:
+            resolved = (base / raw_path).resolve()
+            if not resolved.exists() and name_lower != cleaned:
+                lower_cand = (base / name_lower.replace("\\", "/")).resolve()
+                if lower_cand.exists():
+                    resolved = lower_cand
+        else:
+            json_cand = (base / f"{name_lower}.json").resolve()
+            csv_cand = (base / f"{name_lower}.csv").resolve()
+            if json_cand.exists():
+                resolved = json_cand
+            elif csv_cand.exists():
+                resolved = csv_cand
+            else:
+                resolved = (base / f"{cleaned}.json").resolve()
+
+    # Canonical containment check: prevent traversal, absolute escaping, and external symlinks
+    try:
+        if not resolved.is_relative_to(base):
+            raise DatasetError("Access denied: dataset must reside within the approved datasets directory.")
+    except ValueError:
+        raise DatasetError("Access denied: dataset must reside within the approved datasets directory.")
+
+    if not resolved.exists():
+        raise DatasetError(f"Dataset '{cleaned}' was not found.")
+
+    if not resolved.is_file():
+        raise DatasetError(f"Dataset '{cleaned}' is not a valid file.")
+
+    if resolved.suffix.lower() not in {".json", ".csv"}:
+        raise DatasetError(f"Unsupported dataset format: {resolved.suffix}")
+
+    return resolved
+
+
+def resolve_dataset_path(name_or_path: str | Path) -> Path:
+    """Resolve and validate a dataset path strictly within the approved DATASETS_DIR."""
+    return _resolve_dataset_path(name_or_path, base_dir=DATASETS_DIR)
+
+
+def default_dataset_path(name: str) -> Path:
+    """Backwards-compatible helper resolving dataset path within DATASETS_DIR."""
+    return resolve_dataset_path(name)
 
 
 def load_dataset(name_or_path: str | Path) -> DatasetBundle:
-    path = Path(name_or_path)
-    if path.suffix.lower() in {".json", ".csv"} and path.exists():
-        return _load_path(path)
-    name = str(name_or_path).strip().lower()
-    if name in {"truthfulqa", "truthful_qa"}:
-        path = default_dataset_path("truthfulqa")
-        if not path.exists():
-            raise DatasetError(TRUTHFULQA_HINT)
-        return _load_path(path)
-    path = default_dataset_path(name)
-    if not path.exists():
-        raise DatasetError(f"Dataset '{name}' was not found at {path}.")
-    return _load_path(path)
+    """Load a dataset bundle, restricting file access strictly to DATASETS_DIR."""
+    resolved_path = resolve_dataset_path(name_or_path)
+    return _load_path(resolved_path)
 
 
 def _load_path(path: Path) -> DatasetBundle:
