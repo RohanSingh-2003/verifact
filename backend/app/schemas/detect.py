@@ -64,10 +64,26 @@ class IndependentVerifierVerdict(BaseModel):
     model_id: str
     model_name: str
     provider: str
-    verdict: str = "PENDING"  # "YES", "NO", "NOT SURE", "FAILED", "PENDING"
+    verdict: str = "PENDING"  # "Correct", "Incorrect", "Uncertain", "FAILED", "PENDING"
+    reasoning: str = ""
     rationale: str = ""
+    contradictory_claims: list[str] = Field(default_factory=list)
+    confidence: float | None = None
     error: str | None = None
     status: str = "completed"  # "completed", "failed", "pending"
+
+
+class MultiModelVerificationSummary(BaseModel):
+    total_verifiers: int = 0
+    completed_verifiers: int = 0
+    correct_count: int = 0
+    incorrect_count: int = 0
+    uncertain_count: int = 0
+    failed_count: int = 0
+    agreement_state: str = "PENDING"  # "AGREEMENT", "DISAGREEMENT", "UNCERTAIN", "FAILED", "PENDING"
+    summary_text: str = ""
+    disagreements_detected: bool = False
+    contradictory_claims: list[str] = Field(default_factory=list)
 
 
 class DetectRequest(BaseModel):
@@ -172,6 +188,7 @@ class DetectResponse(BaseModel):
     answer_model: AnswerModelOut | None = None
     verifiers: list[VerifierModelOut] = Field(default_factory=list)
     ai_verdicts: list[IndependentVerifierVerdict] = Field(default_factory=list)
+    multi_model_summary: MultiModelVerificationSummary | None = None
     created_at: datetime
     timing: DetectTiming | dict[str, float | int] | None = None
 

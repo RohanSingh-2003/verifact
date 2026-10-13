@@ -137,10 +137,25 @@ interface DetectApiResponse {
     model_name: string
     provider: string
     verdict: string
+    reasoning?: string
     rationale?: string
+    contradictory_claims?: string[]
+    confidence?: number | null
     error?: string | null
     status: string
   }> | null
+  multi_model_summary?: {
+    total_verifiers: number
+    completed_verifiers: number
+    correct_count: number
+    incorrect_count: number
+    uncertain_count: number
+    failed_count: number
+    agreement_state: string
+    summary_text: string
+    disagreements_detected: boolean
+    contradictory_claims: string[]
+  } | null
   timing?: DetectApiTiming | null
 }
 
@@ -420,10 +435,27 @@ export function mapDetectResponse(payload: DetectApiResponse, responseTimeMs: nu
       modelName: v.model_name,
       provider: v.provider,
       verdict: v.verdict,
-      rationale: v.rationale,
+      reasoning: v.reasoning || v.rationale,
+      rationale: v.rationale || v.reasoning,
+      contradictoryClaims: v.contradictory_claims ?? [],
+      confidence: v.confidence ?? null,
       error: v.error ?? null,
       status: v.status,
     })),
+    multiModelSummary: payload.multi_model_summary
+      ? {
+          totalVerifiers: payload.multi_model_summary.total_verifiers,
+          completedVerifiers: payload.multi_model_summary.completed_verifiers,
+          correctCount: payload.multi_model_summary.correct_count,
+          incorrectCount: payload.multi_model_summary.incorrect_count,
+          uncertainCount: payload.multi_model_summary.uncertain_count,
+          failedCount: payload.multi_model_summary.failed_count,
+          agreementState: payload.multi_model_summary.agreement_state,
+          summaryText: payload.multi_model_summary.summary_text,
+          disagreementsDetected: payload.multi_model_summary.disagreements_detected,
+          contradictoryClaims: payload.multi_model_summary.contradictory_claims ?? [],
+        }
+      : null,
     timing: timing
       ? {
           answerMs: timing.answer_ms,

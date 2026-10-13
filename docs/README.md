@@ -8,7 +8,7 @@ For initial installation, quick-start commands, and runtime configuration, refer
 
 ## Core Product & Architecture Documentation
 
-These documents describe the current production architecture, dual-branch detection pipeline, and operational procedures:
+These documents describe the current production architecture, three-branch detection pipeline (MetaQA, Direct-Answer Review, and Web Evidence), and operational procedures:
 
 | Document | Purpose |
 | :--- | :--- |

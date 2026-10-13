@@ -674,7 +674,10 @@ def to_detect_response(run: Run) -> DetectResponse:
     from app.config import get_settings
     from app.llm.registry import MODEL_REGISTRY, get_verifier_pool, resolve_model_id
     from app.schemas.detect import AnswerModelOut, VerifierModelOut
-    from app.services.independent_verifiers import load_independent_verdicts
+    from app.services.independent_verifiers import (
+        build_multi_model_summary,
+        load_independent_verdicts,
+    )
 
     app_settings = get_settings()
     ans_model_id = resolve_model_id(run.generator_model) or "gemma"
@@ -694,6 +697,7 @@ def to_detect_response(run: Run) -> DetectResponse:
         for v in get_verifier_pool(ans_model_id, app_settings)
     ]
     ai_verdicts_info = load_independent_verdicts(run, ans_model_id, app_settings)
+    multi_summary_info = build_multi_model_summary(ai_verdicts_info)
 
     return DetectResponse(
         run_id=run.id,
@@ -716,6 +720,7 @@ def to_detect_response(run: Run) -> DetectResponse:
         answer_model=answer_model_info,
         verifiers=verifier_pool_info,
         ai_verdicts=ai_verdicts_info,
+        multi_model_summary=multi_summary_info,
         created_at=run.created_at,
         timing=timing,
     )

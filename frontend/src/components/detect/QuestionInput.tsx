@@ -1,8 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
 import type { KeyboardEvent } from 'react'
 import { ArrowRight } from 'lucide-react'
-import type { AnswerModelOption } from '../../types'
-import { AnswerModelSelector } from './AnswerModelSelector'
 
 interface QuestionInputProps {
   value: string
@@ -10,9 +8,6 @@ interface QuestionInputProps {
   onSubmit: () => void
   loading?: boolean
   disabled?: boolean
-  models?: AnswerModelOption[]
-  selectedModelId?: string
-  onSelectModel?: (modelId: string) => void
 }
 
 export function QuestionInput({
@@ -21,9 +16,6 @@ export function QuestionInput({
   onSubmit,
   loading = false,
   disabled = false,
-  models,
-  selectedModelId,
-  onSelectModel,
 }: QuestionInputProps) {
   const id = useId()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -68,16 +60,12 @@ export function QuestionInput({
 
       {/* Input Toolbar */}
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2.5 border-t border-line/60 pt-3">
-        {/* Left Side: [ Model Selector ] */}
-        <div className="flex min-w-0 items-center">
-          {models && selectedModelId && onSelectModel ? (
-            <AnswerModelSelector
-              models={models}
-              selectedId={selectedModelId}
-              onSelect={onSelectModel}
-              disabled={disabled || loading}
-            />
-          ) : null}
+        {/* Left Side: Fixed Gemma Answer Model Indicator */}
+        <div className="flex min-w-0 items-center text-xs text-ink-muted">
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
+            Answered by Gemma 4:26B
+          </span>
         </div>
 
         {/* Right Side: [ Send / Analyze button ] */}

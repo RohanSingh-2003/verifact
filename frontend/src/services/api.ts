@@ -89,7 +89,7 @@ export async function detectRun(
     method: 'POST',
     body: JSON.stringify({
       question: trimmed,
-      answer_model: options.answerModel || 'gemma',
+      answer_model: 'gemma',
     }),
   })
   const payload = (await response.json()) as DetectApiResponse

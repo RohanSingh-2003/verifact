@@ -359,12 +359,18 @@ class MockLLMClient(LLMClient):
             self.verify_calls += 1
             if self.fail_on == "verify":
                 raise LLMError("mock verifier failure")
-            verdict = "YES"
+            verdict = "Correct"
             if self.scenario == "hallucinated":
-                verdict = "NO"
+                verdict = "Incorrect"
             elif self.scenario == "uncertain":
-                verdict = "NOT SURE"
-            return {"verdict": verdict, "rationale": f"Deterministic independent verification: {verdict}."}
+                verdict = "Uncertain"
+            return {
+                "verdict": verdict,
+                "reasoning": f"Deterministic independent verification: {verdict}.",
+                "rationale": f"Deterministic independent verification: {verdict}.",
+                "contradictory_claims": [] if verdict == "Correct" else ["Potentially unverified statement"],
+                "confidence": 0.95 if verdict == "Correct" else 0.45,
+            }
 
         if "Statement to judge:" in user_prompt or "Statement to evaluate:" in user_prompt:
             self.verify_calls += 1

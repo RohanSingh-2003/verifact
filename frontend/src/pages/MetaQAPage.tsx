@@ -1,70 +1,80 @@
-import { ArrowDown } from 'lucide-react'
+import { ArrowDown, AlertTriangle, CheckCircle2, ShieldCheck, Sparkles, Globe, Layers } from 'lucide-react'
 import { PageHeader } from '../components/ui/PageHeader'
 import { MutationCard } from '../components/research/MutationCard'
 import { ResearchComparisonTable, type ComparisonRow } from '../components/research/ResearchComparisonTable'
 
 const metaqaComparisonRows: ComparisonRow[] = [
   {
-    dimension: 'Purpose',
-    research: 'Offline benchmark evaluation of LLM hallucination rates',
-    implementation: 'Interactive web application for real-time hallucination inspection',
+    dimension: 'Core Purpose',
+    research: 'Offline academic benchmark evaluation of hallucination rates across public QA datasets (FactKG, Med-HALT, TriviaQA)',
+    implementation: 'Real-time interactive application providing on-demand metamorphic hallucination detection and audit persistence',
   },
   {
     dimension: 'Answer Generation',
-    research: 'Evaluated across GPT-4, GPT-3.5, Llama3-8B, Mistral-7B',
-    implementation: 'Locally hosted Ollama model (Gemma 4:26B)',
+    research: 'Evaluated across diverse target LLMs (GPT-4, GPT-3.5, Llama-3-8B, Mistral-7B)',
+    implementation: 'Fixed generation exclusively by Gemma 4:26B (Ollama Cloud). Model selection is fixed in backend configuration',
   },
   {
     dimension: 'Mutation Generation',
-    research: 'Same LLM prompted with few-shot examples',
-    implementation: 'Gemma 4:26B with structured JSON schema enforcement',
+    research: 'Prompted the evaluated model with few-shot demonstration examples',
+    implementation: 'Gemma 4:26B extracts core factual claims and generates synonym and antonym mutations via strict JSON schemas',
   },
   {
     dimension: 'Mutation Types',
-    research: 'Synonym (lexical & inversion) and Antonym (negation)',
-    implementation: 'Configurable synonym & antonym mutations (default 3 each)',
+    research: 'Synonym mutations (lexical substitution, active/passive inversion) and Antonym mutations (direct negation)',
+    implementation: 'Synonym and Antonym mutations with bounded sentence lengths (5–35 words), defaulting to 3 synonyms and 3 antonyms',
   },
   {
-    dimension: 'Verifier',
-    research: 'Same evaluated LLM acted as self-verifier',
-    implementation: 'Cross-model verifier: Google Gemini 3.8 Flash',
+    dimension: 'Mutation Verifier',
+    research: 'Self-verification: the evaluated target LLM verified its own mutated statements',
+    implementation: 'Cross-model verification: independent models (default Google Gemini 3.8 Flash, or multi-verifier models) evaluate statements against the candidate answer',
   },
   {
-    dimension: 'Scoring',
-    research: 'Averaged synonym & antonym scores (Eq. 5)',
-    implementation: 'Identical scoring weights (YES/NO/NOT SURE contributions)',
+    dimension: 'Verifier Blindness',
+    research: 'Expected relation was not revealed in prompts',
+    implementation: 'Strict prompt blindness: expected verdicts (YES/NO) and mutation types are never leaked to verifiers, preventing confirmation bias',
   },
   {
-    dimension: 'Threshold',
-    research: 'Evaluated across θ ∈ [0.1, 0.8]; default 0.5',
-    implementation: 'Default θ = 0.5 (configurable in Settings)',
+    dimension: 'Scoring Formulation',
+    research: 'Inconsistency score formula (Eq. 5): arithmetic mean of synonym and antonym penalty scores',
+    implementation: 'Exact implementation of Eq. 5: Synonym (YES=0, NO=1, NOT SURE=0.5) and Antonym (YES=1, NO=0, NOT SURE=0.5) averaged into [0.0, 1.0]',
+  },
+  {
+    dimension: 'Classification Threshold',
+    research: 'Evaluated across θ ∈ [0.1, 0.8]; default operational threshold θ = 0.5',
+    implementation: 'Default threshold θ = 0.5 (configurable in backend Settings): Score ≥ θ → Likely Hallucinated, Score < θ → Likely Reliable',
+  },
+  {
+    dimension: 'Multi-Model Cross-Verification',
+    research: 'Not evaluated (focused on single-model self-consistency)',
+    implementation: 'Complementary feature: all other configured models (Gemini, GLM-4.7, Qwen-2.5, OpenRouter) independently evaluate Gemma’s answer without altering MetaQA scores',
   },
   {
     dimension: 'External Evidence',
-    research: 'None (pure zero-resource method)',
-    implementation: 'MetaQA branch uses none; runs in parallel with Web Analysis',
+    research: 'Pure zero-resource method (no external search, databases, or retrieval)',
+    implementation: 'Core MetaQA branch is zero-resource; VeriFact additionally offers an independent Web Evidence pipeline (Tavily Search) in parallel',
   },
   {
-    dimension: 'Implementation',
-    research: 'Batch Python evaluation scripts on benchmark datasets',
-    implementation: 'FastAPI backend + Vite/React frontend with audit history',
+    dimension: 'System Architecture',
+    research: 'Batch Python scripts executed on static datasets',
+    implementation: 'Asynchronous FastAPI backend with progressive UI updates, streaming detection stages, SQLite storage, and a Vite/React frontend',
   },
 ]
 
 export function MetaQAPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-10">
-      {/* 1. Header */}
+      {/* 1. Header & Attribution */}
       <header>
         <PageHeader
           title="MetaQA"
-          description="How VeriFact uses metamorphic testing to detect fact-conflicting hallucinations."
+          description="How VeriFact applies metamorphic relation testing to detect fact-conflicting hallucinations."
         />
         <div className="mt-2 space-y-1">
           <div className="flex items-center gap-2 text-xs text-ink-muted">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent" aria-hidden="true" />
             <span>
-              Based on: <strong className="font-medium text-ink-secondary">Yang et al., FSE 2025</strong> —{' '}
+              Academic Foundation: <strong className="font-medium text-ink-secondary">Yang et al., FSE 2025</strong> —{' '}
               <em>Hallucination Detection in Large Language Models with Metamorphic Relations</em>
             </span>
           </div>
@@ -73,9 +83,9 @@ export function MetaQAPage() {
               href="https://doi.org/10.1145/3715735"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-block text-xs font-medium text-ink-muted underline-offset-4 hover:text-ink hover:underline"
+              className="inline-block text-xs font-medium text-accent underline-offset-4 hover:underline"
             >
-              View research paper →
+              Official Paper (ACM DOI: 10.1145/3715735) →
             </a>
           </div>
         </div>
@@ -85,51 +95,59 @@ export function MetaQAPage() {
       <section className="panel p-5 sm:p-6 space-y-3">
         <h2 className="text-sm font-semibold tracking-tight text-ink">What is MetaQA?</h2>
         <p className="text-sm leading-7 text-ink-secondary">
-          MetaQA is a self-contained approach for detecting fact-conflicting hallucinations in LLM
-          responses. Instead of checking the original answer against an external database, it creates
-          controlled changes to the answer and checks whether the expected relationships are preserved.
+          MetaQA is a <strong>zero-resource, reference-free</strong> methodology for detecting
+          fact-conflicting hallucinations in Large Language Model (LLM) responses. Traditional fact-checking
+          requires querying external knowledge bases or search engines. In contrast, MetaQA solves the
+          classic software engineering <em>test oracle problem</em>—where the true ground truth is unknown
+          in advance—by inspecting whether the model remains logically and semantically consistent under
+          controlled transformations called <strong>metamorphic relations</strong>.
         </p>
         <p className="text-sm leading-7 text-ink-secondary border-t border-line/60 pt-3">
-          VeriFact implements this MetaQA-style approach as one of its two verification methods.
-          The original MetaQA framework is a zero-resource, self-contained method that does not rely on
-          external search engines or knowledge bases.
+          In VeriFact, MetaQA forms the primary metamorphic detection pillar. If a model generates an answer
+          grounded in solid parametric knowledge, its assertions should remain invariant when rephrased
+          (synonym mutations) and strictly reject direct contradictions (antonym mutations). When a model
+          hallucinates, its internal grounding is fragile, causing it to accept contradictory variants or
+          reject semantically equivalent statements.
         </p>
       </section>
 
-      {/* 3. MetaQA Core Idea (Workflow Diagram) */}
+      {/* 3. The VeriFact End-to-End Workflow Diagram */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-ink">MetaQA Core Idea</h2>
+          <h2 className="text-base font-semibold text-ink">VeriFact MetaQA Workflow</h2>
           <p className="mt-1 text-xs text-ink-muted">
-            End-to-end metamorphic verification flow from prompt to classification.
+            The verified execution flow implemented in VeriFact from user question to final classification.
           </p>
         </div>
 
         <div className="panel p-5 sm:p-6">
           <div className="mx-auto flex max-w-md flex-col items-center">
-            {/* User Question */}
+            {/* Step 1: User Question */}
             <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 1</span>
-              <p className="text-xs font-semibold text-ink">User Question</p>
+              <p className="text-xs font-semibold text-ink">User Question Submitted</p>
+              <p className="text-[10px] text-ink-muted">User inputs prompt without model selection</p>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Base Answer */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 2</span>
-              <p className="text-xs font-semibold text-ink">Base Answer Generated</p>
+            {/* Step 2: Fixed Gemma Generation */}
+            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-accent/40 bg-accent-soft/30 px-3.5 py-2 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 2</span>
+              <p className="text-xs font-semibold text-ink">Gemma 4:26B Answer Generation</p>
+              <p className="text-[10px] text-ink-muted">Fixed answer model generates candidate response</p>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Mutation Generation */}
+            {/* Step 3: Claim Extraction & Metamorphic Mutations */}
             <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-surface-muted px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 3</span>
-              <p className="text-xs font-semibold text-ink">Metamorphic Mutation Generation</p>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 3</span>
+              <p className="text-xs font-semibold text-ink">Claim Extraction &amp; Mutation Generation</p>
+              <p className="text-[10px] text-ink-muted">Gemma produces structured synonym &amp; antonym mutations</p>
             </div>
 
-            {/* Split into Synonym & Antonym */}
+            {/* Metamorphic Split */}
             <div className="w-full max-w-md pt-2">
               <div className="relative flex justify-center">
                 <div className="h-4 w-px bg-line" />
@@ -143,40 +161,44 @@ export function MetaQAPage() {
               </div>
 
               <div className="mt-1 grid grid-cols-2 gap-3 sm:gap-4">
-                {/* Synonym Column */}
-                <div className="flex flex-col items-center space-y-2 rounded-[var(--radius-sm)] border border-line bg-canvas/70 p-3 text-center">
+                {/* Synonym Branch */}
+                <div className="flex flex-col items-center space-y-2 rounded-[var(--radius-sm)] border border-accent/30 bg-canvas/70 p-3 text-center">
                   <span className="rounded bg-accent-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-accent">
-                    Synonym
+                    Synonym Mutations
                   </span>
                   <p className="text-[11px] leading-tight text-ink-secondary">
-                    Same meaning rephrased
+                    Preserves factual meaning
                   </p>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
-                  <div className="w-full rounded border border-line bg-surface py-1 text-[11px] font-medium text-ink">
-                    Verifier Check
+                  <div className="w-full rounded border border-line bg-surface py-1 px-1.5 text-[10px] font-medium text-ink">
+                    Multi-Model Verifiers
+                    <span className="block text-[9px] text-ink-muted font-normal">Gemini, GLM, Qwen, OpenRouter</span>
                   </div>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
-                  <p className="text-[10px] font-bold text-reliable">
-                    Expected: YES
-                  </p>
+                  <div className="rounded bg-reliable-soft px-2 py-0.5 text-[10px] font-bold text-reliable">
+                    Expected: YES (0.0)
+                  </div>
+                  <p className="text-[9px] text-ink-muted">NO adds 1.0 penalty</p>
                 </div>
 
-                {/* Antonym Column */}
-                <div className="flex flex-col items-center space-y-2 rounded-[var(--radius-sm)] border border-line bg-canvas/70 p-3 text-center">
+                {/* Antonym Branch */}
+                <div className="flex flex-col items-center space-y-2 rounded-[var(--radius-sm)] border border-hallucinated/30 bg-canvas/70 p-3 text-center">
                   <span className="rounded bg-hallucinated-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-hallucinated">
-                    Antonym
+                    Antonym Mutations
                   </span>
                   <p className="text-[11px] leading-tight text-ink-secondary">
-                    Opposite meaning negated
+                    Contradicts factual meaning
                   </p>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
-                  <div className="w-full rounded border border-line bg-surface py-1 text-[11px] font-medium text-ink">
-                    Verifier Check
+                  <div className="w-full rounded border border-line bg-surface py-1 px-1.5 text-[10px] font-medium text-ink">
+                    Multi-Model Verifiers
+                    <span className="block text-[9px] text-ink-muted font-normal">Gemini, GLM, Qwen, OpenRouter</span>
                   </div>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
-                  <p className="text-[10px] font-bold text-hallucinated">
-                    Expected: NO
-                  </p>
+                  <div className="rounded bg-reliable-soft px-2 py-0.5 text-[10px] font-bold text-reliable">
+                    Expected: NO (0.0)
+                  </div>
+                  <p className="text-[9px] text-ink-muted">YES adds 1.0 penalty</p>
                 </div>
               </div>
 
@@ -195,200 +217,127 @@ export function MetaQAPage() {
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Score & Threshold */}
+            {/* Step 4: Deterministic Scoring */}
             <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-surface px-4 py-2.5 text-center shadow-card">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 4</span>
               <p className="text-xs font-bold text-ink">MetaQA Inconsistency Score</p>
-              <p className="text-[10px] text-ink-muted mt-0.5">Average of all mutation penalty scores</p>
+              <p className="text-[10px] font-mono text-ink-secondary mt-0.5">S = (∑ SynScore + ∑ AntScore) / (N + M)</p>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Final Classification */}
-            <div className="grid w-full max-w-xs grid-cols-2 gap-2 text-center text-xs">
-              <div className="rounded-[var(--radius-sm)] border border-reliable/30 bg-reliable-soft p-2">
-                <p className="text-[11px] font-bold text-reliable">Score &lt; 0.5</p>
-                <p className="text-[10px] text-ink-secondary">Likely Reliable</p>
+            {/* Step 5: Classification */}
+            <div className="w-full max-w-xs space-y-1.5">
+              <div className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
+                Step 5: Classification (Threshold θ = 0.5)
               </div>
-              <div className="rounded-[var(--radius-sm)] border border-hallucinated/30 bg-hallucinated-soft p-2">
-                <p className="text-[11px] font-bold text-hallucinated">Score ≥ 0.5</p>
-                <p className="text-[10px] text-ink-secondary">Likely Hallucinated</p>
+              <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                <div className="rounded-[var(--radius-sm)] border border-reliable/30 bg-reliable-soft p-2">
+                  <p className="text-[11px] font-bold text-reliable">Score &lt; 0.5</p>
+                  <p className="text-[10px] text-ink-secondary">Likely Reliable</p>
+                </div>
+                <div className="rounded-[var(--radius-sm)] border border-hallucinated/30 bg-hallucinated-soft p-2">
+                  <p className="text-[11px] font-bold text-hallucinated">Score ≥ 0.5</p>
+                  <p className="text-[10px] text-ink-secondary">Likely Hallucinated</p>
+                </div>
               </div>
+            </div>
+
+            <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
+
+            {/* Step 6: Presentation */}
+            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 6</span>
+              <p className="text-xs font-semibold text-ink">Results &amp; Complementary Signals</p>
+              <p className="text-[10px] text-ink-muted">Gemma answer, MetaQA score, independent model verdicts &amp; web evidence</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 4. Metamorphic Relations */}
+      {/* 4. Metamorphic Relations & Mutation Types */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-ink">Metamorphic Relations</h2>
+          <h2 className="text-base font-semibold text-ink">Metamorphic Relations Explained</h2>
           <p className="mt-1 text-xs text-ink-muted">
-            The mathematical and conceptual foundation of metamorphic testing.
+            How controlled sentence transformations uncover internal logical inconsistencies.
           </p>
         </div>
 
         <div className="panel p-5 sm:p-6 space-y-4">
           <p className="text-sm leading-relaxed text-ink-secondary">
-            A metamorphic relation defines how the expected result should behave when a controlled
-            change is made. In software engineering, metamorphic testing addresses the &ldquo;test oracle
-            problem&rdquo;—when the true answer is unknown in advance, we test whether known invariants hold
-            under input transformations.
-          </p>
-          <p className="text-sm leading-relaxed text-ink-secondary">
-            In MetaQA, the answer is changed in controlled ways. The verifier should react differently
-            depending on whether the change preserves or contradicts the original meaning.
+            In classical testing, an oracle checks whether an output matches a known reference. In metamorphic
+            testing, we test the relationships between outputs across transformed inputs. MetaQA defines two
+            complementary metamorphic relations applied to the claims generated by the LLM:
           </p>
 
-          {/* Example Box */}
-          <div className="rounded-[var(--radius-sm)] border border-line bg-canvas/70 p-4 space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-ink-muted">Concrete Example</p>
-            <div className="grid gap-2 text-xs">
-              <div className="flex items-start gap-2">
-                <span className="w-28 shrink-0 font-medium text-ink">Question:</span>
-                <span className="text-ink-secondary">&ldquo;What is the capital of India?&rdquo;</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-28 shrink-0 font-medium text-ink">Base answer:</span>
-                <span className="text-ink-secondary">&ldquo;The capital of India is New Delhi.&rdquo;</span>
-              </div>
-              <div className="flex items-start gap-2 border-t border-line/60 pt-2">
-                <span className="w-28 shrink-0 font-medium text-accent">Synonym mutation:</span>
-                <div className="flex-1">
-                  <span className="text-ink-secondary">&ldquo;New Delhi serves as India&apos;s capital.&rdquo;</span>
-                  <span className="ml-2 font-semibold text-reliable">→ Expected: YES</span>
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-28 shrink-0 font-medium text-hallucinated">Antonym mutation:</span>
-                <div className="flex-1">
-                  <span className="text-ink-secondary">&ldquo;New Delhi is not the capital of India.&rdquo;</span>
-                  <span className="ml-2 font-semibold text-hallucinated">→ Expected: NO</span>
-                </div>
-              </div>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
+            <MutationCard
+              badge="S"
+              title="Synonym Mutations (Meaning-Preserving)"
+              badgeVariant="synonym"
+              description={
+                <>
+                  Transforms the wording while maintaining the factual proposition (e.g., lexical substitution
+                  or syntactic rephrasing). If the model truly knows the fact, it must agree with this variation.
+                </>
+              }
+              original="Alexander Fleming discovered penicillin in 1928."
+              mutation="Penicillin was identified by Alexander Fleming in the year 1928."
+              expectedVerdict="YES"
+              verdictVariant="reliable"
+            />
+
+            <MutationCard
+              badge="A"
+              title="Antonym Mutations (Meaning-Contradicting)"
+              badgeVariant="antonym"
+              description={
+                <>
+                  Inverts or contradicts the core factual proposition through explicit negation or antonymous
+                  attributes. A consistent model must recognize that the statement conflicts with its answer.
+                </>
+              }
+              original="Alexander Fleming discovered penicillin in 1928."
+              mutation="Alexander Fleming did not discover penicillin in 1928."
+              expectedVerdict="NO"
+              verdictVariant="hallucinated"
+            />
           </div>
 
-          <div className="rounded-[var(--radius-sm)] border border-line/80 bg-surface-muted p-3 text-xs text-ink-secondary leading-relaxed">
-            <strong className="font-semibold text-ink">Implementation detail:</strong> While the expected
-            verdict is part of the methodology, in the actual VeriFact verifier implementation, the
-            expected verdict is <strong className="text-ink">NOT sent to the verifier (Gemini)</strong>.
-            The verifier independently assesses the statement against the candidate answer without
-            knowing the expected answer or whether the statement is a synonym or antonym.
+          {/* Prompt Blindness Box */}
+          <div className="rounded-[var(--radius-sm)] border border-line/80 bg-surface-muted p-3.5 text-xs text-ink-secondary leading-relaxed space-y-1.5">
+            <div className="flex items-center gap-1.5 font-semibold text-ink">
+              <ShieldCheck className="h-4 w-4 text-accent" />
+              Verifier Blindness in VeriFact
+            </div>
+            <p>
+              In VeriFact’s verifier implementation, the expected verdict (<code>YES</code> or <code>NO</code>)
+              and the mutation classification (<code>synonym</code> vs. <code>antonym</code>) are{' '}
+              <strong className="text-ink">never disclosed to the verifier</strong>. The verifier receives only
+              the question, candidate answer, and the candidate statement, judging strictly whether the
+              statement preserves or contradicts the answer. This guarantees objective evaluation without confirmation bias.
+            </p>
           </div>
         </div>
       </section>
 
-      {/* 5 & 6. Synonym vs Antonym Mutations */}
+      {/* 5. Verifier Response Mapping and Scoring Logic */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-ink">Mutation Types</h2>
+          <h2 className="text-base font-semibold text-ink">Scoring Logic &amp; Mathematical Formulation</h2>
           <p className="mt-1 text-xs text-ink-muted">
-            The two transformations applied to test answer consistency.
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch">
-          <MutationCard
-            badge="S"
-            title="Synonym Mutations"
-            badgeVariant="synonym"
-            description={
-              <>
-                Synonym mutations change the wording while keeping the factual meaning. In the MetaQA paper,
-                these include <em>lexical substitution</em> (replacing verbs or descriptive predicates) and{' '}
-                <em>inversion</em> (reversing grammatical roles while preserving meaning).
-              </>
-            }
-            original="New Delhi is the capital of India."
-            mutation="New Delhi serves as India's capital."
-            expectedVerdict="YES"
-            verdictVariant="reliable"
-          />
-
-          <MutationCard
-            badge="A"
-            title="Antonym Mutations"
-            badgeVariant="antonym"
-            description={
-              <>
-                Antonym mutations intentionally reverse or contradict the factual meaning through direct
-                negation. A consistent model must recognize that the mutated statement directly conflicts
-                with the original claim.
-              </>
-            }
-            original="New Delhi is the capital of India."
-            mutation="New Delhi is not the capital of India."
-            expectedVerdict="NO"
-            verdictVariant="hallucinated"
-          />
-        </div>
-      </section>
-
-      {/* 7. Verifier */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-ink">The Verifier in VeriFact</h2>
-          <p className="mt-1 text-xs text-ink-muted">
-            Separation of roles between generation, mutation, and verification.
-          </p>
-        </div>
-
-        <div className="panel p-5 sm:p-6 space-y-4">
-          <p className="text-sm leading-relaxed text-ink-secondary">
-            The verifier examines each mutation relative to the candidate answer and returns{' '}
-            <strong className="font-semibold text-ink">YES</strong>,{' '}
-            <strong className="font-semibold text-ink">NO</strong>, or{' '}
-            <strong className="font-semibold text-ink">NOT SURE</strong>.
-          </p>
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-[var(--radius-sm)] border border-line bg-canvas p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Generation</p>
-              <p className="mt-1 text-xs font-bold text-ink">Gemma 4:26B</p>
-              <p className="mt-1 text-[11px] leading-4 text-ink-secondary">
-                Locally hosted via Ollama. Generates base answer and metamorphic mutations.
-              </p>
-            </div>
-
-            <div className="rounded-[var(--radius-sm)] border border-line bg-canvas p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-accent">Verification</p>
-              <p className="mt-1 text-xs font-bold text-ink">Google Gemini 3.8 Flash</p>
-              <p className="mt-1 text-[11px] leading-4 text-ink-secondary">
-                Evaluates each statement against the candidate answer in zero-shot JSON mode.
-              </p>
-            </div>
-
-            <div className="rounded-[var(--radius-sm)] border border-line bg-canvas p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-ink-muted">Scoring</p>
-              <p className="mt-1 text-xs font-bold text-ink">Deterministic Backend</p>
-              <p className="mt-1 text-[11px] leading-4 text-ink-secondary">
-                Python backend maps verdicts to numeric contributions and computes the average.
-              </p>
-            </div>
-          </div>
-
-          <p className="text-xs leading-relaxed text-ink-secondary border-t border-line/60 pt-3">
-            In VeriFact, Gemini is used only for MetaQA mutation verification. It does not generate the
-            original answer or the mutations. VeriFact never exposes hidden expected verdicts in the
-            verifier prompt, avoiding confirmation bias.
-          </p>
-        </div>
-      </section>
-
-      {/* 8. MetaQA Scoring */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-ink">MetaQA Scoring Logic</h2>
-          <p className="mt-1 text-xs text-ink-muted">
-            Mathematical translation of verifier responses into a hallucination score.
+            Direct mapping of verifier labels to penalty contributions and overall hallucination score.
           </p>
         </div>
 
         <div className="panel p-5 sm:p-6 space-y-5">
           <p className="text-sm leading-relaxed text-ink-secondary">
-            VeriFact assigns penalty values based on whether the verifier response violates the
-            metamorphic relation:
+            The verifier evaluates each mutated statement and returns one of three discrete labels:{' '}
+            <strong className="font-semibold text-ink">YES</strong>,{' '}
+            <strong className="font-semibold text-ink">NO</strong>, or{' '}
+            <strong className="font-semibold text-ink">NOT SURE</strong>. The backend assigns a numeric
+            penalty based on whether the label violates the expected metamorphic relation:
           </p>
 
           {/* Scoring Mapping Table */}
@@ -397,103 +346,215 @@ export function MetaQAPage() {
               <thead>
                 <tr className="border-b border-line text-ink-muted">
                   <th className="pb-2 font-medium">Mutation Type</th>
+                  <th className="pb-2 font-medium text-center">Expected</th>
                   <th className="pb-2 font-medium text-center">YES</th>
                   <th className="pb-2 font-medium text-center">NO</th>
                   <th className="pb-2 font-medium text-center">NOT SURE</th>
-                  <th className="pb-2 font-medium">Interpretation</th>
+                  <th className="pb-2 font-medium">Scoring Rationale</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line/60 text-ink-secondary">
                 <tr>
                   <td className="py-2.5 font-medium text-ink">Synonym (S)</td>
+                  <td className="py-2.5 text-center font-bold text-reliable">YES</td>
                   <td className="py-2.5 text-center font-bold text-reliable">0.0</td>
                   <td className="py-2.5 text-center font-bold text-hallucinated">1.0</td>
                   <td className="py-2.5 text-center font-medium text-uncertain">0.5</td>
-                  <td className="py-2.5 text-[11px]">Expected to agree; rejection adds full penalty.</td>
+                  <td className="py-2.5 text-[11px]">Rejection of equivalent statement indicates factual fragility.</td>
                 </tr>
                 <tr>
                   <td className="py-2.5 font-medium text-ink">Antonym (A)</td>
+                  <td className="py-2.5 text-center font-bold text-hallucinated">NO</td>
                   <td className="py-2.5 text-center font-bold text-hallucinated">1.0</td>
                   <td className="py-2.5 text-center font-bold text-reliable">0.0</td>
                   <td className="py-2.5 text-center font-medium text-uncertain">0.5</td>
-                  <td className="py-2.5 text-[11px]">Expected to disagree; accepting contradiction adds penalty.</td>
+                  <td className="py-2.5 text-[11px]">Acceptance of contradiction indicates fact-conflicting hallucination.</td>
                 </tr>
               </tbody>
             </table>
           </div>
 
-          {/* Formula */}
-          <div className="rounded-[var(--radius-sm)] border border-line bg-canvas p-4 text-center">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider mb-2">
-              Hallucination Score Formula
+          {/* Mathematical Formula Box */}
+          <div className="rounded-[var(--radius-sm)] border border-line bg-canvas p-4 text-center space-y-2">
+            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">
+              Mathematical Score Formula (Eq. 5 from Yang et al.)
             </p>
-            <div className="font-mono text-sm font-semibold text-ink">
-              S<sub>QB</sub> = ( &Sigma; SynScore(S<sub>i</sub>) + &Sigma; AntScore(A<sub>j</sub>) ) &divide; ( N + M )
+            <div className="font-mono text-sm sm:text-base font-bold text-ink">
+              S<sub>MetaQA</sub> = &frac12; &times; &Biggl( &frac1N; &sum;<sub>i=1</sub><sup>N</sup> SynScore(S<sub>i</sub>) + &frac1M; &sum;<sub>j=1</sub><sup>M</sup> AntScore(A<sub>j</sub>) &Biggr)
             </div>
-            <p className="mt-2 text-xs text-ink-secondary">
-              VeriFact averages all mutation contributions to scale the score cleanly between 0.0 and 1.0.
+            <p className="text-xs text-ink-secondary max-w-lg mx-auto">
+              When the number of synonym mutations (<em>N</em>) equals antonym mutations (<em>M</em>) (the default is 3 each),
+              this simplifies to the arithmetic mean across all mutation penalty contributions, bounded strictly between <code>0.0</code> and <code>1.0</code>.
             </p>
           </div>
 
-          {/* Threshold rules */}
+          {/* Classification Threshold Rules */}
           <div className="grid gap-3 sm:grid-cols-2 text-xs">
-            <div className="rounded border border-line bg-canvas/60 p-3">
-              <span className="font-semibold text-ink">Score &ge; Threshold (default 0.5):</span>
-              <p className="mt-1 text-ink-secondary">
-                High inconsistency across metamorphic variants indicates a high likelihood of a fact-conflicting
-                hallucination. Classified as <strong className="text-hallucinated">Likely Hallucinated</strong>.
+            <div className="rounded border border-reliable/30 bg-reliable-soft/40 p-3 space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-reliable">
+                <CheckCircle2 className="h-4 w-4" />
+                Score &lt; Threshold (default 0.5): Likely Reliable
+              </div>
+              <p className="text-ink-secondary">
+                The verifier consistently affirmed meaning-preserving synonym statements and rejected contradictory
+                antonym statements. The response demonstrates robust parametric consistency.
               </p>
             </div>
-            <div className="rounded border border-line bg-canvas/60 p-3">
-              <span className="font-semibold text-ink">Score &lt; Threshold:</span>
-              <p className="mt-1 text-ink-secondary">
-                The verifier consistently accepted meaning-preserving synonyms and rejected contradictory
-                antonyms. Classified as <strong className="text-reliable">Likely Reliable</strong>.
+            <div className="rounded border border-hallucinated/30 bg-hallucinated-soft/40 p-3 space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-hallucinated">
+                <AlertTriangle className="h-4 w-4" />
+                Score &ge; Threshold (default 0.5): Likely Hallucinated
+              </div>
+              <p className="text-ink-secondary">
+                The model exhibited high inconsistency across variants (e.g. agreeing with contradictions or rejecting
+                paraphrases), indicating a high probability of a fact-conflicting hallucination.
               </p>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* 9. Why MetaQA Does Not Need Web Search */}
-      <section className="space-y-4">
-        <div>
-          <h2 className="text-base font-semibold text-ink">Why MetaQA Does Not Need Web Search</h2>
-          <p className="mt-1 text-xs text-ink-muted">
-            The fundamental distinction between consistency testing and retrieval.
-          </p>
-        </div>
-
-        <div className="panel p-5 sm:p-6 space-y-3">
-          <p className="text-sm leading-relaxed text-ink-secondary">
-            MetaQA is designed to test consistency without directly looking up the correct answer on
-            the web or consulting a factual database. When a model hallucinates, its internal factual
-            grounding is brittle: small semantic shifts expose contradictions that an invariant fact
-            would not produce.
-          </p>
-          <p className="text-sm leading-relaxed text-ink-secondary border-t border-line/60 pt-3">
-            This makes MetaQA fundamentally different from VeriFact&apos;s Web Analysis branch, which
-            explicitly searches external web sources. Together, they provide two independent perspectives:
-            one on internal semantic consistency, and one on external evidentiary corroboration.
+          <p className="text-[11px] text-ink-muted leading-relaxed border-t border-line/60 pt-3">
+            <strong>Error Handling &amp; Parsing:</strong> In the backend implementation, unparseable verifier payloads
+            or timeouts in single-model mode default conservatively to <code>NOT SURE</code> (penalty <code>0.5</code>).
+            In multi-verifier mode, network or API errors are isolated as <code>FAILED</code> and excluded from
+            numerical aggregation so that transient provider issues never fabricate false penalties.
           </p>
         </div>
       </section>
 
-      {/* 10. Research Paper vs VeriFact Comparison */}
+      {/* 6. System Verification Architecture: Verified Execution Flow */}
       <section className="space-y-4">
         <div>
-          <h2 className="text-base font-semibold text-ink">Research Paper vs VeriFact</h2>
+          <h2 className="text-base font-semibold text-ink">System Verification Architecture</h2>
           <p className="mt-1 text-xs text-ink-muted">
-            How VeriFact translates academic research into an interactive system.
+            How MetaQA, Direct-Answer Multi-Model Review, and Web Evidence execute across the backend.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+          <div className="panel p-4 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-accent">
+                <Sparkles className="h-4 w-4" />
+                1. MetaQA Pipeline
+              </div>
+              <h3 className="mt-1.5 text-xs font-bold text-ink">Metamorphic Mutation Testing</h3>
+              <p className="mt-2 text-xs text-ink-secondary leading-5">
+                Gemma 4:26B generates synonym and antonym mutations from extracted claims. The{' '}
+                <strong className="text-ink">multi-model verifier pool</strong> (Gemini, GLM, Qwen, OpenRouter)
+                acts as the mutation verifier stage, evaluating every variant to compute the MetaQA Inconsistency Score.
+              </p>
+            </div>
+            <div className="rounded bg-surface-muted p-2 text-[11px] text-ink-muted">
+              <strong>Source:</strong> <code>metaqa/multi_verifier.py</code> &amp; <code>scoring.py</code>
+            </div>
+          </div>
+
+          <div className="panel p-4 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-accent">
+                <Layers className="h-4 w-4" />
+                2. Direct-Answer Review
+              </div>
+              <h3 className="mt-1.5 text-xs font-bold text-ink">Independent Peer Evaluation</h3>
+              <p className="mt-2 text-xs text-ink-secondary leading-5">
+                In parallel, the same non-Gemma models evaluate Gemma’s original answer directly, receiving the
+                user question, candidate answer, extracted claims, mutation context, and external web snippets to flag
+                disagreements and contradictory statements.
+              </p>
+            </div>
+            <div className="rounded bg-surface-muted p-2 text-[11px] text-ink-muted">
+              <strong>Source:</strong> <code>independent_verifiers.py</code>
+            </div>
+          </div>
+
+          <div className="panel p-4 flex flex-col justify-between space-y-3">
+            <div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-accent">
+                <Globe className="h-4 w-4" />
+                3. Web Evidence
+              </div>
+              <h3 className="mt-1.5 text-xs font-bold text-ink">External Grounding Retrieval</h3>
+              <p className="mt-2 text-xs text-ink-secondary leading-5">
+                An independent pipeline that extracts factual claims, executes concurrent Tavily searches with fallback,
+                tiers sources by authority, and verifies claims strictly against retrieved snippets.
+              </p>
+            </div>
+            <div className="rounded bg-surface-muted p-2 text-[11px] text-ink-muted">
+              <strong>Source:</strong> <code>web_evidence/pipeline.py</code> &amp; <code>scoring.py</code>
+            </div>
+          </div>
+        </div>
+
+        <div className="panel p-4 bg-canvas/60 text-xs text-ink-secondary leading-relaxed space-y-2">
+          <p>
+            <strong className="text-ink font-semibold">Dual Role of Independent Models:</strong> In VeriFact, the non-Gemma
+            models operate in two distinct architectural capacities:
+          </p>
+          <ol className="list-decimal pl-4 space-y-1 text-ink-secondary">
+            <li>
+              <strong>Inside the MetaQA Pipeline:</strong> They act as the mutation-verification stage in{' '}
+              <code>verify_all_mutations_multi_model</code>, scoring every synonym and antonym statement to determine the
+              MetaQA Inconsistency Score without knowledge of the expected verdict.
+            </li>
+            <li>
+              <strong>In Direct-Answer Evaluation:</strong> They independently assess Gemma’s complete answer in{' '}
+              <code>evaluate_all_independent_verifiers</code> (enriched with claim, mutation, and web snippet context) to
+              produce a transparent peer consensus summary without altering the MetaQA score.
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      {/* 7. Research Paper vs VeriFact Comparison Table */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-ink">Research Paper vs. VeriFact Implementation</h2>
+          <p className="mt-1 text-xs text-ink-muted">
+            Detailed mapping between the original FSE 2025 paper and the VeriFact system.
           </p>
         </div>
 
         <ResearchComparisonTable
           researchHeader="MetaQA Research (Yang et al., FSE 2025)"
-          implementationHeader="VeriFact Implementation"
+          implementationHeader="VeriFact Production Implementation"
           rows={metaqaComparisonRows}
-          note="VeriFact implements the MetaQA methodology as an interactive application and uses a different model configuration and engineering pipeline from the research evaluation. It does not reproduce every offline experiment from the paper, but adheres faithfully to its metamorphic relations and scoring formulation."
+          note="VeriFact implements the core mathematical and conceptual principles of MetaQA (metamorphic relations, synonym/antonym mutations, and Eq. 5 scoring). VeriFact incorporates fixed Gemma answer generation, cross-model verifier blindness, independent multi-model peer review, and parallel web evidence retrieval as specialized system extensions."
         />
+      </section>
+
+      {/* 8. Scientific Limitations & Practical Considerations */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-ink">Scientific Limitations &amp; Considerations</h2>
+          <p className="mt-1 text-xs text-ink-muted">
+            Key operational constraints and practical considerations when interpreting results.
+          </p>
+        </div>
+
+        <div className="panel p-5 sm:p-6 space-y-4 text-xs leading-relaxed text-ink-secondary">
+          <ul className="list-disc pl-4 space-y-2.5">
+            <li>
+              <strong className="text-ink">Internal Consistency vs. Real-World Truth:</strong> Metamorphic testing
+              evaluates internal semantic invariance. A model that stubbornly believes a widespread factual misconception
+              may answer consistently across mutations while remaining factually incorrect in reality.
+            </li>
+            <li>
+              <strong className="text-ink">Model Agreement is Not Proof of Truth:</strong> When independent verifier
+              models agree, it demonstrates high consensus among today’s frontier architectures, but cannot be treated
+              as mathematical proof of ground truth.
+            </li>
+            <li>
+              <strong className="text-ink">Mutation Quality &amp; Nuance:</strong> The accuracy of MetaQA depends on the
+              linguistic quality of generated mutations. If a synonym generator inadvertently alters subtle semantics or
+              an antonym generator creates ambiguous phrasing, the verifier’s score can be impacted.
+            </li>
+            <li>
+              <strong className="text-ink">Non-Calibrated Probability Signal:</strong> The MetaQA Inconsistency Score is
+              a deterministic, method-specific heuristic metric measuring metamorphic stability, not a calibrated Bayesian
+              probability that the statement is true.
+            </li>
+          </ul>
+        </div>
       </section>
     </div>
   )

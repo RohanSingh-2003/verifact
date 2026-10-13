@@ -20,8 +20,9 @@ Once both verification branches conclude, an application-level **Overall VeriFac
 - [Main Features](#main-features)
   - [A. Answer Generation](#a-answer-generation)
   - [B. MetaQA-Based Hallucination Detection](#b-metaqa-based-hallucination-detection)
-  - [C. Web Evidence Grounding](#c-web-evidence-grounding)
-  - [D. Performance Evaluation & Benchmarks](#d-performance-evaluation--benchmarks)
+  - [C. Direct-Answer Multi-Model Review](#c-direct-answer-multi-model-review)
+  - [D. Web Evidence Grounding](#d-web-evidence-grounding)
+  - [E. Performance Evaluation & Benchmarks](#e-performance-evaluation--benchmarks)
 - [Overall Assessment & Combined Risk](#overall-assessment--combined-risk)
 - [Supported Cloud Models & Providers](#supported-cloud-models--providers)
 - [Installation & Setup](#installation--setup)
@@ -73,8 +74,8 @@ VeriFact is built with a decoupled architecture separating the presentation laye
 │                   Frontend UI (React 19 + TypeScript + Vite)           │
 │                                                                        │
 │   DetectPage              HistoryPage             MetaQA Guide         │
-│   - Model Selector        - Paginated audit log   - Metamorphic docs   │
-│   - Immediate Answer      - Score inspections     Web Analysis Guide   │
+│   - Fixed Gemma Answer    - Paginated audit log   - Metamorphic docs   │
+│   - Multi-Model Verdicts  - Score inspections     Web Analysis Guide   │
 │   - Polling progress      - CSV exports           - Domain strategies  │
 │   - Verification cards                            SettingsPage         │
 └───────────────────────────────────┬────────────────────────────────────┘
@@ -129,17 +130,15 @@ VeriFact is built with a decoupled architecture separating the presentation laye
 
 Answer generation produces the primary factual text being audited.
 
-- **Configured Model & Provider**:
-  - **Default Model**: **Gemma 4:26B** (`gemma4:26b`).
-  - **Default Provider**: Official **Ollama Cloud API** (`https://ollama.com/api`) configured via `OLLAMA_API_KEY`.
-  - **100% Cloud Architecture**: VeriFact uses cloud/API-based inference. All requests communicate over HTTPS with Ollama Cloud. **No local Ollama daemon or local GPU/VRAM hardware is required**, and no requests connect to `localhost:11434`.
-  - **Reasoning Control (`think: false`)**: Gemma reasoning models can consume large token buffers on internal thought chains. The `OllamaCloudClient` enforces `think: false` so output is concise and deterministic within the configured token budget (`LLM_ANSWER_MAX_TOKENS=350`).
-- **Dynamic Multi-Model Selection**:
-  - Users can select an alternative generator model from the Detect UI or via `POST /api/detect` (`answer_model` parameter).
-  - Supported cloud models: **Gemma 4:26B** (Ollama Cloud), **GLM-4.7-Flash** (Cloudflare Workers AI), **Qwen-2.5-32B** (Alibaba / Groq), **Liquid LFM-2.5** (OpenRouter), and **Gemini Flash 3.8** (Google Gemini).
+- **Fixed Answer Generator**:
+  - **Permanent Model**: **Gemma 4:26B** (`gemma4:26b`).
+  - **Provider**: Official **Ollama Cloud API** (`https://ollama.com/api`) configured via `OLLAMA_API_KEY`.
+  - **Permanent Configuration**: Gemma 4:26B is fixed as the sole answer-generating model in backend configuration. The model-selection dropdown has been removed from the user interface, and all user questions are answered by Gemma. No parameter or frontend state can override it, and no silent fallback to other models is permitted.
+  - **100% Cloud Architecture**: VeriFact uses cloud/API-based inference over HTTPS with Ollama Cloud. **No local Ollama daemon or local GPU hardware is required**.
+  - **Reasoning Control (`think: false`)**: The `OllamaCloudClient` enforces `think: false` so output is concise and deterministic within the configured token budget (`LLM_ANSWER_MAX_TOKENS=350`).
 - **Decoupled Lifecycle**:
   - The answer is saved to SQLite with status `answer_ready` along with generation latency (`answer_ms`).
-  - The answer text is returned immediately to the frontend. Answer generation never waits for metamorphic mutations or web searches.
+  - The answer text is returned immediately to the frontend. Answer generation never waits for metamorphic mutations, independent verifiers, or web searches.
 
 ---
 
@@ -147,26 +146,25 @@ Answer generation produces the primary factual text being audited.
 
 MetaQA evaluates internal semantic stability by applying metamorphic testing principles to natural language claims.
 
-- **Separation of Generation and Verification**:
-  - The model that generated the base answer is **never** used to verify that answer.
-  - The verifier pool is dynamically computed as:
-    $$\text{Verifier Pool} = \text{AllConfiguredModels} \setminus \{\text{Selected Answer Model}\}$$
-  - For example, when Gemma 4:26B generates the answer, Google Gemini (`gemini-3.8-flash`) and other configured cloud models act as independent verifiers.
+- **Multi-Model Mutation Verification Stage**:
+  - The model that generated the base answer (Gemma) is **strictly excluded** from verifying mutations.
+  - The **multi-model verifier pool** (`Gemini 3.8 Flash`, `GLM-4.7-Flash`, `Qwen-2.5-32B`, `Liquid/OpenRouter`) acts directly as the **mutation verifier stage inside the MetaQA pipeline** (`metaqa/multi_verifier.py::verify_all_mutations_multi_model`).
+  - Every individual mutation is evaluated concurrently across all available non-Gemma verifier models.
 - **Metamorphic Mutation Generation**:
-  - Rather than rewriting whole paragraphs, VeriFact deterministically parses the answer into key declarative assertions.
-  - The pipeline requests paired mutations in a single, token-capped call (`LLM_MUTATION_MAX_TOKENS=300`):
-    - **Synonym Mutations (Meaning-Preserving)**: Paraphrased statements retaining original truth conditions using different syntax, vocabulary, or active/passive voice. Expected verdict: **`YES`** (supported).
-    - **Antonym Mutations (Meaning-Reversing / Negation)**: Statements where a core entity, quantity, action, or date is negated or replaced to contradict the original assertion. Expected verdict: **`NO`** (contradicts).
+  - Core factual claims are parsed from Gemma's answer using strict JSON schemas.
+  - Gemma produces paired mutations in a single token-capped call (`LLM_MUTATION_MAX_TOKENS=300`):
+    - **Synonym Mutations (Meaning-Preserving)**: Paraphrased statements retaining original truth conditions. Expected verdict: **`YES`** (consistent).
+    - **Antonym Mutations (Meaning-Reversing / Negation)**: Statements where a core entity, action, or date is negated to contradict the original assertion. Expected verdict: **`NO`** (contradicts).
   - Defaults: 3 synonyms + 3 antonyms (6 total mutations per interactive Detect run).
 - **Prompt Isolation & Zero Leakage**:
-  - The verifier LLM receives only: the original question, candidate answer, and the single mutation statement.
-  - The verifier is **never told** whether the statement is a synonym or an antonym.
-  - The verifier is **never told** the expected verdict, scoring thresholds, or ground-truth answers.
+  - Verifiers receive only: the original question, candidate answer, and the single mutated statement.
+  - Verifiers are **never told** whether the statement is a synonym or an antonym.
+  - Verifiers are **never told** the expected verdict, scoring thresholds, or ground-truth answers.
 - **Verifier Responses & Technical Isolation**:
-  - **`YES`**: Mutation is factually consistent with and supported by the candidate answer.
+  - **`YES`**: Mutation is factually consistent with the candidate answer.
   - **`NO`**: Mutation conflicts with or is unsupported by the candidate answer.
   - **`NOT SURE`**: Semantic relationship cannot be reliably determined.
-  - **Error Isolation**: Malformed responses, HTTP timeouts, or API rate limits are flagged as `parse_failed=True` and logged as technical errors. They are **never** conflated with legitimate `NOT SURE` judgments. If verifiers are unconfigured, MetaQA cleanly reports `UNAVAILABLE`.
+  - **Error Isolation**: Malformed responses or timeouts are flagged as `parse_failed=True` and isolated as technical errors—they are **never** counted as legitimate `NOT SURE` judgments. In multi-verifier mode, failed calls are excluded from penalty averaging so transient provider errors do not fabricate false penalties.
 - **Deterministic Python Scoring**:
   - Scoring is calculated purely in Python using a strict metamorphic contribution matrix:
 
@@ -181,11 +179,28 @@ MetaQA evaluates internal semantic stability by applying metamorphic testing pri
     - $H < \theta \implies \textbf{Reliable}$
     - $H \ge \theta \implies \textbf{Hallucinated}$
 - **Limitations of MetaQA**:
-  - MetaQA measures **internal semantic stability**, not physical ground truth. If a model consistently believes and defends a widespread real-world misconception under both synonym and antonym forms, MetaQA will record it as consistent ($H \to 0.0$).
+  - MetaQA measures **internal semantic stability**, not physical ground truth. If a model consistently believes and defends a widespread misconception under both synonym and antonym forms, MetaQA will record it as consistent ($H \to 0.0$).
 
 ---
 
-### C. Web Evidence Grounding
+### C. Direct-Answer Multi-Model Review
+
+Concurrently with MetaQA, all configured non-Gemma models independently evaluate Gemma’s generated answer directly (`_continue_independent_verdicts` in `app/services/independent_verifiers.py`).
+
+- **Input Context**: Each model receives the original user question, Gemma’s generated answer, extracted key claims, mutation context, and external web evidence snippets.
+- **Independent Verdicts**: Each verifier outputs a structured evaluation:
+  - **Verdict**: `Correct`, `Incorrect`, or `Uncertain`
+  - **Reasoning**: Concise assessment explanation
+  - **Contradictory Claims**: Specific statements identified as false or unsupported
+  - **Confidence**: Numerical score only when meaningful
+- **Consensus Aggregation**:
+  - Aggregated into `MultiModelVerificationSummary`: `Consensus Correct`, `Consensus Incorrect`, `Disagreement`, or `Inconclusive`.
+  - Disagreements and contradictory statements are explicitly highlighted in the UI.
+  - **Decoupled from MetaQA**: Multi-model consensus is a complementary peer-review signal and **does not modify or replace the MetaQA Inconsistency Score**.
+
+---
+
+### D. Web Evidence Grounding
 
 The Web Evidence pipeline provides external factual grounding by querying real-world documents in real time.
 
@@ -517,53 +532,58 @@ verifact/
 ### End-to-End Request Flow
 
 ```text
-User enters question on Detect Page
-               │
-               ▼
-   HTTP POST /api/detect { question, answer_model }
-               │
-               ▼
-[1] FastAPI validates request & resolves model from MODEL_REGISTRY
-               │
-               ▼
-[2] Answer Generator (e.g., Gemma 4:26B via Ollama Cloud) creates answer
-               │
-               ▼
+User enters question on Detect Page (Fixed Answer Generator: Gemma 4:26B)
+                               │
+                               ▼
+            HTTP POST /api/detect { question, answer_model: "gemma" }
+                               │
+                               ▼
+[1] FastAPI validates request & resolves Gemma 4:26B from MODEL_REGISTRY
+                               │
+                               ▼
+[2] Dedicated Answer Generator (Gemma 4:26B via Ollama Cloud) creates base answer
+                               │
+                               ▼
 [3] Run created in SQLite with status `answer_ready`
-               │
-               ▼
+                               │
+                               ▼
 [4] Response returned immediately to Frontend → Answer displays to User
-               │
-               ▼
-[5] Background parallel execution starts via asyncio.gather:
-    ┌───────────────────────────────┴───────────────────────────────┐
-    │                                                               │
-    ▼                                                               ▼
-BRANCH 1: MetaQA Pipeline                       BRANCH 2: Web Evidence Pipeline
-- Parse core claims from answer                 - Extract testable claims
-- Generate Synonym & Antonym mutations          - Classify question domain
-- Dynamically build Verifier Pool               - Map authoritative domain strategy
-  (All models EXCLUDING Answer Model)           - Query Tavily Search API
-- Verifiers evaluate mutations                  - Clean snippets & extract 1-2 sentences
-- Compute MetaQA Score (0.0 to 1.0)             - Verify claims against snippets
-- Classify: Reliable / Hallucinated             - Compute Web Consistency Score
-    │                                                               │
-    └───────────────────────────────┬───────────────────────────────┘
-                                    │
-                                    ▼
+                               │
+                               ▼
+[5] Background parallel execution starts via asyncio.gather across 3 branches:
+    ┌──────────────────────────────┼──────────────────────────────┐
+    │                              │                              │
+    ▼                              ▼                              ▼
+BRANCH 1: MetaQA Pipeline      BRANCH 2: Direct-Answer Review  BRANCH 3: Web Evidence
+- Parse claims from answer     - Non-Gemma verifier models     - Extract testable claims
+- Gemma generates paired         concurrently evaluate         - Classify question domain
+  Synonym & Antonym mutations    Gemma's full answer text      - Map authoritative domains
+- Multi-Model Verifier Pool    - Context: question, answer,    - Query Tavily Search API
+  (Gemini, GLM, Qwen, Liquid)    claims, mutants, web snippets - Clean snippets (1-2 sent.)
+  verifies each mutation       - Returns: Correct / Incorrect / - Verify claims vs. snippets
+- Penalty scoring (0.0/0.5/1.0)  Uncertain + rationales        - Compute Web Consistency
+- MetaQA Score (0.0 to 1.0)    - Synthesizes peer consensus      Score (0.0 to 1.0)
+- Classify: Reliable/Hallucin.   and contradictory claims
+    │                              │                              │
+    └──────────────────────────────┼──────────────────────────────┘
+                                   │
+                                   ▼
 [6] Services synthesize Overall VeriFact Assessment & Combined Risk
-                                    │
-                                    ▼
+    (MetaQA Score 50% + Web Evidence Risk 50%; Peer Consensus highlighted)
+                                   │
+                                   ▼
 [7] Run status updated to `completed` in SQLite
-                                    │
-                                    ▼
-[8] Frontend polling fetches final result → Renders summary card & tabs
+                                   │
+                                   ▼
+[8] Frontend polling fetches final result → Renders summary cards, tabs & consensus
 ```
 
 ### Provider Integrations & Evaluation Logic Map
 - **Model Registry & Selection**: Implemented in [`backend/app/llm/registry.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/llm/registry.py).
 - **Cloud Clients (Ollama Cloud, Gemini, Cloudflare, Groq, OpenRouter)**: Implemented in [`backend/app/llm/providers.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/llm/providers.py).
-- **MetaQA Mutation & Scoring Engine**: Implemented in [`backend/app/metaqa/mutation.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/mutation.py) and [`backend/app/metaqa/scoring.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/scoring.py).
+- **MetaQA Mutation Engine**: Implemented in [`backend/app/metaqa/mutation.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/mutation.py).
+- **MetaQA Multi-Model Mutation Verifier**: Implemented in [`backend/app/metaqa/multi_verifier.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/multi_verifier.py) and [`backend/app/metaqa/scoring.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/scoring.py).
+- **Direct-Answer Multi-Model Review**: Implemented in [`backend/app/services/independent_verifiers.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/services/independent_verifiers.py).
 - **Web Evidence Extraction & Grounding**: Implemented in [`backend/app/web_evidence/pipeline.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_evidence/pipeline.py) and [`backend/app/web_evidence/evidence_extractor.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_evidence/evidence_extractor.py).
 - **Benchmark Evaluation Runner**: Implemented in [`backend/app/evaluation/evaluator.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/evaluation/evaluator.py).
 - **Assessment Synthesis Service**: Implemented in [`backend/app/services/run_service.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/services/run_service.py) and [`backend/app/services/verification_summary.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/services/verification_summary.py).

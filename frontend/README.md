@@ -10,7 +10,7 @@ Modern single-page web interface for VeriFact built with **React 19**, **TypeScr
 - [Frontend–Backend Communication](#frontendbackend-communication)
 - [Key Features & User Interface](#key-features--user-interface)
   - [1. Progressive Detection Dashboard (`/`)](#1-progressive-detection-dashboard-)
-  - [2. Multi-Model Selector](#2-multi-model-selector)
+  - [2. Fixed Gemma Generator & Independent Peer Review](#2-fixed-gemma-generator--independent-peer-review)
   - [3. MetaQA Inspection Panels](#3-metaqa-inspection-panels)
   - [4. Web Evidence Source Cards](#4-web-evidence-source-cards)
   - [5. Overall VeriFact Result Card](#5-overall-verifact-result-card)
@@ -59,7 +59,7 @@ server: {
 This setup ensures zero CORS friction during development and allows frontend API calls to use relative URLs (e.g., `fetch('/api/detect')`).
 
 ### Communication Lifecycle
-1. **Model Discovery**: On mount, the Detect page calls `GET /api/models` to populate the model selection dropdown with available cloud models and their readiness status.
+1. **Model Readiness**: On mount, the application checks backend provider availability and settings via `GET /api/models` and `GET /api/settings`.
 2. **Detection Submission**: Submitting a question dispatches `POST /api/detect` with:
    ```json
    {
@@ -67,10 +67,12 @@ This setup ensures zero CORS friction during development and allows frontend API
      "answer_model": "gemma"
    }
    ```
+   *(Gemma 4:26B is the permanent answer-generating model; no model-selector dropdown is presented to the user).*
 3. **Immediate Answer Display**: The backend responds synchronously with `{ id: "...", base_answer: "...", status: "answer_ready" }`. The frontend renders the answer immediately in `AnswerCard`.
 4. **Asynchronous Polling**: The frontend begins polling `GET /api/runs/{id}` at 1-second intervals. As background workers progress, the UI updates:
    - Analysis progress bars (`AnalysisProgress`)
-   - Synonym and antonym mutation tables as mutations are generated and verified (`MutationTabs`)
+   - Synonym and antonym mutation tables as mutations are generated and verified across the verifier pool (`MutationTabs`)
+   - Independent Multi-Model Review Card (`IndependentVerdictsCard`) displaying peer consensus, agreement ratios, qualitative rationales, and contradictory claims
    - Web evidence claims, search domains, and clean evidence cards (`WebEvidencePanel`)
    - Final Overall VeriFact Assessment and Combined Risk once status transitions to `completed` or `partial`.
 
@@ -80,19 +82,17 @@ This setup ensures zero CORS friction during development and allows frontend API
 
 ### 1. Progressive Detection Dashboard (`/`)
 - **Non-blocking workflow**: Candidate AI answer renders within seconds.
-- **Step-by-step progress tracking**: Independent progress indicators show real-time states for MetaQA and Web Evidence.
+- **Step-by-step progress tracking**: Independent progress indicators show real-time states for MetaQA, Multi-Model Review, and Web Evidence.
 - **Side-by-side verification tabs**: Effortlessly toggle between metamorphic testing details and external web sources.
 
-### 2. Multi-Model Selector
-- Located in the question input bar.
-- Allows users to select the **Answer Generator** across five cloud models:
-  - **Gemma 4:26B** (Ollama Cloud — Default)
-  - **GLM-4.7-Flash** (Cloudflare Workers AI)
-  - **Qwen-2.5-32B** (Alibaba / Groq)
-  - **OpenRouter** (Liquid AI LFM 2.5)
-  - **Gemini Flash 3.8** (Google Gemini)
-- Shows a visual badge indicating whether the cloud provider's API key is configured in the backend.
-- Guarantees cross-model verification: the selected answer model is excluded from its own verifier pool.
+### 2. Fixed Gemma Generator & Independent Peer Review
+- **Dedicated Answer Generation**: Candidate answers are generated exclusively by **Gemma 4:26B** (Ollama Cloud). The model-selection dropdown has been removed from the user interface to ensure a standardized benchmark baseline.
+- **Independent Multi-Model Review Card (`IndependentVerdictsCard`)**:
+  - Peer models (**Gemini 3.8 Flash**, **GLM-4.7-Flash**, **Qwen-2.5-32B**, and **Liquid/OpenRouter**) concurrently evaluate Gemma's complete answer text with full context (question, answer, claims, mutations, and web snippets).
+  - **Consensus Badge**: Displays `Consensus: Correct`, `Disagreement Detected`, `Consensus: Incorrect`, `Uncertain Consensus`, or `No Reviews Available`.
+  - **Agreement Metric**: Shows `X/Y agreed` across all responding peer models.
+  - **Peer Reasoning Accordions**: Expandable details displaying each verifier's confidence score and qualitative explanation.
+  - **Contradictory Claims Registry**: Highlights specific claims where peer verifiers disputed Gemma's answer.
 
 ### 3. MetaQA Inspection Panels
 - **ScoreCard**: Visual gauge displaying the arithmetic MetaQA Hallucination Score ($H \in [0.0, 1.0]$) and categorical badge (**Reliable** vs. **Hallucinated** based on threshold $\theta = 0.5$).

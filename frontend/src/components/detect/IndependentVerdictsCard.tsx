@@ -1,26 +1,28 @@
 import { useState, useMemo } from 'react'
-import { AlertCircle, Bot, ChevronDown, Search } from 'lucide-react'
-import type { IndependentAiVerdict } from '../../types'
+import { AlertCircle, AlertTriangle, Bot, ChevronDown, CheckCircle2, Search, ShieldAlert } from 'lucide-react'
+import type { IndependentAiVerdict, MultiModelVerificationSummary } from '../../types'
 import { classNames } from '../../lib/format'
 import { VerdictBadge } from './CollapsibleModelVerdicts'
 
 interface IndependentVerdictsCardProps {
   verdicts?: IndependentAiVerdict[]
+  summary?: MultiModelVerificationSummary | null
   answerModelName?: string
 }
 
 export function IndependentVerdictsCard({
   verdicts = [],
-  answerModelName,
+  summary,
+  answerModelName = 'Gemma 4:26B',
 }: IndependentVerdictsCardProps) {
-  const [isSectionExpanded, setIsSectionExpanded] = useState(false)
+  const [isSectionExpanded, setIsSectionExpanded] = useState(true)
   const [expandedModelId, setExpandedModelId] = useState<string | null>(null)
   const [filterQuery, setFilterQuery] = useState('')
 
   const verdictCounts = useMemo(() => {
-    let yes = 0
-    let no = 0
-    let notSure = 0
+    let correct = 0
+    let incorrect = 0
+    let uncertain = 0
     let failed = 0
     let pendingCount = 0
 
@@ -29,28 +31,34 @@ export function IndependentVerdictsCard({
       const isFailed = v.status === 'failed' || norm.startsWith('FAILED') || Boolean(v.error)
       if (isFailed) {
         failed += 1
-      } else if (norm === 'YES') {
-        yes += 1
-      } else if (norm === 'NO') {
-        no += 1
-      } else if (norm === 'NOT SURE' || norm === 'NOT_SURE') {
-        notSure += 1
+      } else if (norm === 'CORRECT' || norm === 'YES') {
+        correct += 1
+      } else if (norm === 'INCORRECT' || norm === 'NO') {
+        incorrect += 1
+      } else if (norm === 'UNCERTAIN' || norm === 'NOT SURE' || norm === 'NOT_SURE') {
+        uncertain += 1
       } else if (v.status === 'pending' || norm === 'PENDING') {
         pendingCount += 1
       }
     }
 
-    return { yes, no, notSure, failed, pending: pendingCount }
-  }, [verdicts])
+    return {
+      correct: summary?.correctCount ?? correct,
+      incorrect: summary?.incorrectCount ?? incorrect,
+      uncertain: summary?.uncertainCount ?? uncertain,
+      failed: summary?.failedCount ?? failed,
+      pending: pendingCount,
+    }
+  }, [verdicts, summary])
 
   const totalModels = verdicts.length
   const verifiedCount = totalModels - verdictCounts.pending
-  const compactSummaryText =
-    verdictCounts.pending > 0 && verifiedCount < totalModels
-      ? `${verifiedCount}/${totalModels} models verified`
-      : `${totalModels} model${totalModels === 1 ? '' : 's'} verified`
+  const hasDisagreement =
+    Boolean(summary?.disagreementsDetected) || (verdictCounts.correct > 0 && verdictCounts.incorrect > 0)
 
-  const verdictSummaryString = `YES: ${verdictCounts.yes} · NO: ${verdictCounts.no} · NOT SURE: ${verdictCounts.notSure} · FAILED: ${verdictCounts.failed}`
+  const verdictSummaryString = `Correct: ${verdictCounts.correct} · Incorrect: ${verdictCounts.incorrect} · Uncertain: ${verdictCounts.uncertain}${
+    verdictCounts.failed > 0 ? ` · Failed: ${verdictCounts.failed}` : ''
+  }`
 
   const filteredVerdicts = useMemo(() => {
     if (!filterQuery.trim()) return verdicts
@@ -74,19 +82,33 @@ export function IndependentVerdictsCard({
 
   return (
     <section className="panel p-4 sm:p-5 animate-fade-up">
-      {/* Header bar with collapsible toggle */}
+      {/* Header bar with status and collapsible toggle */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/70 pb-3.5">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <Bot className="h-4 w-4 text-ink-secondary shrink-0" />
             <h3 className="text-sm font-semibold uppercase tracking-wider text-ink">
-              Independent AI Verdicts
+              Multi-Model Verification
             </h3>
+            {hasDisagreement ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+                <AlertTriangle className="h-3 w-3" />
+                Disagreement
+              </span>
+            ) : verdictCounts.correct > 0 && verdictCounts.incorrect === 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                <CheckCircle2 className="h-3 w-3" />
+                Agreement
+              </span>
+            ) : verdictCounts.incorrect > 0 && verdictCounts.correct === 0 ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 dark:bg-red-950/60 dark:text-red-300">
+                <ShieldAlert className="h-3 w-3" />
+                Consensus Incorrect
+              </span>
+            ) : null}
           </div>
           <p className="mt-1 text-xs text-ink-muted">
-            {answerModelName
-              ? `Independent cloud models evaluated the answer generated by ${answerModelName}.`
-              : 'Independent cloud models evaluated the generated answer.'}
+            Independent cloud verification models independently evaluated the answer generated by {answerModelName}.
           </p>
         </div>
 
@@ -108,15 +130,58 @@ export function IndependentVerdictsCard({
         </button>
       </div>
 
-      {/* Summary line */}
+      {/* Disagreement Warning Callout */}
+      {hasDisagreement ? (
+        <div className="mt-3.5 rounded-lg border border-amber-300 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+          <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-800 dark:text-amber-300">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>Conflicting Model Assessments Detected</span>
+          </div>
+          <p className="text-[12px] leading-relaxed">
+            The verification models disagreed on this answer ({verdictCounts.correct} evaluated as Correct vs{' '}
+            {verdictCounts.incorrect} as Incorrect). Majority agreement is not treated as proof of correctness. Review the conflicting assessments below.
+          </p>
+        </div>
+      ) : null}
+
+      {/* Summary statement */}
+      {summary?.summaryText ? (
+        <div className="mt-3 rounded-lg border border-line/60 bg-canvas/60 px-3.5 py-2.5 text-xs text-ink-secondary leading-relaxed">
+          <span className="font-semibold text-ink">Summary: </span>
+          {summary.summaryText}
+        </div>
+      ) : null}
+
+      {/* Contradictory claims list if any were extracted */}
+      {summary?.contradictoryClaims && summary.contradictoryClaims.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/60 dark:bg-red-950/20 p-3 text-xs space-y-1.5">
+          <div className="flex items-center gap-1.5 font-semibold text-xs text-red-700 dark:text-red-300">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span>Statements Flagged as Contradictory / Unsupported:</span>
+          </div>
+          <ul className="list-disc pl-5 space-y-1 text-red-800 dark:text-red-300 text-[11px]">
+            {summary.contradictoryClaims.map((claim, idx) => (
+              <li key={idx} className="leading-relaxed">
+                {claim}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* Progress & expansion indicator */}
       <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">
-        <span>{compactSummaryText}</span>
+        <span>
+          {verdictCounts.pending > 0
+            ? `${verifiedCount}/${totalModels} verifiers completed`
+            : `${totalModels} independent verifiers completed`}
+        </span>
         <button
           type="button"
           onClick={() => setIsSectionExpanded((prev) => !prev)}
           className="text-accent hover:underline text-[11px] font-medium"
         >
-          {isSectionExpanded ? 'Collapse verifiers' : 'Expand verifiers'}
+          {isSectionExpanded ? 'Collapse model breakdown' : 'Expand model breakdown'}
         </button>
       </div>
 
@@ -147,6 +212,7 @@ export function IndependentVerdictsCard({
               const isEntryExpanded = expandedModelId === item.modelId
               const norm = (item.verdict || '').toUpperCase().trim()
               const isFailed = item.status === 'failed' || norm.startsWith('FAILED') || Boolean(item.error)
+              const reasoningText = item.reasoning || item.rationale || ''
 
               return (
                 <div
@@ -173,9 +239,16 @@ export function IndependentVerdictsCard({
                           · {item.provider}
                         </span>
                       </div>
-                      <span className="text-[10px] text-ink-muted mt-0.5 block">
-                        {isEntryExpanded ? 'Click to collapse explanation' : 'Click to expand explanation'}
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-ink-muted">
+                          {isEntryExpanded ? 'Click to collapse assessment' : 'Click to expand assessment'}
+                        </span>
+                        {item.confidence != null ? (
+                          <span className="font-mono text-[10px] text-ink-secondary bg-surface-muted px-1.5 py-0.2 rounded">
+                            Conf: {(item.confidence * 100).toFixed(0)}%
+                          </span>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
@@ -198,6 +271,17 @@ export function IndependentVerdictsCard({
                         <VerdictBadge verdict={item.verdict} status={item.status} />
                       </div>
 
+                      {item.confidence != null ? (
+                        <div className="flex items-center justify-between gap-2 text-xs">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                            Model Confidence
+                          </span>
+                          <span className="font-mono text-[11px] font-semibold text-ink">
+                            {(item.confidence * 100).toFixed(0)}%
+                          </span>
+                        </div>
+                      ) : null}
+
                       {isFailed ? (
                         <div className="rounded-md border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/30 p-2.5 text-xs text-red-700 dark:text-red-300 space-y-1">
                           <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
@@ -211,11 +295,11 @@ export function IndependentVerdictsCard({
                       ) : (
                         <div className="space-y-1">
                           <span className="text-[10px] font-bold uppercase tracking-wider text-ink-muted block">
-                            Rationale
+                            Reasoning
                           </span>
-                          {item.rationale && item.rationale.trim().length > 0 ? (
+                          {reasoningText.trim().length > 0 ? (
                             <p className="leading-relaxed text-ink text-xs italic bg-surface p-2.5 rounded-md border border-line/60">
-                              &ldquo;{item.rationale.trim()}&rdquo;
+                              &ldquo;{reasoningText.trim()}&rdquo;
                             </p>
                           ) : (
                             <p className="text-ink-muted text-xs italic bg-surface p-2.5 rounded-md border border-line/60">
@@ -224,6 +308,19 @@ export function IndependentVerdictsCard({
                           )}
                         </div>
                       )}
+
+                      {item.contradictoryClaims && item.contradictoryClaims.length > 0 ? (
+                        <div className="space-y-1 pt-1">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 block">
+                            Contradictory / Unsupported Claims:
+                          </span>
+                          <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-amber-800 dark:text-amber-300">
+                            {item.contradictoryClaims.map((claim, cIdx) => (
+                              <li key={cIdx}>{claim}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
                     </div>
                   )}
                 </div>

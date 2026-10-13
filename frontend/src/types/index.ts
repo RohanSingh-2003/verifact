@@ -270,10 +270,26 @@ export interface IndependentAiVerdict {
   modelId: string
   modelName: string
   provider: string
-  verdict: 'YES' | 'NO' | 'NOT SURE' | 'FAILED' | 'PENDING' | string
+  verdict: 'Correct' | 'Incorrect' | 'Uncertain' | 'YES' | 'NO' | 'NOT SURE' | 'FAILED' | 'PENDING' | string
+  reasoning?: string
   rationale?: string
+  contradictoryClaims?: string[]
+  confidence?: number | null
   error?: string | null
   status: 'completed' | 'failed' | 'pending' | string
+}
+
+export interface MultiModelVerificationSummary {
+  totalVerifiers: number
+  completedVerifiers: number
+  correctCount: number
+  incorrectCount: number
+  uncertainCount: number
+  failedCount: number
+  agreementState: 'AGREEMENT' | 'DISAGREEMENT' | 'UNCERTAIN' | 'FAILED' | 'PENDING' | string
+  summaryText: string
+  disagreementsDetected: boolean
+  contradictoryClaims: string[]
 }
 
 export interface AnalysisResult {
@@ -296,6 +312,7 @@ export interface AnalysisResult {
   answerModel?: AnswerModelInfo | null
   verifiers?: VerifierModelInfo[]
   aiVerdicts?: IndependentAiVerdict[]
+  multiModelSummary?: MultiModelVerificationSummary | null
   timing?: {
     answerMs?: number | null
     mutationMs?: number | null

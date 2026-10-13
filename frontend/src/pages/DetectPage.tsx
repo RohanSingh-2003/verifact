@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { detectRun, getAvailableModels, getHealth, getRun } from '../services/api'
+import { detectRun, getHealth, getRun } from '../services/api'
 import { EXAMPLE_QUESTIONS } from '../data/exampleQuestions'
 import { AnswerCard } from '../components/detect/AnswerCard'
 import {
@@ -9,12 +9,13 @@ import {
   type StepState,
 } from '../components/detect/AnalysisProgress'
 import { AnalysisSummary } from '../components/detect/AnalysisSummary'
+import { IndependentVerdictsCard } from '../components/detect/IndependentVerdictsCard'
 import { MethodOverview } from '../components/detect/MethodOverview'
 import { MutationTabs } from '../components/detect/MutationTabs'
 import { QuestionInput } from '../components/detect/QuestionInput'
 import { ScoreCard } from '../components/detect/ScoreCard'
 import { EmptyState, ErrorState, LoadingState } from '../components/ui/Status'
-import type { AnalysisResult, AnalysisStage, AnswerModelOption } from '../types'
+import type { AnalysisResult, AnalysisStage } from '../types'
 import {
   AnalysisStage as Stage,
   RunStatus,
@@ -29,15 +30,13 @@ import { VerificationSummaryPanel } from '../components/detect/VerificationSumma
 function ActiveProviderStatus({
   provider,
   model,
-  geminiVerifierModel,
 }: {
   provider: string | null
   model: string | null
-  geminiVerifierModel: string | null
+  geminiVerifierModel?: string | null
 }) {
   const displayModel = formatModelDisplay(model) ?? model ?? 'Gemma 4:26B'
-  const displayProvider = formatProviderDisplay(provider, model ?? undefined) || 'Ollama'
-  const verifierModel = formatModelDisplay(geminiVerifierModel) ?? geminiVerifierModel ?? 'Gemini 3.8 Flash'
+  const displayProvider = formatProviderDisplay(provider, model ?? undefined) || 'Ollama Cloud'
 
   return (
     <div className="mt-3 space-y-1">
@@ -52,9 +51,7 @@ function ActiveProviderStatus({
       <p className="flex items-center gap-2 text-xs text-ink-muted">
         <span className="h-1.5 w-1.5 rounded-full bg-[hsl(210,80%,60%)]" aria-hidden="true" />
         <span>
-          MetaQA verified by Google Gemini
-          <span className="mx-1.5 text-line-strong">·</span>
-          {verifierModel}
+          Independent verification by Gemini, GLM, Qwen &amp; OpenRouter
         </span>
       </p>
       <p className="flex items-center gap-2 text-xs text-ink-muted">
@@ -200,24 +197,6 @@ export function DetectPage() {
   const [provider, setProvider] = useState<string | null>(null)
   const [healthGenerator, setHealthGenerator] = useState<string | null>(null)
   const [geminiVerifierModel, setGeminiVerifierModel] = useState<string | null>(null)
-  const [selectedAnswerModel, setSelectedAnswerModel] = useState('gemma')
-  const [availableModels, setAvailableModels] = useState<AnswerModelOption[]>([
-    { id: 'gemma', name: 'Gemma 4:26B', provider: 'ollama', providerDisplay: 'Ollama Cloud', modelName: 'gemma4:26b', configured: true, isDefault: true },
-    { id: 'glm', name: 'GLM-4.7-Flash', provider: 'cloudflare', providerDisplay: 'Cloudflare Workers AI', modelName: '@cf/zai-org/glm-4.7-flash', configured: false, isDefault: false },
-    { id: 'qwen', name: 'Qwen', provider: 'groq', providerDisplay: 'Alibaba / Groq', modelName: 'qwen-2.5-32b', configured: false, isDefault: false },
-    { id: 'openrouter', name: 'OpenRouter', provider: 'openrouter', providerDisplay: 'OpenRouter', modelName: 'liquid/lfm-2.5-2.6b:free', configured: false, isDefault: false },
-    { id: 'gemini', name: 'Gemini Flash 3.8', provider: 'gemini', providerDisplay: 'Google', modelName: 'gemini-3.8-flash', configured: true, isDefault: false },
-  ])
-
-  useEffect(() => {
-    void getAvailableModels()
-      .then((models) => {
-        if (models && models.length > 0) {
-          setAvailableModels(models)
-        }
-      })
-      .catch(() => {})
-  }, [])
 
   useEffect(() => {
     void getHealth()
@@ -273,9 +252,6 @@ export function DetectPage() {
 
         setQuestion(analysis.question)
         setResult(analysis)
-        if (analysis.answerModel?.id) {
-          setSelectedAnswerModel(analysis.answerModel.id)
-        }
         setError(null)
         setFetching(false)
         setStage(stageFromRunStatus(analysis.status))
@@ -328,7 +304,6 @@ export function DetectPage() {
     setStage(Stage.GeneratingAnswer)
     try {
       const analysis = await detectRun(question, {
-        answerModel: selectedAnswerModel,
         onStage: (next) => {
           if (requestToken.current !== token) return
           setStage(next)
@@ -399,8 +374,6 @@ export function DetectPage() {
   const metaqaProgressStatus = getMetaqaStatus(stage, result?.status, metaqaFailed)
   const metaqaErrorReason = metaqaFailed ? metaqaFailureMessage(result, mutationsVisible) : null
 
-  const selectedModelOption = availableModels.find((m) => m.id === selectedAnswerModel)
-
   return (
     <div className="mx-auto max-w-3xl">
       <header className="mb-6">
@@ -422,9 +395,6 @@ export function DetectPage() {
         onSubmit={() => void handleAnalyze()}
         loading={inputLocked}
         disabled={inputLocked}
-        models={availableModels}
-        selectedModelId={selectedAnswerModel}
-        onSelectModel={setSelectedAnswerModel}
       />
 
       {!result && !waitingForAnswer && !analyzing ? (
@@ -448,12 +418,12 @@ export function DetectPage() {
           <AnswerCard
             isGenerating
             model={activeModel ?? undefined}
-            answerModel={selectedModelOption ? {
-              id: selectedModelOption.id,
-              name: selectedModelOption.name,
-              provider: selectedModelOption.providerDisplay || selectedModelOption.provider,
-              modelName: selectedModelOption.modelName,
-            } : undefined}
+            answerModel={{
+              id: 'gemma',
+              name: 'Gemma 4:26B',
+              provider: 'Ollama Cloud',
+              modelName: 'gemma4:26b',
+            }}
           />
         ) : null}
 
@@ -472,7 +442,7 @@ export function DetectPage() {
           />
         ) : null}
 
-        {/* State 2: Answer is ready — show Answer card, then two independent sibling pipelines */}
+        {/* State 2: Answer is ready — show Answer card, then independent verification pipelines */}
         {result && answerReady ? (
           <div className="animate-fade-up space-y-8">
             {/* Step 2: AI Answer Card */}
@@ -480,18 +450,24 @@ export function DetectPage() {
               answer={result.answer}
               model={result.model}
               answerModel={
-                result.answerModel ||
-                (selectedModelOption
-                  ? {
-                      id: selectedModelOption.id,
-                      name: selectedModelOption.name,
-                      provider: selectedModelOption.providerDisplay || selectedModelOption.provider,
-                      modelName: selectedModelOption.modelName,
-                    }
-                  : undefined)
+                result.answerModel || {
+                  id: 'gemma',
+                  name: 'Gemma 4:26B',
+                  provider: 'Ollama Cloud',
+                  modelName: 'gemma4:26b',
+                }
               }
               responseTimeMs={result.responseTimeMs}
             />
+
+            {/* Independent Multi-Model Verification */}
+            {result.aiVerdicts && result.aiVerdicts.length > 0 ? (
+              <IndependentVerdictsCard
+                verdicts={result.aiVerdicts}
+                summary={result.multiModelSummary}
+                answerModelName="Gemma 4:26B"
+              />
+            ) : null}
 
             {/* Step 3: MetaQA Analysis & Results (Single Column) */}
             <section className="space-y-6">

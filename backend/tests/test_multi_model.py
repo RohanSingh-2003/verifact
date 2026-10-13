@@ -52,79 +52,36 @@ def test_selecting_gemma() -> None:
     assert "gemma" not in verifier_ids
 
 
-# 3. Selecting Qwen
-def test_selecting_qwen() -> None:
+# 3. Passing other answer_model in request does NOT override Gemma
+def test_other_answer_model_does_not_override_gemma() -> None:
     client = _client()
-    resp = client.post("/api/detect", json={"question": "What is gravity?", "answer_model": "qwen"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["answer_model"]["id"] == "qwen"
-    assert data["answer_model"]["name"] == "Qwen"
-    assert data["answer_model"]["provider"] == "Alibaba / Groq"
-    verifier_ids = [v["id"] for v in data["verifiers"]]
-    assert "qwen" not in verifier_ids
-    assert "gemma" in verifier_ids
+    for other_model in ["qwen", "glm", "openrouter", "gemini"]:
+        resp = client.post("/api/detect", json={"question": "What is gravity?", "answer_model": other_model})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["answer_model"]["id"] == "gemma"
+        assert data["answer_model"]["name"] == "Gemma 4:26B"
+        assert data["answer_model"]["provider"] == "Ollama Cloud"
+        verifier_ids = [v["id"] for v in data["verifiers"]]
+        assert "gemma" not in verifier_ids
+        assert other_model in verifier_ids
 
 
-# 4. Selecting GLM-4.7-Flash
-def test_selecting_glm() -> None:
+# 4. Gemma is always excluded from the verifier pool
+def test_gemma_excluded_from_verifier_pool() -> None:
     client = _client()
-    resp = client.post("/api/detect", json={"question": "Explain relativity.", "answer_model": "glm"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["answer_model"]["id"] == "glm"
-    assert data["answer_model"]["name"] == "GLM-4.7-Flash"
-    assert data["answer_model"]["provider"] == "Cloudflare Workers AI"
-    verifier_ids = [v["id"] for v in data["verifiers"]]
-    assert "glm" not in verifier_ids
-    assert "gemma" in verifier_ids
-
-
-# 5. Selecting OpenRouter
-def test_selecting_openrouter() -> None:
-    client = _client()
-    resp = client.post("/api/detect", json={"question": "Explain thermodynamics.", "answer_model": "openrouter"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["answer_model"]["id"] == "openrouter"
-    assert data["answer_model"]["name"] == "OpenRouter"
-    assert data["answer_model"]["provider"] == "OpenRouter"
-    verifier_ids = [v["id"] for v in data["verifiers"]]
-    assert "openrouter" not in verifier_ids
-    assert "gemini" in verifier_ids
-
-
-# 6. Selecting Gemini
-def test_selecting_gemini() -> None:
-    client = _client()
-    resp = client.post("/api/detect", json={"question": "What is quantum computing?", "answer_model": "gemini"})
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["answer_model"]["id"] == "gemini"
-    assert data["answer_model"]["name"] == "Gemini Flash 3.8"
-    assert data["answer_model"]["provider"] == "Google"
-    verifier_ids = [v["id"] for v in data["verifiers"]]
-    assert "gemini" not in verifier_ids
-    assert "gemma" in verifier_ids
-
-
-# 7. Selected answer model is excluded from verifier pool
-@pytest.mark.parametrize("model_id", ["gemini", "gemma", "glm", "qwen", "openrouter"])
-def test_selected_answer_model_excluded_from_verifier_pool(model_id: str) -> None:
-    client = _client()
-    resp = client.post("/api/detect", json={"question": "What is speed of light?", "answer_model": model_id})
+    resp = client.post("/api/detect", json={"question": "What is speed of light?"})
     assert resp.status_code == 200
     data = resp.json()
     verifiers = data["verifiers"]
     verifier_ids = [v["id"] for v in verifiers]
 
-    # Selected model MUST be excluded
-    assert model_id not in verifier_ids, f"Answer model {model_id} was improperly included in verifier pool"
-    # Exactly 4 other models should be present
+    # Gemma MUST be excluded
+    assert "gemma" not in verifier_ids, "Answer model Gemma was improperly included in verifier pool"
+    # Exactly the 4 other models should be present
     assert len(verifiers) == 4
-    for other_id in MODEL_REGISTRY:
-        if other_id != model_id:
-            assert other_id in verifier_ids
+    for other_id in ["glm", "qwen", "openrouter", "gemini"]:
+        assert other_id in verifier_ids
 
 
 # 8. Invalid model ID is rejected
@@ -250,48 +207,63 @@ def test_selected_gemma_generates_and_all_others_verify() -> None:
         assert "gemma" not in verifier_ids, "Gemma must NOT verify its own mutations"
 
 
-# 15. Test 2: Selected = Qwen
-def test_selected_qwen_generates_and_all_others_verify() -> None:
+# 15. Test 2: Requesting non-Gemma model still generates with Gemma and all others verify
+def test_requesting_non_gemma_still_generates_with_gemma() -> None:
     client = _client()
-    resp = client.post(
-        "/api/detect",
-        json={"question": "What is the speed of sound in air?", "answer_model": "qwen"},
-    )
-    assert resp.status_code == 200
-    run_id = resp.json()["run_id"]
-    data = client.get(f"/api/runs/{run_id}").json()
+    for requested_model in ["qwen", "gemini"]:
+        resp = client.post(
+            "/api/detect",
+            json={"question": "What is the speed of sound in air?", "answer_model": requested_model},
+        )
+        assert resp.status_code == 200
+        run_id = resp.json()["run_id"]
+        data = client.get(f"/api/runs/{run_id}").json()
 
-    assert data["answer_model"]["id"] == "qwen"
-    assert data["answer_model"]["name"] == "Qwen"
+        assert data["answer_model"]["id"] == "gemma"
+        assert data["answer_model"]["name"] == "Gemma 4:26B"
 
-    mutations = data.get("mutations", [])
-    assert len(mutations) > 0, "Mutations must be generated"
-    for m in mutations:
-        verifier_ids = {v["model_id"] for v in m["verdicts"]}
-        assert verifier_ids == {"gemma", "glm", "openrouter", "gemini"}
-        assert "qwen" not in verifier_ids, "Qwen must NOT verify its own mutations"
+        mutations = data.get("mutations", [])
+        assert len(mutations) > 0, "Mutations must be generated"
+        for m in mutations:
+            verifier_ids = {v["model_id"] for v in m["verdicts"]}
+            assert verifier_ids == {"glm", "qwen", "openrouter", "gemini"}
+            assert "gemma" not in verifier_ids, "Gemma must NOT verify its own mutations"
 
 
-# 16. Test 3: Selected = Gemini
-def test_selected_gemini_generates_and_all_others_verify() -> None:
-    client = _client()
-    resp = client.post(
-        "/api/detect",
-        json={"question": "What is the speed of sound in air?", "answer_model": "gemini"},
-    )
-    assert resp.status_code == 200
-    run_id = resp.json()["run_id"]
-    data = client.get(f"/api/runs/{run_id}").json()
+# 16. Test 3: Multi-model summary correctly computes consensus and detects disagreements
+def test_multi_model_summary_aggregation() -> None:
+    from app.schemas.detect import IndependentVerifierVerdict
+    from app.services.independent_verifiers import build_multi_model_summary
 
-    assert data["answer_model"]["id"] == "gemini"
-    assert data["answer_model"]["name"] == "Gemini Flash 3.8"
+    # Case A: Consensus agreement (all Correct)
+    verdicts_agree = [
+        IndependentVerifierVerdict(model_id="gemini", model_name="Gemini Flash 3.8", provider="Google", verdict="Correct", reasoning="Accurate.", status="completed"),
+        IndependentVerifierVerdict(model_id="glm", model_name="GLM-4.7-Flash", provider="Cloudflare", verdict="Correct", reasoning="Supported.", status="completed"),
+    ]
+    summary_agree = build_multi_model_summary(verdicts_agree)
+    assert summary_agree.agreement_state == "AGREEMENT"
+    assert summary_agree.correct_count == 2
+    assert summary_agree.disagreements_detected is False
 
-    mutations = data.get("mutations", [])
-    assert len(mutations) > 0, "Mutations must be generated"
-    for m in mutations:
-        verifier_ids = {v["model_id"] for v in m["verdicts"]}
-        assert verifier_ids == {"gemma", "glm", "qwen", "openrouter"}
-        assert "gemini" not in verifier_ids, "Gemini must NOT verify its own mutations"
+    # Case B: Disagreement detected (Correct vs Incorrect)
+    verdicts_disagree = [
+        IndependentVerifierVerdict(model_id="gemini", model_name="Gemini Flash 3.8", provider="Google", verdict="Correct", reasoning="Accurate.", status="completed"),
+        IndependentVerifierVerdict(model_id="qwen", model_name="Qwen", provider="Groq", verdict="Incorrect", reasoning="Factually wrong.", contradictory_claims=["Wrong capital city."], status="completed"),
+    ]
+    summary_disagree = build_multi_model_summary(verdicts_disagree)
+    assert summary_disagree.agreement_state == "DISAGREEMENT"
+    assert summary_disagree.disagreements_detected is True
+    assert "Wrong capital city." in summary_disagree.contradictory_claims
+
+    # Case C: Partial failure does not mark entire verification as failed
+    verdicts_partial = [
+        IndependentVerifierVerdict(model_id="gemini", model_name="Gemini Flash 3.8", provider="Google", verdict="Correct", reasoning="Accurate.", status="completed"),
+        IndependentVerifierVerdict(model_id="openrouter", model_name="OpenRouter", provider="OpenRouter", verdict="FAILED", error="API timeout", status="failed"),
+    ]
+    summary_partial = build_multi_model_summary(verdicts_partial)
+    assert summary_partial.correct_count == 1
+    assert summary_partial.failed_count == 1
+    assert summary_partial.completed_verifiers == 1
 
 
 # 17. Test 4: Verifier models never receive mutation-generation instructions

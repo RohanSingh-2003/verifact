@@ -847,14 +847,17 @@ class MockModelClient(ModelClient):
         max_tokens: int | None = None,
         temperature: float = 0.0,
     ) -> dict[str, Any]:
-        verdict = "YES"
+        verdict = "Correct"
         if getattr(self, "scenario", "") == "hallucinated":
-            verdict = "NO"
+            verdict = "Incorrect"
         elif getattr(self, "scenario", "") == "uncertain":
-            verdict = "NOT SURE"
+            verdict = "Uncertain"
         return {
             "verdict": verdict,
+            "reasoning": f"Verified by {self.display_name}.",
             "rationale": f"Verified by {self.display_name}.",
+            "contradictory_claims": [] if verdict == "Correct" else ["Potentially unsupported claim."],
+            "confidence": 0.95 if verdict == "Correct" else 0.5,
         }
 
 

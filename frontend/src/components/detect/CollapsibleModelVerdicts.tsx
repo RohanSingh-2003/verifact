@@ -27,26 +27,26 @@ export function VerdictBadge({ verdict, status }: { verdict: string; status?: st
     )
   }
 
-  if (norm === 'YES') {
+  if (norm === 'YES' || norm === 'CORRECT') {
     return (
       <span className="inline-flex items-center rounded-full bg-reliable-soft px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-reliable">
-        YES
+        {norm === 'YES' ? 'YES' : 'CORRECT'}
       </span>
     )
   }
 
-  if (norm === 'NO') {
+  if (norm === 'NO' || norm === 'INCORRECT') {
     return (
-      <span className="inline-flex items-center rounded-full bg-surface-muted px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-ink-secondary">
-        NO
+      <span className="inline-flex items-center rounded-full bg-red-100 dark:bg-red-950/60 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-red-700 dark:text-red-300">
+        {norm === 'NO' ? 'NO' : 'INCORRECT'}
       </span>
     )
   }
 
-  if (norm === 'NOT SURE' || norm === 'NOT_SURE') {
+  if (norm === 'NOT SURE' || norm === 'NOT_SURE' || norm === 'UNCERTAIN') {
     return (
       <span className="inline-flex items-center rounded-full bg-uncertain-soft px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-uncertain">
-        NOT SURE
+        {norm.includes('NOT') ? 'NOT SURE' : 'UNCERTAIN'}
       </span>
     )
   }

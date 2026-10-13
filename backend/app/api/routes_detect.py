@@ -362,6 +362,9 @@ async def _continue_independent_verdicts(
     answer_text: str,
     selected_answer_model: str = "gemma",
     request_llm: LLMClient | None = None,
+    claims: list[str] | None = None,
+    mutations: list[str] | None = None,
+    web_evidence: str | None = None,
 ) -> None:
     """Background evaluation of the generated answer by all other models in MODEL_REGISTRY.
 
@@ -373,6 +376,34 @@ async def _continue_independent_verdicts(
             evaluate_all_independent_verifiers,
             persist_independent_verdicts,
         )
+        import json
+        import re
+
+        claim_list = claims
+        if not claim_list:
+            claim_list = [s.strip() for s in re.split(r"(?<=[.!?])\s+", answer_text) if len(s.strip()) > 5]
+
+        evidence_text = web_evidence
+        if not evidence_text:
+            check_db = SessionLocal()
+            try:
+                from app.database.models import Run
+                run_row = check_db.get(Run, run_id)
+                if run_row and getattr(run_row, "web_evidence_json", ""):
+                    try:
+                        we_data = json.loads(run_row.web_evidence_json)
+                        if isinstance(we_data, dict) and "claims" in we_data:
+                            snippets = []
+                            for c in we_data.get("claims", []):
+                                for s in c.get("sources", []):
+                                    if s.get("snippet"):
+                                        snippets.append(s["snippet"])
+                            if snippets:
+                                evidence_text = " ".join(snippets[:5])
+                    except Exception:
+                        pass
+            finally:
+                check_db.close()
 
         verdicts = await evaluate_all_independent_verifiers(
             question=question,
@@ -380,6 +411,9 @@ async def _continue_independent_verdicts(
             selected_answer_model_id=selected_answer_model,
             settings=settings,
             test_llm=request_llm,
+            claims=claim_list,
+            mutations=mutations,
+            web_evidence=evidence_text,
         )
         db = SessionLocal()
         try:
@@ -422,21 +456,18 @@ async def detect(
         MODEL_REGISTRY,
         get_model_client,
         is_model_configured,
-        validate_answer_model,
     )
 
-    try:
-        canonical_model_id = validate_answer_model(payload.answer_model)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
+    # Gemma 4:26B is permanently fixed as the answer generator in VeriFact.
+    # No user-selected parameter can override or replace the answer model.
+    canonical_model_id = "gemma"
     model_def = MODEL_REGISTRY[canonical_model_id]
 
     if settings.llm_mode == "live":
         if not is_model_configured(canonical_model_id, settings) or not settings.api_key_configured:
             detail = (
-                f"Selected answer model '{model_def.display_name}' ({model_def.provider_display}) is not configured. "
-                f"Live LLM mode is not configured. Add the required provider credentials in the backend environment or switch to Demo / Mock Mode."
+                f"Answer model '{model_def.display_name}' ({model_def.provider_display}) is not configured. "
+                f"Live LLM mode is not configured. Add the required provider credentials ({model_def.env_key_name}) in the backend environment or switch to Demo / Mock Mode."
             )
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -512,9 +543,16 @@ async def detect(
                     selected_answer_model=canonical_model_id,
                     request_llm=llm if is_test_mock else None,
                 ),
+                _continue_independent_verdicts(
+                    run_id=run.id,
+                    question=question,
+                    answer_text=answer.text,
+                    selected_answer_model=canonical_model_id,
+                    request_llm=llm if is_test_mock else None,
+                ),
                 return_exceptions=True,
             )
-            labels = ("metaqa", "web_evidence")
+            labels = ("metaqa", "web_evidence", "independent_verdicts")
             for label, outcome in zip(labels, outcomes, strict=True):
                 if isinstance(outcome, Exception):
                     logger.exception(

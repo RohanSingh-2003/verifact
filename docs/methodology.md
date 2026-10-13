@@ -59,17 +59,18 @@ Every candidate mutation is validated by strict heuristic filters before being a
 
 ---
 
-## 5. Independent Mutation Verification & Cross-Model Setup
+## 5. Independent Mutation Verification & Multi-Model Verifier Pool
 
-Each accepted mutation is submitted independently to the verifier LLM:
-- **Cross-Model Verification Architecture**:
-  - **Generator**: Ollama / Gemma 4:26B generates the base answer and creates all synonym and antonym mutations.
-  - **Verifier**: Google Gemini API (`gemini-2.5-flash` by default) verifies each mutation.
-  - **Scoring Engine**: VeriFact's deterministic scoring engine evaluates verdicts against programmatically derived expectations.
+Each accepted mutation is submitted independently to the multi-model verifier pool:
+- **Multi-Model Verification Architecture**:
+  - **Generator**: Gemma 4:26B generates the base answer and creates all synonym and antonym mutations.
+  - **Mutation Verifier Pool**: Configured non-Gemma cloud models (`gemini`, `glm`, `qwen`, `openrouter`) verify each mutation concurrently via `multi_verifier.py`.
+  - **Direct-Answer Peer Review**: Concurrently, peer models evaluate Gemma's original complete answer text with full contextual inputs (question, answer, claims, mutations, web snippets) via `independent_verifiers.py` to produce qualitative peer consensus and contradictory claim flags.
+  - **Scoring Engine**: VeriFact's deterministic scoring engine evaluates mutation verdicts against programmatically derived expectations.
 - **Why Cross-Model Verification Exists**:
   > "The cross-model configuration allows the same generated answer and mutation set to be verified by a different LLM, enabling comparison between same-model and cross-model verifier behavior."
   > 
-  > *Note on Research Validity*: We do not claim that Gemini is inherently more accurate than Gemma, nor that this setup proves verifier bias. Rather, keeping the generated answer and mutation set fixed while switching the verification model enables rigorous empirical comparison between same-model ($M_1 \to M_1$) and cross-model ($M_1 \to M_2$) verification.
+  > *Note on Research Validity*: Keeping the generated answer and mutation set fixed while switching or pooling verification models enables rigorous empirical comparison between same-model ($M_1 \to M_1$) and cross-model ($M_1 \to M_2$) verification.
 - **Prompt Isolation & Zero Information Leakage**:
   - The verifier receives: original question, candidate answer, and the single mutated statement.
   - The verifier is **never told**:

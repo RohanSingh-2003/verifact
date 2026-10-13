@@ -10,8 +10,9 @@ FastAPI service powering VeriFact's explainable hallucination detection system. 
 - [Main Features Implementation](#main-features-implementation)
   - [1. Answer Generation](#1-answer-generation)
   - [2. MetaQA-Based Hallucination Detection](#2-metaqa-based-hallucination-detection)
-  - [3. Web Evidence Grounding](#3-web-evidence-grounding)
-  - [4. Performance Evaluation & Benchmark Module](#4-performance-evaluation--benchmark-module)
+  - [3. Direct-Answer Multi-Model Verification](#3-direct-answer-multi-model-verification)
+  - [4. Web Evidence Grounding](#4-web-evidence-grounding)
+  - [5. Performance Evaluation & Benchmark Module](#5-performance-evaluation--benchmark-module)
 - [Overall Assessment & Combined Risk](#overall-assessment--combined-risk)
 - [Setup & Installation](#setup--installation)
   - [Prerequisites](#prerequisites)
@@ -27,9 +28,13 @@ FastAPI service powering VeriFact's explainable hallucination detection system. 
 
 ## Core Capabilities & Architecture
 
-- **Progressive Detection Pipeline**: Synchronously generates the candidate answer, writes the record to SQLite with status `answer_ready`, returns the answer to the client immediately, and launches verification as concurrent background tasks via `asyncio.gather(..., return_exceptions=True)`. Neither verification branch blocks the other.
+- **Progressive Detection Pipeline**: Synchronously generates the candidate answer, writes the record to SQLite with status `answer_ready`, returns the answer to the client immediately, and launches verification as concurrent background tasks via `asyncio.gather(..., return_exceptions=True)` across three distinct branches:
+  1. **MetaQA Metamorphic Testing** (Gemma mutant generation + internal multi-model mutation verification pool)
+  2. **Direct-Answer Multi-Model Review** (independent peer-model direct evaluation of Gemma's full answer)
+  3. **Web Evidence Grounding** (external Tavily search retrieval + claim-level fact-checking)
+  None of the background verification branches block each other.
 - **100% Cloud-Based Model Inference**: All inference runs through official cloud provider APIs (Ollama Cloud, Cloudflare Workers AI, Groq, OpenRouter, Google Gemini). **No local Ollama daemon or local GPU inference is used.**
-- **Deterministic Offline Mock Mode**: Setting `LLM_MODE=mock` replaces all external LLM and search calls with deterministic fixtures, enabling the entire 339-test suite to run in ~8 seconds without network access or live API credits.
+- **Deterministic Offline Mock Mode**: Setting `LLM_MODE=mock` replaces all external LLM and search calls with deterministic fixtures, enabling the entire 422-test suite to run in ~8 seconds without network access or live API credits.
 
 ---
 
@@ -37,18 +42,17 @@ FastAPI service powering VeriFact's explainable hallucination detection system. 
 
 ### 1. Answer Generation
 
-- **Default Model & Provider**:
+- **Fixed Answer Generator**:
   - **Model**: **Gemma 4:26B** (`gemma4:26b`).
   - **Provider**: Official **Ollama Cloud API** (`https://ollama.com/api`) accessed via dedicated HTTP client `OllamaCloudClient` (`app/llm/providers.py`).
+  - **Design Decision**: Gemma 4:26B is permanently designated as the sole answer-generating model across VeriFact. The frontend model-selection dropdown has been removed, and API requests default to Gemma.
   - **Reasoning Suppression (`think: false`)**: Gemma reasoning models are configured with `think: false` to eliminate hidden reasoning chain overhead and deliver clean, deterministic answers within `LLM_ANSWER_MAX_TOKENS=350`.
-- **Dynamic Multi-Model Selection**:
-  - The model registry in [`app/llm/registry.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/llm/registry.py) defines 5 cloud-hosted models:
-    1. `gemma`: Gemma 4:26B via Ollama Cloud (`OLLAMA_API_KEY`)
+- **Verifier Pool Models**:
+  - The model registry in [`app/llm/registry.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/llm/registry.py) defines the remaining cloud-hosted models as independent verifiers:
+    1. `gemini`: Gemini Flash 3.8 via Google Gemini API (`GEMINI_API_KEY`)
     2. `glm`: GLM-4.7-Flash via Cloudflare Workers AI (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`)
     3. `qwen`: Qwen-2.5-32B via Alibaba / Groq (`GROQ_API_KEY`)
     4. `openrouter`: Liquid LFM-2.5 via OpenRouter (`OPENROUTER_API_KEY`)
-    5. `gemini`: Gemini Flash 3.8 via Google Gemini API (`GEMINI_API_KEY`)
-  - Any configured model can be selected as the answer generator via the `answer_model` parameter in `POST /api/detect`.
 - **Immediate Return Flow**:
   - Answer generation records latency (`answer_ms`) and persists the initial run with status `answer_ready`.
   - The answer text is returned immediately to the frontend, allowing users to inspect the response while verification proceeds in the background.
@@ -60,18 +64,21 @@ FastAPI service powering VeriFact's explainable hallucination detection system. 
 Implemented in [`backend/app/metaqa/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/).
 
 - **Generator–Verifier Exclusion Guarantee**:
-  - The model that generated the candidate answer is **strictly excluded** from its own verifier pool:
-    $$\text{Verifier Pool} = \text{AllConfiguredModels} \setminus \{\text{Selected Answer Model}\}$$
-  - When Gemma generates the answer, Google Gemini (`gemini-3.8-flash`) and other configured models act as independent cross-model verifiers.
+  - The model that generated the candidate answer (Gemma) is **strictly excluded** from its own verifier pool:
+    $$\text{Verifier Pool} = \text{AllConfiguredModels} \setminus \{\text{Gemma 4:26B}\}$$
+  - Other configured models (`gemini`, `glm`, `qwen`, `openrouter`) act as independent cross-model verifiers.
 - **Metamorphic Mutations**:
   - Rather than rewriting the entire answer, atomic factual claims are parsed from the answer.
   - Generates paired mutations in a single, token-capped request (`LLM_MUTATION_MAX_TOKENS=300`):
     - **Synonym Mutations (Meaning-Preserving)**: Paraphrased assertions retaining identical truth conditions using alternate phrasing. Expected verdict: **`YES`**.
     - **Antonym Mutations (Meaning-Reversing)**: Negated or entity-inverted assertions contradicting the original answer. Expected verdict: **`NO`**.
   - Default: 3 synonyms and 3 antonyms per Detect run (`SYNONYM_COUNT=3`, `ANTONYM_COUNT=3`).
+- **Internal Multi-Model Verifier Pool (`multi_verifier.py`)**:
+  - Mutation verification is handled by [`app/metaqa/multi_verifier.py::verify_all_mutations_multi_model`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/multi_verifier.py).
+  - Each mutation statement is verified across the configured verifiers concurrently without leaking mutation type or expected verdict.
 - **Verifier Context Isolation**:
-  - The verifier model receives strictly: the question, candidate answer, and the single mutated statement.
-  - The verifier is **never told** whether the mutation is a synonym or antonym, nor the expected verdict or ground truth.
+  - Verifier models receive strictly: the question, candidate answer, and the single mutated statement.
+  - Verifiers are **never told** whether the mutation is a synonym or antonym, nor the expected verdict or ground truth.
 - **Observed Verdicts & Error Handling**:
   - **`YES`**: Supported / consistent with the candidate answer.
   - **`NO`**: Contradicts / unsupported by the candidate answer.
@@ -95,7 +102,30 @@ Implemented in [`backend/app/metaqa/`](file:///c:/Users/Rohan/Desktop/mini-proje
 
 ---
 
-### 3. Web Evidence Grounding
+### 3. Direct-Answer Multi-Model Verification
+
+Implemented in [`backend/app/services/independent_verifiers.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/services/independent_verifiers.py).
+
+- **Direct Answer Evaluation**:
+  - Concurrently with MetaQA and Web Evidence, all non-Gemma configured models evaluate Gemma's original complete answer.
+  - Verifiers receive enriched contextual input: the original user question, Gemma's generated answer, extracted atomic claims, generated mutations, and retrieved web evidence snippets.
+- **Structured Peer Verdicts**:
+  - Each independent verifier returns a structured assessment:
+    - **`verdict`**: `Correct`, `Incorrect`, or `Uncertain`
+    - **`confidence`**: Numerical confidence rating ($0.0 \dots 1.0$)
+    - **`reasoning`**: Detailed explanation justifying the verdict
+    - **`contradictory_claims`**: Specific claims in Gemma's answer identified as factually inaccurate or disputed
+- **Consensus & Disagreement Synthesis**:
+  - Produces an executive consensus summary (`multi_model_summary`):
+    - **Consensus Badge**: `Consensus: Correct`, `Disagreement Detected`, `Consensus: Incorrect`, `Uncertain Consensus`, or `No Reviews Available`.
+    - **Agreement Count**: Formatted as `X/Y agreed` across all responding peer models.
+    - **Contradictory Claims Registry**: Highlights peer-identified errors in the UI.
+- **Strict Metric Separation**:
+  - Direct-Answer review provides transparent peer consensus and qualitative warnings; it **never modifies or overwrites** the mathematical MetaQA Score or Web Consistency Score.
+
+---
+
+### 4. Web Evidence Grounding
 
 Implemented in [`backend/app/web_evidence/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_evidence/) and [`backend/app/web_search/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_search/).
 
@@ -117,7 +147,7 @@ Implemented in [`backend/app/web_evidence/`](file:///c:/Users/Rohan/Desktop/mini
 
 ---
 
-### 4. Performance Evaluation & Benchmark Module
+### 5. Performance Evaluation & Benchmark Module
 
 Implemented in [`backend/app/evaluation/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/evaluation/).
 
@@ -195,7 +225,7 @@ DATABASE_URL=sqlite:///./data/verifact.db
 # Execution Mode: "live" (Cloud APIs) or "mock" (offline test fixtures)
 LLM_MODE=live
 
-# 1. Ollama Cloud (Gemma 4:26B — Default Generator)
+# 1. Ollama Cloud (Gemma 4:26B — Fixed Generator)
 OLLAMA_CLOUD_BASE_URL=https://ollama.com/api
 OLLAMA_API_KEY=your_ollama_cloud_api_key_here
 OLLAMA_CLOUD_MODEL=gemma4:26b
@@ -205,7 +235,7 @@ GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_VERIFIER_MODEL=gemini-3.8-flash
 GEMINI_VERIFY_CONCURRENCY=3
 
-# 3. Optional Additional Cloud Providers
+# 3. Optional Additional Cloud Providers (Verifier Pool & Peer Review)
 CLOUDFLARE_API_TOKEN=your_cloudflare_token_here
 CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
 GROQ_API_KEY=your_groq_api_key_here
@@ -246,7 +276,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 ## Running Automated Tests
 
-The backend includes a comprehensive automated test suite with **339 tests** covering all pipelines, scoring functions, mutation edge cases, error handlers, and summary fusion rules:
+The backend includes a comprehensive automated test suite with **422 tests** covering all pipelines, scoring functions, mutation edge cases, independent peer verifiers, error handlers, and summary fusion rules:
 
 ```bash
 # Run the complete test suite
@@ -264,9 +294,9 @@ All tests execute offline using deterministic test fixtures in ~7-8 seconds with
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
-| `GET` | `/api/models` | Returns available cloud answer models and their configuration status. |
-| `POST` | `/api/detect` | Starts detection: generates answer, schedules MetaQA and Web Evidence tasks. |
-| `GET` | `/api/runs/{id}` | Returns run state, mutations, evidence sources, and overall assessment. |
+| `GET` | `/api/models` | Returns available cloud models and verification provider status (Gemma 4:26B is fixed generator; other models form the verifier pool). |
+| `POST` | `/api/detect` | Starts detection: generates answer via Gemma 4:26B, schedules MetaQA, Direct Review, and Web Evidence tasks. |
+| `GET` | `/api/runs/{id}` | Returns run state, mutations, peer verdicts, evidence sources, and overall assessment. |
 | `GET` | `/api/runs` | Returns paginated list of previous detection runs. |
 | `DELETE` | `/api/runs/{id}` | Deletes a specific run from the SQLite database. |
 | `GET` | `/api/health` | System health check, active providers, and feature readiness. |
@@ -286,7 +316,7 @@ All tests execute offline using deterministic test fixtures in ~7-8 seconds with
 backend/app/
 ├── api/                       # Route handlers:
 │   ├── deps.py                # Database and client dependency injection
-│   ├── routes_detect.py       # Detection lifecycle & background tasks
+│   ├── routes_detect.py       # Detection lifecycle, fixed Gemma generator & 3 concurrent background branches
 │   ├── routes_evaluations.py  # Offline dataset benchmarking
 │   ├── routes_experiments.py  # 2x2 model comparison study
 │   ├── routes_health.py       # Health check
@@ -310,7 +340,8 @@ backend/app/
 ├── metaqa/                    # MetaQA metamorphic testing core:
 │   ├── detector.py            # Analysis orchestration & callbacks
 │   ├── mutation.py            # Mutation generation & validation
-│   ├── verifier.py            # Cross-model verification runner
+│   ├── multi_verifier.py      # Multi-model concurrent mutation verification pool
+│   ├── verifier.py            # Single-model mutation verification runner
 │   └── scoring.py             # Deterministic Python scoring matrix
 ├── web_evidence/              # Web factual grounding:
 │   ├── pipeline.py            # Async search & verification coordinator
@@ -319,7 +350,10 @@ backend/app/
 │   ├── evidence_extractor.py  # Snippet cleaner & sentence extractor
 │   └── scoring.py             # Web Consistency Score calculation
 ├── web_search/                # Tavily search client & concurrency controls
-├── services/                  # RunService & Overall Assessment fusion
+├── services/                  # Business logic services:
+│   ├── run_service.py         # Stage-by-stage DB updates
+│   ├── independent_verifiers.py # Direct-Answer multi-model peer review
+│   └── verification_summary.py # Overall Assessment fusion & heuristic risk
 ├── config.py                  # Pydantic BaseSettings (.env loading)
 └── main.py                    # Application entry point & CORS middleware
 ```
