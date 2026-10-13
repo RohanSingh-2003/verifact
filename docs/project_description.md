@@ -103,4 +103,4 @@ The cross-model configuration allows the same generated answer and mutation set 
 
 ## 7. Previous Research Investigation (Offline 2×2 Studies)
 
-Prior research with VeriFact explored same-model versus cross-model verifier behaviors ($A \to A, A \to B, B \to A, B \to B$) with frozen mutation sets to isolate verifier calibration confounds. That study was completed as an offline investigation and is preserved in [`docs/final_results_lock.md`](final_results_lock.md) and automated backend test suites (`test_experiments.py`), leaving the user-facing product cleanly focused on interactive dual-pipeline hallucination detection.
+Prior research with VeriFact explored same-model versus cross-model verifier behaviors ($A \to A, A \to B, B \to A, B \to B$) with frozen mutation sets to isolate verifier calibration confounds. That study was completed as an offline investigation and is preserved in [`docs/final_results_lock.md`](final_results_lock.md) and frozen research results (`experiments/results/`), leaving the user-facing product cleanly focused on interactive dual-pipeline hallucination detection.

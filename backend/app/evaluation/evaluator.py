@@ -21,7 +21,6 @@ from app.evaluation.metrics import (
     sweep_thresholds,
 )
 from app.evaluation.schemas import DatasetExample
-from app.experiment.cost import estimate_evaluation_calls
 from app.llm.base import LLMClient, LLMError
 from app.llm.instrumented import InstrumentedLLMClient
 from app.llm.mock import MockLLMClient
@@ -42,6 +41,17 @@ DetectFn = Callable[[DatasetExample], Awaitable[DetectionResult]]
 
 class EvaluationConfigError(ValueError):
     """Invalid evaluation configuration."""
+
+
+def estimate_evaluation_calls(*, questions: int, mutations: int = 10) -> dict[str, int]:
+    """Estimate total LLM calls required for an evaluation run."""
+    per_question = 2 + mutations
+    return {
+        "questions": questions,
+        "mutations": mutations,
+        "calls_per_question": per_question,
+        "total_calls": per_question * questions,
+    }
 
 
 def llm_for_evaluation(

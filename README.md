@@ -87,7 +87,6 @@ VeriFact is built with a decoupled architecture separating the presentation laye
 │   ├── routes_detect.py        → POST /api/detect, GET /api/models      │
 │   ├── routes_runs.py          → GET /api/runs, GET /api/runs/{id}      │
 │   ├── routes_evaluations.py   → POST /api/evaluations/run, exports     │
-│   ├── routes_experiments.py   → POST /api/experiments/run, exports     │
 │   ├── routes_health.py        → GET /api/health                        │
 │   └── routes_settings.py      → GET /api/settings                      │
 │                                                                        │
@@ -456,7 +455,6 @@ verifact/
 │   │   │   ├── routes_detect.py            # POST /api/detect, GET /api/models
 │   │   │   ├── routes_runs.py              # GET /api/runs, GET /api/runs/{id}
 │   │   │   ├── routes_evaluations.py       # POST /api/evaluations/run, CSV exports
-│   │   │   ├── routes_experiments.py       # POST /api/experiments/run (2x2 study)
 │   │   │   ├── routes_health.py            # GET /api/health
 │   │   │   └── routes_settings.py          # GET /api/settings
 │   │   ├── database/                       # SQLAlchemy models & SQLite engine
@@ -467,7 +465,6 @@ verifact/
 │   │   │   ├── ground_truth.py             # Reference answer comparison
 │   │   │   ├── metrics.py                  # P/R/F1, confusion matrix, sweeps
 │   │   │   └── dataset_loader.py           # JSON/CSV dataset parsing
-│   │   ├── experiment/                     # 2x2 same-model vs cross-model logic
 │   │   ├── llm/                            # Cloud LLM client implementations
 │   │   │   ├── registry.py                 # Multi-model registry & verifier pool
 │   │   │   ├── providers.py                # OllamaCloudClient, GeminiAdapter, etc.

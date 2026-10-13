@@ -1,6 +1,5 @@
 import type {
   AnalysisResult,
-  ExperimentSnapshot,
   HistoryRun,
   MutationRecord,
   OverallStatus,
@@ -13,7 +12,6 @@ import type {
 } from '../types'
 import {
   EvidenceVerdict,
-  ExperimentStatus,
   MutationKind,
   OverallStatus as OverallStatusValue,
   RunStatus as RunStatusValue,
@@ -489,33 +487,6 @@ export function mapRunSummary(item: RunListResponse['items'][number]): HistoryRu
     verdict: mapVerdict(item.classification),
     status: mapStatus(item.status),
     createdAt: item.created_at,
-  }
-}
-
-export function emptyExperimentSnapshot(): ExperimentSnapshot {
-  return {
-    status: ExperimentStatus.Loading,
-    generatorModels: [],
-    verifierModels: [],
-    dataset: 'Not configured',
-    synonymCount: 5,
-    antonymCount: 5,
-    cells: [],
-    metrics: {
-      meanHallucinationScore: 0,
-      classificationFlipRate: 0,
-      precision: 0,
-      recall: 0,
-      f1: 0,
-    },
-    keyFinding: 'The full 2×2 experiment has not been run yet.',
-    info: {
-      datasetSize: 0,
-      completedRuns: 0,
-      models: [],
-      mutationCount: 10,
-      timestamp: new Date().toISOString(),
-    },
   }
 }
 

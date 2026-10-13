@@ -14,7 +14,8 @@ The core **MetaQA** detection engine is **reference-free** (zero-resource): it e
 │                                                             │
 │   DetectPage        HistoryPage       MetaQAPage            │
 │   (Progressive UI)  (Run Traces)      (Methodology)         │
-│   SettingsPage                                              │
+│   WebAnalysisPage   SettingsPage                            │
+│   (Domain Routing)  (Configuration)                         │
 └──────────────────────────────┬──────────────────────────────┘
                                │ HTTP REST / JSON (Vite proxy)
 ┌──────────────────────────────▼──────────────────────────────┐
@@ -25,7 +26,6 @@ The core **MetaQA** detection engine is **reference-free** (zero-resource): it e
 │   ├── routes_runs.py          (GET /api/runs, GET /runs/{id}│
 │   ├── routes_health.py        (GET /api/health)             │
 │   ├── routes_settings.py      (Public configuration)        │
-│   ├── routes_experiments.py   (Isolated study endpoints)    │
 │   └── routes_evaluations.py   (Offline evaluation API)      │
 │                                                             │
 │   Core MetaQA Engine (`app.metaqa`):                        │
@@ -44,7 +44,6 @@ The core **MetaQA** detection engine is **reference-free** (zero-resource): it e
 │   ├── run_service.py          (Stage-by-stage DB updates)   │
 │   ├── independent_verifiers.py(Direct-Answer peer review)   │
 │   ├── verification_summary.py (Synthesis & combined risk)   │
-│   ├── experiment_service.py   (Offline study orchestration) │
 │   └── db.py                   (SQLAlchemy SQLite engine)    │
 │                                                             │
 │   LLM Abstraction Layer (`app.llm`):                        │
@@ -148,14 +147,13 @@ All LLM clients inherit from the abstract base class `LLMClient` (`complete_text
 4. **`MockLLMClient`** (`app/llm/mock.py`):
    - Returns deterministic, fixture-based responses for tests and CI without external dependencies.
 
-### Why Cross-Model Verification Exists
+### Multi-Model Independent Review Rationale
 
-The cross-model configuration allows the same generated answer and mutation set to be verified by a different LLM, enabling comparison between same-model and cross-model verifier behavior.
+Relying on a single model to both generate and verify factual claims exposes the verification pipeline to self-confirmation bias: models often confirm their own false premises. VeriFact resolves this by enforcing structural separation between answer generation and verification:
 
-- **Same-model setup**: Gemma generates answer and mutations → Gemma verifies mutations.
-- **Cross-model setup**: Gemma generates answer and mutations → Gemini verifies mutations.
-
-The mutation set remains fixed when comparing verifiers, ensuring that the same question and same mutations can be evaluated by different models. This enables the experiment; the results determine what conclusions can be drawn.
+- **Dedicated Generator**: Gemma 4:26B generates the base answer and candidate mutations.
+- **Multi-Model Verifier Pool**: Independent peer models (`Gemini 3.8 Flash`, `GLM-4.7-Flash`, `Qwen-2.5-32B`, `Liquid LFM-2.5`) evaluate each mutation concurrently without access to the generator's internal states.
+- **Direct-Answer Peer Review**: Independent peer models simultaneously examine the generator's full answer against extracted context, surfacing consensus, peer rationales, and contradictory claims.
 
 ---
 
@@ -163,9 +161,9 @@ The mutation set remains fixed when comparing verifiers, ensuring that the same 
 
 - **Engine**: SQLite via SQLAlchemy ORM (default path `backend/data/verifact.db`).
 - **Models**:
-  - `Run`: Stores question, generated base answer, generator model, hallucination score, classification, stage timings, and status.
+  - `Run`: Stores question, generated base answer, generator model, hallucination score, classification, stage timings, overall verification status, and synthesis summary.
   - `MutationRecord`: Stores individual mutation statements, mutation type, verifier model, verdict, contribution, and rationale.
-  - `ExperimentRecord` & `ConditionRecord`: Retained in database schema for offline research evaluation and automated reproducibility testing.
+  - `ExperimentRecord` & `ConditionRecord`: Retained as inert database ORM models to preserve database restore verification and backup integrity without requiring destructive schema migrations.
 
 ---
 

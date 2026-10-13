@@ -66,8 +66,7 @@ The primary historical artifact preserved in this repository is:
 ## Relationship to Primary Product
 
 - **Independent from Interactive Detect UI**: The 2×2 study was an offline research investigation. The main user-facing application focuses on live, interactive hallucination detection across current cloud models (Gemma 4:26B, Gemini Flash 3.8, GLM-4.7-Flash, Qwen-2.5-32B, OpenRouter).
-- **Code Preservation**: Experiment execution and export endpoints remain available in `backend/app/api/routes_experiments.py` and are covered by automated unit tests in `backend/tests/test_experiments.py`.
-- **CI / Pytest Notice**: Test runs during automated testing may generate temporary mock run folders (e.g., dataset `mini`, n=1). These are automated test fixtures and must not be confused with the locked research run.
+- **Preserved Research Records**: Historical experiment runs and analysis tables are retained as frozen research records, while the interactive application and live evaluation APIs operate independently.
 
 ---
 

@@ -34,7 +34,6 @@ from app.llm.mock import (
 from app.metaqa.detector import run_detection
 from tests.fakes import detector_settings
 from app.metaqa.scoring import Classification, MutationType, Verdict
-from app.services.experiment_service import ExperimentConfigError, ExperimentRunRequest, validate_request
 
 
 # ── 1. Mock answer for Australia's capital is Canberra ──────────────────────
@@ -207,13 +206,14 @@ def test_07_other_hardcoded_factual_fixtures_audited() -> None:
 # ── 8. Live provider mode does not use mock answers ─────────────────────────
 
 
-def test_08_live_provider_mode_does_not_use_mock_answers() -> None:
+@pytest.mark.asyncio
+async def test_08_live_provider_mode_does_not_use_mock_answers() -> None:
     """Live provider clients must not fall back to or contain mock answers."""
     # Live Gemini client raises on missing key and never returns mock data
     with pytest.raises(GeminiVerifierError, match="GEMINI_API_KEY is not configured"):
         GeminiClient(api_key="")
 
-    # Settings requiring live mode with no key cannot run live experiments
+    # Settings requiring live mode with no key cannot run live evaluations
     live_settings = Settings(
         llm_mode="live",
         openai_api_key="",
@@ -225,42 +225,48 @@ def test_08_live_provider_mode_does_not_use_mock_answers() -> None:
     )
     assert not live_settings.api_key_configured
 
-    request = ExperimentRunRequest(
-        name="Test Live Guard",
-        dataset="pilot",
-        generator_models=["gpt-4o-mini", "gpt-4o"],
-        verifier_models=["gpt-4o-mini", "gpt-4o"],
-        synonym_count=3,
-        antonym_count=3,
-        threshold=0.5,
-    )
-    with pytest.raises(ExperimentConfigError, match="Live experiments require configured cloud LLM credentials"):
-        validate_request(request, live_settings)
+    from app.database.db import SessionLocal, init_db
+    from app.evaluation.evaluator import EvaluationConfigError, run_evaluation
+    init_db()
+    db = SessionLocal()
+    try:
+        with pytest.raises(EvaluationConfigError, match="Live evaluations require configured cloud LLM credentials"):
+            await run_evaluation(
+                llm=MockLLMClient(),
+                db=db,
+                settings=live_settings,
+                dataset="pilot",
+            )
+    finally:
+        db.close()
 
 
 # ── 9. Mock execution cannot silently contaminate real evaluation results ───
 
 
-def test_09_mock_execution_cannot_contaminate_real_evaluations() -> None:
-    """Live experiments forbid mock model IDs to prevent mock contamination."""
+@pytest.mark.asyncio
+async def test_09_mock_execution_cannot_contaminate_real_evaluations() -> None:
+    """Live evaluations forbid mock model IDs to prevent mock contamination."""
     live_settings = Settings(
         llm_mode="live",
         openrouter_api_key="sk-valid-test-key",
-        allowed_models="gpt-4o-mini,gpt-4o,model-a,model-b",
     )
-
-    # Attempting to run mock model IDs in live mode is explicitly rejected
-    request = ExperimentRunRequest(
-        name="Contamination Test",
-        dataset="pilot",
-        generator_models=["model-a", "model-b"],
-        verifier_models=["model-a", "model-b"],
-        synonym_count=3,
-        antonym_count=3,
-        threshold=0.5,
-    )
-    with pytest.raises(ExperimentConfigError, match="Live experiments require supported cloud model names, not mock ids"):
-        validate_request(request, live_settings)
+    from app.database.db import SessionLocal, init_db
+    from app.evaluation.evaluator import EvaluationConfigError, run_evaluation
+    init_db()
+    db = SessionLocal()
+    try:
+        with pytest.raises(EvaluationConfigError, match="is not a supported cloud model"):
+            await run_evaluation(
+                llm=MockLLMClient(),
+                db=db,
+                settings=live_settings,
+                dataset="pilot",
+                generator_model="model-a",
+                verifier_model="model-b",
+            )
+    finally:
+        db.close()
 
 
 # ── 10. Existing failure, malformed, uncertainty, and mixed-verdict tests ────

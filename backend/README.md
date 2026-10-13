@@ -305,8 +305,6 @@ All tests execute offline using deterministic test fixtures in ~7-8 seconds with
 | `GET` | `/api/evaluations` | Returns list of completed evaluation runs. |
 | `GET` | `/api/evaluations/{id}` | Retrieves full evaluation metrics and confusion breakdown. |
 | `GET` | `/api/evaluations/{id}/export` | Downloads evaluation result rows as CSV. |
-| `POST` | `/api/experiments/run` | Runs 2×2 same-model vs. cross-model research experiments. |
-| `GET` | `/api/experiments/{id}` | Retrieves completed experiment analysis and condition metrics. |
 
 ---
 
@@ -318,7 +316,6 @@ backend/app/
 │   ├── deps.py                # Database and client dependency injection
 │   ├── routes_detect.py       # Detection lifecycle, fixed Gemma generator & 3 concurrent background branches
 │   ├── routes_evaluations.py  # Offline dataset benchmarking
-│   ├── routes_experiments.py  # 2x2 model comparison study
 │   ├── routes_health.py       # Health check
 │   ├── routes_runs.py         # History & run retrieval
 │   └── routes_settings.py     # Public runtime settings
@@ -331,7 +328,6 @@ backend/app/
 │   ├── ground_truth.py        # Reference answer comparison
 │   ├── metrics.py             # Accuracy, P/R/F1, confusion matrix
 │   └── schemas.py             # Evaluation schemas
-├── experiment/                # 2x2 study orchestration logic
 ├── llm/                       # Multi-model cloud abstraction:
 │   ├── base.py                # Abstract LLM client & exceptions
 │   ├── providers.py           # OllamaCloudClient, GeminiAdapter, etc.
