@@ -1,6 +1,3 @@
-from pathlib import Path
-
-import pytest
 from fastapi.testclient import TestClient
 
 from app.evaluation.dataset_loader import build_manifest, load_dataset
@@ -9,7 +6,6 @@ from app.llm.base import LLMError
 from app.llm.instrumented import InstrumentedLLMClient
 from app.llm.mock import MockLLMClient
 from app.main import app
-from tests.fakes import detector_settings
 
 
 def test_evaluation_call_estimate() -> None:
