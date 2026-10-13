@@ -34,8 +34,6 @@ Prior to final product release, VeriFact was used to evaluate same-model versus 
 | **[results.md](results.md)** | Statistical breakdown of the frozen 2×2 study and verifier calibration confounds. |
 | **[discussion.md](discussion.md)** | Scientific interpretation of experimental findings, self-verification hypotheses, and future directions. |
 | **[research_audit.md](research_audit.md)** | Internal research integrity and reproducibility audit report. |
-| **[viva_questions.md](viva_questions.md)** | Viva defense questions and answers concerning metamorphic testing and LLM self-consistency. |
-| **[resume_bullets.md](resume_bullets.md)** | Curated project highlights for resumes and professional portfolios. |
 
 ---
 
