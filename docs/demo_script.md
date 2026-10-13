@@ -5,7 +5,7 @@ This script provides a structured 3-to-4 minute walkthrough of VeriFact demonstr
 ---
 
 ## Preparation Checklist
-- [ ] Backend running (`uvicorn app.main:app --reload --port 8000`)
+- [ ] Backend running (`uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload`)
 - [ ] Frontend running (`npm run dev`) at `http://localhost:5173`
 - [ ] Ollama daemon running with `gemma4:26b` (if demonstrating Live Mode)
 - [ ] Optional: `TAVILY_API_KEY` set in `backend/.env` for live Web Evidence (otherwise Web Evidence shows unavailable / mock sources in Demo Mode)

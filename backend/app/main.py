@@ -12,6 +12,7 @@ from app.api.routes_runs import router as runs_router
 from app.api.routes_settings import router as settings_router
 from app.config import get_settings
 from app.database.db import init_db
+from app.middleware.rate_limit import RateLimitMiddleware, RateLimiter
 
 settings = get_settings()
 logger = logging.getLogger("verifact")
@@ -54,6 +55,9 @@ def create_app() -> FastAPI:
         "http://localhost:5174",
         "http://127.0.0.1:5174",
     }
+    limiter = RateLimiter()
+    application.state.rate_limiter = limiter
+    application.add_middleware(RateLimitMiddleware, limiter=limiter)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(cors_origins),
@@ -71,3 +75,14 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run(
+        "app.main:app",
+        host=settings.server_host,
+        port=settings.server_port,
+        reload=(settings.environment == "development"),
+    )

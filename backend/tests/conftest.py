@@ -15,6 +15,7 @@ os.environ["OLLAMA_CLOUD_BASE_URL"] = "https://ollama.com/api"
 os.environ["GEMINI_VERIFIER_MODEL"] = "gemini-3.8-flash"
 os.environ["GEMINI_API_KEY"] = ""
 os.environ["TAVILY_API_KEY"] = ""
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 import pytest
 from app.api.deps import get_llm_client
@@ -26,9 +27,19 @@ get_settings.cache_clear()
 @pytest.fixture(autouse=True)
 def reset_mock_test_environment():
     os.environ["LLM_MODE"] = "mock"
+    os.environ["RATE_LIMIT_ENABLED"] = "false"
     get_settings.cache_clear()
     get_llm_client.cache_clear()
+    from app.main import app
+
+    if hasattr(app.state, "rate_limiter"):
+        app.state.rate_limiter.reset()
+        app.state.rate_limiter.set_enabled(None)
     yield
     os.environ["LLM_MODE"] = "mock"
+    os.environ["RATE_LIMIT_ENABLED"] = "false"
     get_settings.cache_clear()
     get_llm_client.cache_clear()
+    if hasattr(app.state, "rate_limiter"):
+        app.state.rate_limiter.reset()
+        app.state.rate_limiter.set_enabled(None)

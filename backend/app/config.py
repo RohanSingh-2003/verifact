@@ -90,6 +90,42 @@ class Settings(BaseSettings):
     live_unconfirmed_max_questions: int = Field(default=1, ge=1, le=50)
     frozen_experiment_id: str = "58baff20-fb86-4f43-b20e-895a086ceb6b"
 
+    # Server Binding
+    server_host: str = "127.0.0.1"
+    server_port: int = Field(default=8000, ge=1, le=65535)
+
+    # API Rate Limiting
+    rate_limit_enabled: bool = True
+    rate_limit_detect_per_minute: int = Field(default=10, ge=1, le=1000)
+    rate_limit_batch_per_minute: int = Field(default=5, ge=1, le=1000)
+    rate_limit_default_per_minute: int = Field(default=120, ge=1, le=10000)
+    trusted_proxies: list[str] = Field(default_factory=list)
+
+    @field_validator("trusted_proxies", mode="before")
+    @classmethod
+    def parse_trusted_proxies(cls, value: object) -> list[str]:
+        if isinstance(value, str):
+            stripped = value.strip()
+            if not stripped:
+                return []
+            if stripped.startswith("[") and stripped.endswith("]"):
+                import json
+
+                try:
+                    parsed = json.loads(stripped)
+                    if isinstance(parsed, list):
+                        return [
+                            str(item).strip()
+                            for item in parsed
+                            if str(item).strip()
+                        ]
+                except json.JSONDecodeError:
+                    pass
+            return [part.strip() for part in stripped.split(",") if part.strip()]
+        if isinstance(value, (list, tuple, set)):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return []
+
     @field_validator("frontend_origin")
     @classmethod
     def origin_must_not_be_wildcard(cls, value: str) -> str:
