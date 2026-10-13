@@ -522,8 +522,6 @@ async def run_web_evidence(
     claims = claims[: min(len(claims), max_claims, max_searches)]
     set_stage(WebEvidenceStatus.SEARCHING_WEB)
 
-    preferred_domains = list(strategy.preferred_include_domains)
-    secondary_domains = list(strategy.secondary_include_domains)
     days = strategy.default_days if classification.freshness_required else None
     topic = strategy.topic if strategy.topic else "general"
 

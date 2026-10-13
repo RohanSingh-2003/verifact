@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -125,7 +126,7 @@ class ModelVerifierVerdict(BaseModel):
     contribution: float | None = None
     status: str = "completed"  # "completed", "failed", "pending"
 
-    def model_post_init(self, __context: Any) -> None:
+    def model_post_init(self, context: Any) -> None:
         if not self.model:
             object.__setattr__(self, "model", self.model_name)
 

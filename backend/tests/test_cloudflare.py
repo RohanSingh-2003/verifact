@@ -1,32 +1,21 @@
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
-from fastapi.testclient import TestClient
 
 from app.config import Settings
 from app.llm.base import (
     LLMEmptyResponseError,
     LLMError,
-    LLMMalformedResponseError,
     LLMRateLimitError,
-    LLMTimeoutError,
 )
 from app.llm.cloudflare import CloudflareClient
-from app.llm.registry import (
-    MODEL_REGISTRY,
-    get_model_client,
-    get_verifier_pool,
-    is_model_configured,
-    validate_answer_model,
-)
-from app.main import app
+from app.llm.registry import get_verifier_pool
 from app.metaqa.detector import score_mutation
 from app.metaqa.mutation import GeneratedMutation
 from app.metaqa.scoring import MutationType, Verdict
-from app.metaqa.verifier import VerifierResult, verify_mutation
+from app.metaqa.verifier import VerifierResult
 
 
 # 1. Cloudflare client initialization

@@ -180,11 +180,10 @@ def compute_topical_relevance(
             if any(source_domain.endswith(sfx) for sfx in (".gov.au", ".gov.uk", ".gc.ca", ".go.jp")):
                 is_foreign_gov = True
 
-        if is_foreign_gov:
+        if is_foreign_gov and (foreign_unrelated_terms or base_relevance < 0.40):
             # Foreign government source discussing trade/overseas affairs
             # rather than domestic constitutional geography
-            if foreign_unrelated_terms or base_relevance < 0.40:
-                return 0.05
+            return 0.05
 
     return min(1.0, max(0.0, base_relevance))
 

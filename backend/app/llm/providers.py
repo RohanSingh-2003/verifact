@@ -2,20 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from contextlib import asynccontextmanager
-from contextvars import ContextVar
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-import json
 import logging
 import random
-import re
 import time
 from typing import Any
 
 import httpx
 
-from app.config import Settings
 from app.llm.base import (
     LLMClient,
     LLMConnectionError,
@@ -25,7 +20,7 @@ from app.llm.base import (
     LLMRateLimitError,
     LLMTimeoutError,
 )
-from app.llm.client import parse_json_object, strip_markdown_fences
+from app.llm.client import parse_json_object
 from app.llm.prompts import ANSWER_SYSTEM, ANSWER_USER
 
 logger = logging.getLogger("verifact.llm.providers")
@@ -486,9 +481,9 @@ class OpenRouterClient(BaseOpenAICompatibleProviderClient):
             pass
         try:
             dt = parsedate_to_datetime(cleaned)
-            diff = (dt - datetime.now(timezone.utc)).total_seconds()
+            diff = (dt - datetime.now(UTC)).total_seconds()
             return max(0.0, diff)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - Header may not be an HTTP date format
             pass
         return None
 

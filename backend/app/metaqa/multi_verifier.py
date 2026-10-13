@@ -2,24 +2,21 @@ from __future__ import annotations
 
 import asyncio
 from collections import Counter
-import json
+from collections.abc import Callable
 import logging
-import time
-from typing import Any, Callable
+from typing import Any
 
 from app.config import Settings
-from app.llm.base import LLMClient, LLMError, LLMRateLimitError, LLMTimeoutError
+from app.llm.base import LLMClient, LLMRateLimitError, LLMTimeoutError
 from app.llm.mock import MockLLMClient
 from app.llm.prompts import VERIFY_SYSTEM, VERIFY_USER
 from app.llm.registry import (
     MODEL_REGISTRY,
     get_model_client,
     is_model_configured,
-    validate_answer_model,
 )
 from app.metaqa.mutation import GeneratedMutation
 from app.metaqa.scoring import (
-    MutationType,
     Verdict,
     contribution_score,
     expected_verdict,
@@ -158,7 +155,7 @@ async def evaluate_mutation_for_model(
             provider=provider_name,
             verdict="FAILED — Rate limit exceeded",
             rationale="",
-            error=f"API Error: {str(exc)}",
+            error=f"API Error: {exc!s}",
             status="failed",
             contribution=None,
         )
@@ -170,11 +167,11 @@ async def evaluate_mutation_for_model(
             provider=provider_name,
             verdict="FAILED",
             rationale="",
-            error=f"API Error: Request timed out ({str(exc)})",
+            error=f"API Error: Request timed out ({exc!s})",
             status="failed",
             contribution=None,
         )
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - Provider isolation: individual model failures must not crash parallel verification pool
         is_rl = "rate limit" in str(exc).lower() or "rate-limit" in str(exc).lower() or "429" in str(exc)
         verdict_str = "FAILED — Rate limit exceeded" if is_rl else "FAILED"
         logger.warning("verifier error model=%s statement=%r (is_rl=%s): %s", model_id, mutation.mutated_text[:60], is_rl, exc)
@@ -184,7 +181,7 @@ async def evaluate_mutation_for_model(
             provider=provider_name,
             verdict=verdict_str,
             rationale="",
-            error=f"API Error: {str(exc)}",
+            error=f"API Error: {exc!s}",
             status="failed",
             contribution=None,
         )
@@ -194,7 +191,7 @@ async def evaluate_mutation_for_model(
             if close is not None:
                 try:
                     await close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - Prevent client closing errors from masking verification verdicts
                     logger.debug("Failed to close client for %s", model_id)
 
 
@@ -234,7 +231,7 @@ async def verify_mutation_across_models(
                     provider=mdef.provider_display if mdef else "Unknown",
                     verdict="FAILED",
                     rationale="",
-                    error=f"API Error: {str(res)}",
+                    error=f"API Error: {res!s}",
                     status="failed",
                     contribution=None,
                 )

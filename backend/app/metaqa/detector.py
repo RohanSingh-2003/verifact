@@ -5,6 +5,7 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from app.config import Settings
 from app.llm.base import LLMClient, LLMError, LLMTimeoutError
@@ -252,8 +253,8 @@ async def run_metaqa_analysis(
         test_client = None
         if isinstance(verifier_client, MockLLMClient):
             test_client = verifier_client
-        elif hasattr(verifier_client, "_inner") and isinstance(getattr(verifier_client, "_inner"), MockLLMClient):
-            test_client = getattr(verifier_client, "_inner")
+        elif hasattr(verifier_client, "_inner") and isinstance(verifier_client._inner, MockLLMClient):
+            test_client = verifier_client._inner
         elif isinstance(llm, MockLLMClient):
             test_client = llm
         elif settings.llm_mode == "mock":

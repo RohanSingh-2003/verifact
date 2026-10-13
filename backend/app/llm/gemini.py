@@ -239,7 +239,7 @@ class GeminiClient(LLMClient):
                 )
                 return text.strip()
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 last_error = LLMTimeoutError(
                     f"Gemini request timed out after {self._timeout_seconds}s."
                 )

@@ -11,15 +11,14 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from app.llm.base import LLMClient, LLMError
 from app.llm.providers import OllamaCloudClient
 
 __all__ = [
     "OllamaClient",
     "OllamaCloudClient",
     "OllamaConcurrencyLimiter",
-    "get_ollama_semaphore",
     "get_ollama_call_count",
+    "get_ollama_semaphore",
     "reset_ollama_call_count",
 ]
 

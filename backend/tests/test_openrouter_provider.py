@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 import httpx
 import pytest
 
 from app.config import Settings
 from app.llm.base import LLMError, LLMRateLimitError
 from app.llm.providers import GroqClient, OpenRouterClient
-from app.llm.registry import MODEL_REGISTRY, get_model_client, get_verifier_pool
+from app.llm.registry import get_verifier_pool
 from app.metaqa.mutation import GeneratedMutation
 from app.metaqa.scoring import MutationType, Verdict
 from app.metaqa.multi_verifier import (
@@ -112,9 +112,11 @@ async def test_openrouter_malformed_json_response() -> None:
             },
         )
 
-    with patch.object(client._client, "post", side_effect=mock_post):
-        with pytest.raises(LLMError) as exc_info:
-            await client.complete_json(system_prompt="sys", user_prompt="usr")
+    with (
+        patch.object(client._client, "post", side_effect=mock_post),
+        pytest.raises(LLMError) as exc_info,
+    ):
+        await client.complete_json(system_prompt="sys", user_prompt="usr")
 
     assert "JSON" in str(exc_info.value) or "parse" in str(exc_info.value).lower()
     await client.aclose()
@@ -131,9 +133,11 @@ async def test_openrouter_missing_choices_in_response() -> None:
     async def mock_post(*args, **kwargs):
         return httpx.Response(status_code=200, json={"choices": []})
 
-    with patch.object(client._client, "post", side_effect=mock_post):
-        with pytest.raises(LLMError) as exc_info:
-            await client.complete_json(system_prompt="sys", user_prompt="usr")
+    with (
+        patch.object(client._client, "post", side_effect=mock_post),
+        pytest.raises(LLMError) as exc_info,
+    ):
+        await client.complete_json(system_prompt="sys", user_prompt="usr")
 
     assert "choices" in str(exc_info.value).lower()
     await client.aclose()
@@ -160,9 +164,11 @@ async def test_openrouter_does_not_retry_non_transient_errors(status_code: int) 
             json={"error": {"message": f"Non-transient error {status_code}"}},
         )
 
-    with patch.object(client._client, "post", side_effect=mock_post):
-        with pytest.raises(LLMError) as exc_info:
-            await client.complete_json(system_prompt="sys", user_prompt="usr")
+    with (
+        patch.object(client._client, "post", side_effect=mock_post),
+        pytest.raises(LLMError) as exc_info,
+    ):
+        await client.complete_json(system_prompt="sys", user_prompt="usr")
 
     # Must fail immediately on attempt 1 without retries
     assert attempt_count == 1
@@ -238,9 +244,11 @@ async def test_openrouter_repeated_429_bounded_retries() -> None:
             json={"error": {"message": "Rate limit exceeded"}},
         )
 
-    with patch.object(client._client, "post", side_effect=mock_post):
-        with pytest.raises(LLMRateLimitError) as exc_info:
-            await client.complete_json(system_prompt="verify", user_prompt="statement")
+    with (
+        patch.object(client._client, "post", side_effect=mock_post),
+        pytest.raises(LLMRateLimitError) as exc_info,
+    ):
+        await client.complete_json(system_prompt="verify", user_prompt="statement")
 
     assert attempt_count == max_retries + 1
     assert "429" in str(exc_info.value)

@@ -1,26 +1,11 @@
 from __future__ import annotations
 
-import json
-from unittest.mock import AsyncMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_llm_client
-from app.config import Settings, get_settings
-from app.llm.cloudflare import CloudflareClient
+from app.config import get_settings
 from app.llm.mock import MockLLMClient
-from app.llm.providers import (
-    GroqClient,
-    OpenRouterClient,
-    OllamaCloudClient,
-)
-from app.llm.registry import (
-    DEFAULT_MODEL_ID,
-    MODEL_REGISTRY,
-    get_model_client,
-    get_verifier_pool,
-    validate_answer_model,
-)
+from app.llm.providers import OllamaCloudClient
 from app.main import app
 
 

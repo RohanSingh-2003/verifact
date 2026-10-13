@@ -1038,7 +1038,7 @@ async def test_2_government_first_search_followed_by_broader_fallback() -> None:
         ],
     )
     claims = [ExtractedClaim(id="c1", text="Canberra is the capital of Australia.")]
-    results, searches_used, sources_found, auth_failed, error, _ = await _search_claims_concurrent(
+    results, searches_used, sources_found, _auth_failed, _error, _ = await _search_claims_concurrent(
         search,
         claims,
         preferred_domains=["act.gov.au", "gov.au"],
@@ -1052,7 +1052,7 @@ async def test_2_government_first_search_followed_by_broader_fallback() -> None:
     )
     assert searches_used >= 2  # Pass 1 + Pass 2
     assert sources_found == 1
-    cid, ctext, query, sources, used_fb = results[0]
+    _cid, _ctext, _query, sources, used_fb = results[0]
     assert used_fb is True
     assert sources[0].domain == "britannica.com"
 
@@ -1104,7 +1104,7 @@ async def test_4_multiple_sources_being_considered_for_one_claim() -> None:
         ]
     )
     claims = [ExtractedClaim(id="c1", text="Canberra is in the ACT and surrounded by NSW.")]
-    results, searches_used, sources_found, auth_failed, error, _ = await _search_claims_concurrent(
+    results, _searches_used, _sources_found, _auth_failed, _error, _ = await _search_claims_concurrent(
         search,
         claims,
         preferred_domains=["ga.gov.au", "act.gov.au"],
@@ -1114,7 +1114,7 @@ async def test_4_multiple_sources_being_considered_for_one_claim() -> None:
         topic="general",
         question_type="GENERAL_FACT",
     )
-    cid, ctext, query, sources, _ = results[0]
+    _cid, _ctext, _query, sources, _ = results[0]
     assert len(sources) == 2
     domains = {s.domain for s in sources}
     assert "ga.gov.au" in domains
@@ -1177,7 +1177,7 @@ async def test_7_missing_evidence_remaining_insufficient_evidence_not_contradict
             source_type="GOVERNMENT",
         )
     ]
-    verdict, reason = await verify_claim_against_evidence(
+    verdict, _reason = await verify_claim_against_evidence(
         llm,
         model="mock-model",
         claim="The secret capital of Australia was founded in 1700.",
@@ -1556,7 +1556,7 @@ def test_17_tokyo_compound_claim_partial_support_remains_insufficient() -> None:
         source_type="GOVERNMENT",
     )
 
-    is_covered, supported, missing = evaluate_compound_components_coverage(TOKYO_CLAIM, [partial_source])
+    is_covered, _supported, missing = evaluate_compound_components_coverage(TOKYO_CLAIM, [partial_source])
     assert not is_covered
     assert len(missing) > 0
     # Missing component should mention economic or cultural

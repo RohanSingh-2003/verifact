@@ -117,7 +117,7 @@ async def _continue_metaqa_analysis(
         owns_client = True
 
     from app.llm.registry import MODEL_REGISTRY, is_model_configured
-    verifier_model_ids = [m for m in MODEL_REGISTRY.keys() if m != selected_answer_model]
+    verifier_model_ids = [m for m in MODEL_REGISTRY if m != selected_answer_model]
 
     if settings.llm_mode == "live" and not any(is_model_configured(m, settings) for m in verifier_model_ids):
         db = SessionLocal()
@@ -400,7 +400,7 @@ async def _continue_independent_verdicts(
                                         snippets.append(s["snippet"])
                             if snippets:
                                 evidence_text = " ".join(snippets[:5])
-                    except Exception:
+                    except Exception:  # noqa: BLE001, S110 - Defensive fallback if web_evidence_result JSON is malformed
                         pass
             finally:
                 check_db.close()
@@ -463,16 +463,18 @@ async def detect(
     canonical_model_id = "gemma"
     model_def = MODEL_REGISTRY[canonical_model_id]
 
-    if settings.llm_mode == "live":
-        if not is_model_configured(canonical_model_id, settings) or not settings.api_key_configured:
-            detail = (
-                f"Answer model '{model_def.display_name}' ({model_def.provider_display}) is not configured. "
-                f"Live LLM mode is not configured. Add the required provider credentials ({model_def.env_key_name}) in the backend environment or switch to Demo / Mock Mode."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=detail,
-            )
+    if settings.llm_mode == "live" and (
+        not is_model_configured(canonical_model_id, settings)
+        or not settings.api_key_configured
+    ):
+        detail = (
+            f"Answer model '{model_def.display_name}' ({model_def.provider_display}) is not configured. "
+            f"Live LLM mode is not configured. Add the required provider credentials ({model_def.env_key_name}) in the backend environment or switch to Demo / Mock Mode."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=detail,
+        )
 
     try:
         answer_started = time.perf_counter()

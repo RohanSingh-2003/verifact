@@ -565,7 +565,7 @@ def _mutation_out(item: Mutation) -> MutationOut:
             raw_v = json.loads(item.verdicts_json)
             if isinstance(raw_v, list):
                 verdicts_list = [ModelVerifierVerdict.model_validate(v) for v in raw_v]
-        except Exception:
+        except Exception:  # noqa: BLE001, S110 - Fallback to single-verifier reconstruction if verdicts_json is invalid
             pass
 
     if not verdicts_list and getattr(item, "verifier_model", None):

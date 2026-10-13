@@ -11,7 +11,6 @@ from app.llm.providers import (
     GroqClient,
     MockModelClient,
     ModelClient,
-    ModelClientLLMAdapter,
     OllamaCloudClient,
     OpenRouterClient,
 )

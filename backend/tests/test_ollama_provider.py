@@ -15,7 +15,6 @@ Verifies the 10 requirements:
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -24,7 +23,6 @@ import pytest
 from app.config import Settings
 from app.llm.base import LLMClient, LLMError
 from app.llm.cloudflare import CloudflareClient
-from app.llm.gemini import GeminiClient, MockGeminiClient
 from app.llm.providers import (
     GroqClient,
     OpenRouterClient,
@@ -240,10 +238,8 @@ def test_all_five_providers_participate_in_common_interface() -> None:
 
 # 10. Technical provider failures remain technical failures and are not converted to NOT SURE
 def test_technical_failure_handling_does_not_convert_to_not_sure() -> None:
-    from app.metaqa.scoring import Verdict
-
     # Verify Verdict enum contains exactly YES, NO, NOT SURE
-    assert set(v.value for v in Verdict) == {"YES", "NO", "NOT SURE"}
+    assert {v.value for v in Verdict} == {"YES", "NO", "NOT SURE"}
 
     # An LLMError or Exception during verifier execution raises an error or records failure,
     # never returns a Verdict.NOT_SURE

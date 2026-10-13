@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 import pytest
 from fastapi.testclient import TestClient
 
-from app.api.deps import get_llm_client
 from app.config import get_settings
 from app.llm.mock import MockLLMClient
 from app.main import app

@@ -15,7 +15,6 @@ from app.llm.registry import (
     MODEL_REGISTRY,
     get_model_client,
     is_model_configured,
-    resolve_model_id,
     validate_answer_model,
 )
 from app.schemas.detect import IndependentVerifierVerdict, MultiModelVerificationSummary
@@ -237,7 +236,7 @@ async def evaluate_single_verifier(
             rationale="",
             contradictory_claims=[],
             confidence=None,
-            error=f"API Error: {str(exc)}",
+            error=f"API Error: {exc!s}",
             status="failed",
         )
     except LLMError as exc:
@@ -253,7 +252,7 @@ async def evaluate_single_verifier(
             rationale="",
             contradictory_claims=[],
             confidence=None,
-            error=f"API Error: {str(exc)}",
+            error=f"API Error: {exc!s}",
             status="failed",
         )
     except Exception as exc:
@@ -269,7 +268,7 @@ async def evaluate_single_verifier(
             rationale="",
             contradictory_claims=[],
             confidence=None,
-            error=f"API Error: {str(exc)}",
+            error=f"API Error: {exc!s}",
             status="failed",
         )
     finally:
@@ -278,7 +277,7 @@ async def evaluate_single_verifier(
             if close is not None:
                 try:
                     await close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - Prevent client closing errors from masking independent verdicts
                     logger.debug("Failed to close client for %s", model_id)
 
 
@@ -340,7 +339,7 @@ async def evaluate_all_independent_verifiers(
                     rationale="",
                     contradictory_claims=[],
                     confidence=None,
-                    error=f"API Error: {str(outcome)}",
+                    error=f"API Error: {outcome!s}",
                     status="failed",
                 )
             )

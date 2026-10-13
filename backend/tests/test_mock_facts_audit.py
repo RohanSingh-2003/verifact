@@ -15,8 +15,6 @@ Verifies:
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
 import pytest
 
 from app.config import Settings
@@ -28,7 +26,6 @@ from app.llm.mock import (
     DELIBERATE_HALLUCINATED_AUSTRALIA_ANSWER,
     DEFAULT_MUTATIONS,
     ORIGINAL,
-    SCENARIO_VERDICTS,
     _BUILTIN_ANSWERS,
     _builtin_answer,
     _is_meaning_reversing,
@@ -36,7 +33,7 @@ from app.llm.mock import (
 )
 from app.metaqa.detector import run_detection
 from tests.fakes import detector_settings
-from app.metaqa.scoring import Classification, MutationType, Verdict, contribution_score
+from app.metaqa.scoring import Classification, MutationType, Verdict
 from app.services.experiment_service import ExperimentConfigError, ExperimentRunRequest, validate_request
 
 
