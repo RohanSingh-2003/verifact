@@ -1,88 +1,233 @@
-# VeriFact Backend
+# VeriFact Backend Service
 
-FastAPI service for MetaQA-based fact-conflicting hallucination detection, independent Web Evidence verification, and application-level overall assessment synthesis.
+FastAPI service powering VeriFact's explainable hallucination detection system. It coordinates candidate answer generation, cross-model MetaQA metamorphic testing, independent Web Evidence fact-checking, and offline dataset evaluation.
 
 ---
 
-## Key Capabilities
+## Table of Contents
 
-- **Progressive Detection Pipeline**: Returns the generated answer immediately (`answer_ready`), then runs **MetaQA** and **Web Evidence** concurrently as background tasks via `asyncio.gather`. Neither pipeline blocks the other; failure in one branch does not cancel the other, and the candidate answer remains available.
-- **Cross-Model MetaQA Verification**:
-  - **Answer & Mutation Generation**: Local [Ollama](https://ollama.com) running Google's **Gemma 4:26B** (`gemma4:26b`).
-  - **Mutation Verification**: Cloud-based **Google Gemini** (`gemini-3.8-flash`) via the official `google-genai` SDK.
-  - **Zero Silent Fallback**: If Gemini credentials are missing or the API is unavailable, the MetaQA verifier reports `UNAVAILABLE` rather than silently substituting the local generator model.
-  - **Failure Isolation**: API errors, rate limits, and JSON parse failures are explicitly recorded as technical errors (`parse_failed=True`) and are **never** counted as legitimate `NOT SURE` judgments.
-- **Optimized Mutation Generation**:
-  - Replaces separate claim-extraction LLM requests with 0ms deterministic string parsing (`fallback_claims_from_answer`).
-  - Generates both synonym (meaning-preserving) and antonym (meaning-reversing) mutations together in a single structured LLM call with a 300-token cap.
-  - Employs `OLLAMA_KEEP_ALIVE=30m` so weights remain resident in memory between requests.
-- **Targeted Web Evidence Pipeline**:
-  - Rule-based question-type classification and category-specific authoritative domain routing.
-  - Focused queries via Tavily Basic Search with credit and concurrency caps (`WEB_MAX_CLAIMS=3`, `WEB_MAX_SEARCHES=3`, `WEB_RESULTS_PER_CLAIM=2`).
-  - **Claim-Relevant Evidence Extraction**: Automatically cleans navigation boilerplate, headers, and noise, extracting the 1–2 sentences most relevant to the claim.
-  - Claim verdicts: `SUPPORTED`, `CONTRADICTED`, and `INSUFFICIENT_EVIDENCE`.
-  - Invariance: Evidence insufficiency is **never** treated as a hallucination.
-- **Overall VeriFact Assessment Synthesis**:
-  - Deterministically evaluates branch signals into unified assessment labels (`Likely Reliable`, `Potentially Hallucinated`, `Needs Verification`, `Insufficient Evidence`).
-  - Calculates application-level **Combined Hallucination Risk**:
-    $$\text{Combined Risk} = 0.5 \times \text{MetaQA Score} + 0.5 \times (1.0 - \text{Web Consistency Score})$$
-- **Mock Mode for Development & Testing**: Complete deterministic fixtures for LLM calls and web search (`LLM_MODE=mock`), enabling comprehensive local automated testing without live credentials or local GPU dependencies.
+- [Core Capabilities & Architecture](#core-capabilities--architecture)
+- [Main Features Implementation](#main-features-implementation)
+  - [1. Answer Generation](#1-answer-generation)
+  - [2. MetaQA-Based Hallucination Detection](#2-metaqa-based-hallucination-detection)
+  - [3. Web Evidence Grounding](#3-web-evidence-grounding)
+  - [4. Performance Evaluation & Benchmark Module](#4-performance-evaluation--benchmark-module)
+- [Overall Assessment & Combined Risk](#overall-assessment--combined-risk)
+- [Setup & Installation](#setup--installation)
+  - [Prerequisites](#prerequisites)
+  - [Virtual Environment & Dependencies](#virtual-environment--dependencies)
+  - [Environment Variables Configuration](#environment-variables-configuration)
+- [Running the Backend](#running-the-backend)
+- [Running Automated Tests](#running-automated-tests)
+- [API Endpoints Reference](#api-endpoints-reference)
+- [Architecture & Directory Organization](#architecture--directory-organization)
+- [Troubleshooting & Common Errors](#troubleshooting--common-errors)
+
+---
+
+## Core Capabilities & Architecture
+
+- **Progressive Detection Pipeline**: Synchronously generates the candidate answer, writes the record to SQLite with status `answer_ready`, returns the answer to the client immediately, and launches verification as concurrent background tasks via `asyncio.gather(..., return_exceptions=True)`. Neither verification branch blocks the other.
+- **100% Cloud-Based Model Inference**: All inference runs through official cloud provider APIs (Ollama Cloud, Cloudflare Workers AI, Groq, OpenRouter, Google Gemini). **No local Ollama daemon or local GPU inference is used.**
+- **Deterministic Offline Mock Mode**: Setting `LLM_MODE=mock` replaces all external LLM and search calls with deterministic fixtures, enabling the entire 339-test suite to run in ~8 seconds without network access or live API credits.
+
+---
+
+## Main Features Implementation
+
+### 1. Answer Generation
+
+- **Default Model & Provider**:
+  - **Model**: **Gemma 4:26B** (`gemma4:26b`).
+  - **Provider**: Official **Ollama Cloud API** (`https://ollama.com/api`) accessed via dedicated HTTP client `OllamaCloudClient` (`app/llm/providers.py`).
+  - **Reasoning Suppression (`think: false`)**: Gemma reasoning models are configured with `think: false` to eliminate hidden reasoning chain overhead and deliver clean, deterministic answers within `LLM_ANSWER_MAX_TOKENS=350`.
+- **Dynamic Multi-Model Selection**:
+  - The model registry in [`app/llm/registry.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/llm/registry.py) defines 5 cloud-hosted models:
+    1. `gemma`: Gemma 4:26B via Ollama Cloud (`OLLAMA_API_KEY`)
+    2. `glm`: GLM-4.7-Flash via Cloudflare Workers AI (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`)
+    3. `qwen`: Qwen-2.5-32B via Alibaba / Groq (`GROQ_API_KEY`)
+    4. `openrouter`: Liquid LFM-2.5 via OpenRouter (`OPENROUTER_API_KEY`)
+    5. `gemini`: Gemini Flash 3.8 via Google Gemini API (`GEMINI_API_KEY`)
+  - Any configured model can be selected as the answer generator via the `answer_model` parameter in `POST /api/detect`.
+- **Immediate Return Flow**:
+  - Answer generation records latency (`answer_ms`) and persists the initial run with status `answer_ready`.
+  - The answer text is returned immediately to the frontend, allowing users to inspect the response while verification proceeds in the background.
+
+---
+
+### 2. MetaQA-Based Hallucination Detection
+
+Implemented in [`backend/app/metaqa/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/).
+
+- **Generator–Verifier Exclusion Guarantee**:
+  - The model that generated the candidate answer is **strictly excluded** from its own verifier pool:
+    $$\text{Verifier Pool} = \text{AllConfiguredModels} \setminus \{\text{Selected Answer Model}\}$$
+  - When Gemma generates the answer, Google Gemini (`gemini-3.8-flash`) and other configured models act as independent cross-model verifiers.
+- **Metamorphic Mutations**:
+  - Rather than rewriting the entire answer, atomic factual claims are parsed from the answer.
+  - Generates paired mutations in a single, token-capped request (`LLM_MUTATION_MAX_TOKENS=300`):
+    - **Synonym Mutations (Meaning-Preserving)**: Paraphrased assertions retaining identical truth conditions using alternate phrasing. Expected verdict: **`YES`**.
+    - **Antonym Mutations (Meaning-Reversing)**: Negated or entity-inverted assertions contradicting the original answer. Expected verdict: **`NO`**.
+  - Default: 3 synonyms and 3 antonyms per Detect run (`SYNONYM_COUNT=3`, `ANTONYM_COUNT=3`).
+- **Verifier Context Isolation**:
+  - The verifier model receives strictly: the question, candidate answer, and the single mutated statement.
+  - The verifier is **never told** whether the mutation is a synonym or antonym, nor the expected verdict or ground truth.
+- **Observed Verdicts & Error Handling**:
+  - **`YES`**: Supported / consistent with the candidate answer.
+  - **`NO`**: Contradicts / unsupported by the candidate answer.
+  - **`NOT SURE`**: Relationship is ambiguous or indeterminate from the text.
+  - **Technical Errors**: JSON parse failures or HTTP timeouts are marked `parse_failed=True` and isolated as technical errors—they are **never** counted as legitimate `NOT SURE` judgments. If no verifier is configured, MetaQA reports `UNAVAILABLE`.
+- **Deterministic Python Scoring Table**:
+  Scoring is computed directly in Python code ([`app/metaqa/scoring.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/metaqa/scoring.py)):
+
+  | Mutation Type | Observed: `YES` | Observed: `NO` | Observed: `NOT SURE` |
+  | :--- | :---: | :---: | :---: |
+  | **Synonym** (Expected `YES`) | **0.0** (Consistent) | **1.0** (Violation) | **0.5** (Uncertain) |
+  | **Antonym** (Expected `NO`) | **1.0** (Violation) | **0.0** (Consistent) | **0.5** (Uncertain) |
+
+  $$\text{MetaQA Score } H = \frac{1}{N} \sum_{i=1}^N c_i \quad \text{clamped to } [0.0, 1.0]$$
+
+  - Classification threshold $\theta = 0.5$:
+    - $H < \theta \implies \textbf{Reliable}$
+    - $H \ge \theta \implies \textbf{Hallucinated}$
+- **Limitations**:
+  - MetaQA measures internal semantic stability, not real-world factual ground truth. If an LLM consistently reinforces a popular misconception under synonym and antonym perturbations, MetaQA records it as consistent.
+
+---
+
+### 3. Web Evidence Grounding
+
+Implemented in [`backend/app/web_evidence/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_evidence/) and [`backend/app/web_search/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_search/).
+
+- **Claim Extraction**: Extracts independent testable claims from the candidate answer while stripping greetings, styling, and opinions (`WEB_MAX_CLAIMS=3`).
+- **Domain Classification & Targeted Routing**:
+  - A rule-based classifier categorizes the question (e.g., General Facts, Science, Government, Current Events, Statistics, Medicine, Academic Research).
+  - Guides search queries toward authoritative domains (e.g., `.gov`, `.edu`, Britannica, WHO, NASA). If preferred domains yield empty results, search automatically broadens.
+- **Tavily Search API**:
+  - Dispatches targeted search queries per claim using Tavily Basic Search.
+  - Budgeted by `WEB_MAX_SEARCHES=3` and `WEB_RESULTS_PER_CLAIM=2`.
+- **Claim-Relevant Evidence Extraction**:
+  - Automatically cleans navigation bars, boilerplate markdown, and citation brackets (`[1]`).
+  - Extracts the 1–2 sentences directly relevant to the claim (`evidenceSummary`) and returns source domain, title, URL, and verifier rationale.
+- **Claim Verdicts & Consistency Score**:
+  - Verdicts: **`SUPPORTED`**, **`CONTRADICTED`**, or **`INSUFFICIENT_EVIDENCE`**.
+  - **Invariance**: Insufficient evidence is **never** treated as a hallucination.
+  - **Web Consistency Score**: Average claim contribution (`SUPPORTED` = 1.0, `INSUFFICIENT_EVIDENCE` = 0.5, `CONTRADICTED` = 0.0).
+  - **Strict Metric Separation**: Web Evidence is an external retrieval audit; its score is kept strictly independent and is never merged into the MetaQA score.
+
+---
+
+### 4. Performance Evaluation & Benchmark Module
+
+Implemented in [`backend/app/evaluation/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/evaluation/).
+
+- **Datasets**:
+  - Curated evaluation datasets in [`backend/data/datasets/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/data/datasets/).
+  - Bundled dataset: `pilot.json` (40 hand-selected questions across 5 categories: `named_entity`, `location`, `date`, `numeric`, `general_fact`, 8 each) with `pilot.manifest.json`.
+- **Ground Truth & Review Handling**:
+  - Answers are compared against gold-standard reference answers and acceptable aliases.
+  - Ambiguous items are flagged `needs_review=True` (e.g., items `q032` and `q039`). They are retained in the database for auditing but excluded from automated Precision, Recall, and F1 calculations (leaving 38 labeled items).
+- **Metrics Computed**:
+  - Accuracy, Precision, Recall, F1, Specificity, False Positive Rate (FPR), False Negative Rate (FNR).
+  - Full confusion matrix: TP, TN, FP, FN.
+  - Category-by-category breakdown and threshold sweeps ($\theta \in [0.10, 0.90]$).
+- **Persistence & Export**:
+  - Stored in SQLite across `EvaluationRun`, `EvaluationResult`, and `EvaluationMetric` tables.
+  - Exportable as CSV via `GET /api/evaluations/{id}/export`.
+- **Difference from Live Detection**:
+  - **Live Detection**: Interactive, end-to-end question answering and verification.
+  - **Benchmark Evaluation**: Offline batch auditing of static datasets against gold-standard labels to measure classifier accuracy.
+- **Historical Benchmark Status**:
+  - Locked run `58baff20-fb86-4f43-b20e-895a086ceb6b` was executed in **`mock` mode (DEMO / MOCK DATA)**.
+  - The planned live 2×2 experiment in `experiments/config/final_experiment.yaml` (`gpt-4o-mini` vs. `gpt-4o`) was **frozen as NOT EXECUTED** due to missing live API credentials.
+
+---
+
+## Overall Assessment & Combined Risk
+
+The application-level synthesis layer in [`backend/app/services/verification_summary.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/services/verification_summary.py) provides a unified verdict and heuristic risk score:
+
+- **Executive Verdicts**: `Likely Reliable`, `Potentially Hallucinated`, `Needs Verification`, `Insufficient Evidence`, `Unavailable`.
+- **Combined Hallucination Risk**:
+  $$\text{Web Risk} = 1.0 - \text{Web Consistency Score}$$
+  $$\text{Combined Risk} = 0.5 \times \text{MetaQA Score} + 0.5 \times \text{Web Risk}$$
+- **Heuristic Notice**: This combined value is an application-level engineering heuristic, not a mathematically calibrated probability of truth.
 
 ---
 
 ## Setup & Installation
 
+### Prerequisites
+- Python 3.11, 3.12, or 3.14 (64-bit)
+- `pip` package manager
+
+### Virtual Environment & Dependencies
+
 ```bash
 cd backend
 
-# Create and activate virtual environment
+# Create virtual environment
 python -m venv .venv
 
-# On Windows PowerShell:
+# Activate virtual environment
+# Windows PowerShell:
 .\.venv\Scripts\Activate.ps1
-# On macOS/Linux:
+# macOS / Linux:
 # source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment file
+# Create environment configuration
 copy .env.example .env
+# (On macOS/Linux: cp .env.example .env)
 ```
 
-### Cloud Providers Setup
+### Environment Variables Configuration
 
-VeriFact uses cloud/API-based LLM inference. Gemma 4:26B is accessed through Ollama Cloud; no local Ollama installation is required.
+Edit `backend/.env` with your settings:
 
-Configure cloud provider API keys in `backend/.env`:
 ```env
+ENVIRONMENT=development
+FRONTEND_ORIGIN=http://localhost:5173
+DATABASE_URL=sqlite:///./data/verifact.db
+
+# Execution Mode: "live" (Cloud APIs) or "mock" (offline test fixtures)
 LLM_MODE=live
 
-# 1. Ollama Cloud (Gemma 4:26B)
+# 1. Ollama Cloud (Gemma 4:26B — Default Generator)
 OLLAMA_CLOUD_BASE_URL=https://ollama.com/api
-OLLAMA_API_KEY=your_ollama_cloud_key_here
+OLLAMA_API_KEY=your_ollama_cloud_api_key_here
+OLLAMA_CLOUD_MODEL=gemma4:26b
 
-# 2. Cloudflare Workers AI (GLM-4.7-Flash)
-CLOUDFLARE_API_TOKEN=your_cloudflare_token_here
-CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
-CLOUDFLARE_BASE_URL=https://api.cloudflare.com/client/v4
-CLOUDFLARE_MODEL=@cf/zai-org/glm-4.7-flash
-
-# 3. Groq (Qwen)
-GROQ_API_KEY=your_groq_api_key_here
-GROQ_BASE_URL=https://api.groq.com/openai/v1
-
-# 4. OpenRouter (Liquid AI LFM 2.5)
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
-OPENROUTER_MODEL=liquid/lfm-2.5-2.6b:free
-
-# 5. Google Gemini (Gemini Flash 3.8)
+# 2. Google Gemini (Gemini Flash 3.8 — Primary Cross-Model Verifier)
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_VERIFIER_MODEL=gemini-3.8-flash
+GEMINI_VERIFY_CONCURRENCY=3
 
-# Web Evidence (Tavily Search)
+# 3. Optional Additional Cloud Providers
+CLOUDFLARE_API_TOKEN=your_cloudflare_token_here
+CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
+GROQ_API_KEY=your_groq_api_key_here
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# 4. Web Evidence Verification (Tavily Search API)
 TAVILY_API_KEY=your_tavily_api_key_here
+TAVILY_BASE_URL=https://api.tavily.com
+TAVILY_SEARCH_DEPTH=basic
+WEB_EVIDENCE_ENABLED=true
+WEB_MAX_CLAIMS=3
+WEB_MAX_SEARCHES=3
+WEB_RESULTS_PER_CLAIM=2
+
+# 5. MetaQA Parameters
+SYNONYM_COUNT=3
+ANTONYM_COUNT=3
+THRESHOLD=0.5
+VERIFY_CONCURRENCY=3
+LLM_TIMEOUT_SECONDS=60
+LLM_ANSWER_MAX_TOKENS=350
+LLM_MUTATION_MAX_TOKENS=300
 ```
 
 ---
@@ -93,95 +238,13 @@ TAVILY_API_KEY=your_tavily_api_key_here
 uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-- Health check: `GET http://127.0.0.1:8000/api/health`
-- Settings check: `GET http://127.0.0.1:8000/api/settings`
+- System health check: `GET http://127.0.0.1:8000/api/health`
+- Runtime public settings: `GET http://127.0.0.1:8000/api/settings`
+- Interactive OpenAPI documentation: `http://127.0.0.1:8000/docs`
 
 ---
 
-## Environment Variables Reference
-
-| Variable | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `ENVIRONMENT` | string | `development` | Environment mode (`development`, `production`, `test`). |
-| `DATABASE_URL` | string | `sqlite:///./data/verifact.db` | SQLAlchemy SQLite database connection string. |
-| `FRONTEND_ORIGIN` | string | `http://localhost:5173` | Allowed CORS frontend origin. |
-| `LLM_MODE` | `mock` \| `live` | `mock` | Execution mode. `mock` uses local deterministic fixtures. |
-| `SYNONYM_COUNT` | int | `3` | Number of meaning-preserving mutations per Detect run. |
-| `ANTONYM_COUNT` | int | `3` | Number of meaning-reversing mutations per Detect run. |
-| `THRESHOLD` | float | `0.5` | Classification threshold $\theta$ ($H \ge \theta \implies \text{Hallucinated}$). |
-| `LLM_TIMEOUT_SECONDS` | float | `60.0` | Timeout per LLM generation request. |
-| `LLM_ANSWER_MAX_TOKENS` | int | `350` | Output token cap for candidate answer generation. |
-| `OLLAMA_API_KEY` | string | `""` | Ollama Cloud API key for cloud inference (`https://ollama.com/api`). |
-| `OLLAMA_CLOUD_BASE_URL` | string | `https://ollama.com/api` | Ollama Cloud API endpoint (local daemon not used). |
-| `OLLAMA_CLOUD_MODEL` | string | `gemma4:26b` | Cloud model identifier for Gemma 4:26B. |
-| `CLOUDFLARE_API_TOKEN` | string | `""` | Cloudflare API token with Workers AI access. |
-| `CLOUDFLARE_ACCOUNT_ID` | string | `""` | Cloudflare account identifier. |
-| `CLOUDFLARE_BASE_URL` | string | `https://api.cloudflare.com/client/v4` | Cloudflare API base URL. |
-| `CLOUDFLARE_MODEL` | string | `@cf/zai-org/glm-4.7-flash` | GLM-4.7-Flash model identifier on Cloudflare Workers AI. |
-| `GROQ_API_KEY` | string | `""` | Groq API key for Qwen model. |
-| `GROQ_BASE_URL` | string | `https://api.groq.com/openai/v1` | Groq API endpoint. |
-| `GROQ_MODEL` | string | `qwen-2.5-32b` | Qwen model ID on Groq. |
-| `OPENROUTER_API_KEY` | string | `""` | OpenRouter API key. |
-| `OPENROUTER_BASE_URL` | string | `https://openrouter.ai/api/v1` | OpenRouter API endpoint. |
-| `OPENROUTER_MODEL` | string | `liquid/lfm-2.5-2.6b:free` | OpenRouter model ID. |
-| `GEMINI_API_KEY` | string | `""` | Google Gemini API key. |
-| `GEMINI_VERIFIER_MODEL` | string | `gemini-3.8-flash` | Gemini model ID for verification or generation. |
-| `GEMINI_VERIFY_CONCURRENCY`| int | `3` | Max concurrent verifier requests to Gemini API. |
-| `TAVILY_API_KEY` | string | `""` | Tavily API key for Web Evidence. |
-| `TAVILY_SEARCH_DEPTH` | string | `basic` | Tavily search depth (`basic` or `advanced`). |
-| `WEB_EVIDENCE_ENABLED` | bool | `true` | Master switch for the Web Evidence pipeline. |
-| `WEB_MAX_CLAIMS` | int | `3` | Maximum claims extracted per Detect run. |
-| `WEB_MAX_SEARCHES` | int | `3` | Maximum Tavily searches per Detect run. |
-| `WEB_RESULTS_PER_CLAIM` | int | `2` | Number of search results retained per claim. |
-
----
-
-## API Routes
-
-### Interactive Detection & History
-- `GET /api/models`: Returns list of available Answer Models (Gemini Flash 3.8, Gemma 4:26B, GLM-4.7-Flash, Qwen, OpenRouter), their cloud providers, configuration readiness, and default selection.
-- `POST /api/detect`: Accepts `{ "question": "...", "answer_model": "gemma" }`, generates the base answer using the selected model, dynamically assigns all remaining models as the independent verifier pool (strictly excluding the answer generator), and schedules parallel background verification.
-- `GET /api/runs/{id}`: Returns the live state of the run, including candidate answer, selected answer model, verifiers, MetaQA mutation verdicts and score, Web Evidence claims and sources, and the Overall VeriFact Assessment.
-- `GET /api/runs`: Returns a paginated list of previous detection runs.
-- `DELETE /api/runs/{id}`: Deletes a specific run record and associated mutations.
-- `GET /api/health`: System health status, provider readiness, and active model names.
-- `GET /api/settings`: Non-sensitive configuration metadata for UI display.
-
-### Offline Evaluation & Experiments
-- `POST /api/evaluations/run`: Runs offline ground-truth evaluation over curated benchmark datasets in `data/datasets/`.
-- `POST /api/experiments/run`: Runs 2×2 same-model vs. cross-model research experiments.
-- `GET /api/experiments/{id}`: Returns experiment analysis and condition comparisons.
-
----
-
-## Architecture & Module Organization
-
-```text
-backend/app/
-├── api/                   # FastAPI route endpoints
-├── core/                  # Logging, error types, and system utilities
-├── database/              # SQLAlchemy schema models and session management
-├── llm/                   # LLM clients: OllamaClient, GeminiClient, MockLLMClient
-├── metaqa/                # MetaQA metamorphic testing:
-│   ├── mutation.py        # Optimized single-request mutation generator
-│   ├── verifier.py        # Independent verifier orchestration & error isolation
-│   └── scoring.py         # Deterministic contribution matrix & score computation
-├── web_evidence/          # Web Evidence pipeline:
-│   ├── pipeline.py        # Async coordination of search, extraction, and verification
-│   ├── classifier.py      # Question categorization
-│   ├── evidence_extractor.py # Claim-relevant snippet cleaner & extractor
-│   ├── strategies.py      # Authoritative domain recommendations
-│   └── scoring.py         # Claim-level evidence consistency scoring
-├── web_search/            # Tavily search client & mock search provider
-├── schemas/               # Pydantic request and response schemas
-├── services/              # Run orchestration & verification summary fusion
-├── config.py              # Pydantic settings definition
-└── main.py                # FastAPI app initialization and CORS middleware
-```
-
----
-
-## Testing
+## Running Automated Tests
 
 The backend includes a comprehensive automated test suite with **339 tests** covering all pipelines, scoring functions, mutation edge cases, error handlers, and summary fusion rules:
 
@@ -189,8 +252,90 @@ The backend includes a comprehensive automated test suite with **339 tests** cov
 # Run the complete test suite
 pytest
 
-# Run tests with short progress output
+# Run tests with concise output
 pytest -q
 ```
 
-All unit tests execute offline using deterministic test fixtures in ~7-8 seconds without requiring external network access or running local models.
+All tests execute offline using deterministic test fixtures in ~7-8 seconds without requiring external network access or live API credits.
+
+---
+
+## API Endpoints Reference
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/api/models` | Returns available cloud answer models and their configuration status. |
+| `POST` | `/api/detect` | Starts detection: generates answer, schedules MetaQA and Web Evidence tasks. |
+| `GET` | `/api/runs/{id}` | Returns run state, mutations, evidence sources, and overall assessment. |
+| `GET` | `/api/runs` | Returns paginated list of previous detection runs. |
+| `DELETE` | `/api/runs/{id}` | Deletes a specific run from the SQLite database. |
+| `GET` | `/api/health` | System health check, active providers, and feature readiness. |
+| `GET` | `/api/settings` | Non-sensitive public runtime settings for UI rendering. |
+| `POST` | `/api/evaluations/run` | Runs offline benchmark evaluation over curated question datasets. |
+| `GET` | `/api/evaluations` | Returns list of completed evaluation runs. |
+| `GET` | `/api/evaluations/{id}` | Retrieves full evaluation metrics and confusion breakdown. |
+| `GET` | `/api/evaluations/{id}/export` | Downloads evaluation result rows as CSV. |
+| `POST` | `/api/experiments/run` | Runs 2×2 same-model vs. cross-model research experiments. |
+| `GET` | `/api/experiments/{id}` | Retrieves completed experiment analysis and condition metrics. |
+
+---
+
+## Architecture & Directory Organization
+
+```text
+backend/app/
+├── api/                       # Route handlers:
+│   ├── deps.py                # Database and client dependency injection
+│   ├── routes_detect.py       # Detection lifecycle & background tasks
+│   ├── routes_evaluations.py  # Offline dataset benchmarking
+│   ├── routes_experiments.py  # 2x2 model comparison study
+│   ├── routes_health.py       # Health check
+│   ├── routes_runs.py         # History & run retrieval
+│   └── routes_settings.py     # Public runtime settings
+├── database/                  # SQLite persistence:
+│   ├── db.py                  # SQLAlchemy engine & session factory
+│   └── models.py              # Run, Mutation, Evaluation models
+├── evaluation/                # Benchmark evaluation engine:
+│   ├── dataset_loader.py      # JSON and CSV dataset loading
+│   ├── evaluator.py           # Benchmark runner
+│   ├── ground_truth.py        # Reference answer comparison
+│   ├── metrics.py             # Accuracy, P/R/F1, confusion matrix
+│   └── schemas.py             # Evaluation schemas
+├── experiment/                # 2x2 study orchestration logic
+├── llm/                       # Multi-model cloud abstraction:
+│   ├── base.py                # Abstract LLM client & exceptions
+│   ├── providers.py           # OllamaCloudClient, GeminiAdapter, etc.
+│   ├── registry.py            # Model registry & dynamic verifier pool
+│   └── mock.py                # Deterministic test fixtures
+├── metaqa/                    # MetaQA metamorphic testing core:
+│   ├── detector.py            # Analysis orchestration & callbacks
+│   ├── mutation.py            # Mutation generation & validation
+│   ├── verifier.py            # Cross-model verification runner
+│   └── scoring.py             # Deterministic Python scoring matrix
+├── web_evidence/              # Web factual grounding:
+│   ├── pipeline.py            # Async search & verification coordinator
+│   ├── classifier.py          # Question-type classification
+│   ├── strategies.py          # Authoritative domain recommendations
+│   ├── evidence_extractor.py  # Snippet cleaner & sentence extractor
+│   └── scoring.py             # Web Consistency Score calculation
+├── web_search/                # Tavily search client & concurrency controls
+├── services/                  # RunService & Overall Assessment fusion
+├── config.py                  # Pydantic BaseSettings (.env loading)
+└── main.py                    # Application entry point & CORS middleware
+```
+
+---
+
+## Troubleshooting & Common Errors
+
+- **`503 Service Unavailable`** (`"Selected answer model is not configured"`):
+  - Ensure API credentials are set in `backend/.env` for the chosen model (e.g., `OLLAMA_API_KEY` for Gemma, `GEMINI_API_KEY` for Gemini).
+  - To test without API keys, set `LLM_MODE=mock` in `backend/.env`.
+- **`502 Bad Gateway`** (`"The language model request failed"`):
+  - The upstream cloud API returned an error or rejected authentication. Check key validity and quota balance in the provider console.
+- **`504 Gateway Timeout`** (`"The language model timed out"`):
+  - The model took longer than `LLM_TIMEOUT_SECONDS` (default 60s). Increase the timeout in `backend/.env`.
+- **`CORS Error` on frontend requests**:
+  - Verify that `FRONTEND_ORIGIN` in `backend/.env` matches the frontend URL (`http://localhost:5173`).
+- **Database Locked / Write Failures**:
+  - Ensure the `backend/data/` directory exists and has write permissions.

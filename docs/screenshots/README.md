@@ -1,26 +1,40 @@
 # Application Screenshots
 
-Place product screenshots here when captured from the **running application**.
+Place product screenshots here when captured from the **live running application**.
 
-### Recommended Screenshots:
+---
 
-| File | Page | Description |
+## Recommended Screenshots
+
+| Filename | View / Page | Description |
 | :--- | :--- | :--- |
-| `detect.png` | Detect (`/`) | Full Detect view showing candidate answer, Overall VeriFact Result card, MetaQA, and Web Evidence. |
-| `final_result_card.png` | Detect (`/`) | Close-up of the compact Overall VeriFact Result card with 3-column score breakdown. |
-| `metaqa_mutations.png` | Detect (`/`) | Close-up of the synonym and antonym mutation inspection tabs. |
-| `web_evidence.png` | Detect (`/`) | Close-up of claim-relevant evidence cards with source links and verifier reasoning. |
-| `history.png` | History (`/history`) | Paginated audit log of previous verification runs. |
-| `metaqa_guide.png` | MetaQA Guide (`/metaqa`) | Educational guide explaining metamorphic testing and contribution scoring. |
-| `web_analysis.png` | Web Analysis (`/web-analysis`) | Educational guide explaining authoritative domain strategies and claim checking. |
-| `settings.png` | Settings (`/settings`) | Settings page showing Appearance theme selection, active AI Configuration, and About VeriFact. |
+| `detect.png` | Detect (`/`) | Full Detect interface displaying candidate AI answer, Overall VeriFact Result card, MetaQA tabs, and Web Evidence cards. |
+| `model_selector.png` | Detect (`/`) | Model selection dropdown showing configured cloud models and provider badges. |
+| `final_result_card.png` | Detect (`/`) | Close-up of the compact Overall VeriFact Result card showing verdict, combined risk score, and 3-column metric breakdown. |
+| `metaqa_mutations.png` | Detect (`/`) | Close-up of the Synonym and Antonym mutation tabs with verifier responses and rationales. |
+| `web_evidence.png` | Detect (`/`) | Close-up of claim-relevant evidence cards with extracted snippets, source domain badges, and external links. |
+| `history.png` | History (`/history`) | Paginated audit log showing previous runs and filtering controls. |
+| `metaqa_guide.png` | MetaQA Guide (`/metaqa`) | Educational guide explaining metamorphic relations, synonym/antonym perturbations, and scoring tables. |
+| `web_analysis.png` | Web Analysis (`/web-analysis`) | Educational guide explaining question classification and authoritative domain routing. |
+| `settings.png` | Settings (`/settings`) | Settings view showing Dark/Light theme selection, read-only AI configuration, and citations. |
 
 > [!NOTE]
-> Do not invent or generate synthetic mockup screenshots. Only capture from the live running application.
+> Do not generate synthetic mockups. Only capture screenshots from the actual running web application.
 
-### Capturing Screenshots Locally:
+---
 
-1. Start the FastAPI backend on port 8000 (`LLM_MODE=live` or `LLM_MODE=mock`).
-2. Start the Vite frontend development server on port 5173.
-3. Open `http://localhost:5173` and run an analysis on Detect.
-4. Capture screenshots using your browser's devtools or screenshot tool, and save them in this directory.
+## Capturing Screenshots Locally
+
+1. **Start Backend**: In one terminal, activate the virtual environment and start FastAPI:
+   ```bash
+   cd backend
+   .\.venv\Scripts\Activate.ps1
+   uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+   ```
+2. **Start Frontend**: In a second terminal, start Vite:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+3. **Run Analysis**: Open `http://localhost:5173`, select a model, submit a factual question (e.g., *"What is the capital of Australia?"*), and wait for verification to complete.
+4. **Capture & Save**: Use your browser or OS screenshot tool to capture the views and save them into `docs/screenshots/` matching the filenames above.
