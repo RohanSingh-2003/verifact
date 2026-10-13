@@ -200,6 +200,10 @@ class RunSummary(BaseModel):
     generator_model: str
     hallucination_score: float | None
     classification: Classification | None
+    combined_risk_score: float | None = None
+    overall_verdict: str | None = None
+    overall_label: str | None = None
+    web_consistency_score: float | None = None
     status: RunStatus = RunStatus.COMPLETED
     created_at: datetime
 

@@ -77,6 +77,10 @@ def _ensure_sqlite_columns() -> None:
         statements.append("ALTER TABLE runs ADD COLUMN mutation_generator_model VARCHAR(128)")
     if run_cols and "mutation_verifier_model" not in run_cols:
         statements.append("ALTER TABLE runs ADD COLUMN mutation_verifier_model VARCHAR(128)")
+    if run_cols and "combined_risk_score" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN combined_risk_score FLOAT")
+    if run_cols and "overall_verdict" not in run_cols:
+        statements.append("ALTER TABLE runs ADD COLUMN overall_verdict VARCHAR(64)")
     mutation_cols = _sqlite_column_names("mutations")
     if mutation_cols and "parse_failed" not in mutation_cols:
         statements.append("ALTER TABLE mutations ADD COLUMN parse_failed BOOLEAN DEFAULT 0")

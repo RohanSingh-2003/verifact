@@ -195,6 +195,10 @@ interface RunListResponse {
     generator_model: string
     hallucination_score: number | null
     classification: 'Hallucinated' | 'Reliable' | null
+    combined_risk_score?: number | null
+    overall_verdict?: string | null
+    overall_label?: string | null
+    web_consistency_score?: number | null
     status?: RunStatus
     created_at: string
   }>
@@ -479,12 +483,54 @@ export function mapDetectResponse(payload: DetectApiResponse, responseTimeMs: nu
 }
 
 export function mapRunSummary(item: RunListResponse['items'][number]): HistoryRun {
+  const combinedRisk = item.combined_risk_score ?? null
+  const metaqaScore = item.hallucination_score ?? null
+  const webScore = item.web_consistency_score ?? null
+
+  let verdict: Verdict | null = null
+  let overallLabel = item.overall_label ?? null
+
+  if (item.overall_verdict) {
+    const raw = item.overall_verdict.toUpperCase()
+    if (raw === 'LIKELY_RELIABLE') {
+      verdict = VerdictValue.Reliable
+      if (!overallLabel) overallLabel = 'Likely Reliable'
+    } else if (raw === 'POTENTIALLY_HALLUCINATED') {
+      verdict = VerdictValue.Hallucinated
+      if (!overallLabel) overallLabel = 'Potentially Hallucinated'
+    } else if (
+      raw === 'NEEDS_VERIFICATION' ||
+      raw === 'INSUFFICIENT_EVIDENCE' ||
+      raw === 'UNAVAILABLE'
+    ) {
+      verdict = VerdictValue.Uncertain
+      if (!overallLabel) {
+        overallLabel =
+          raw === 'NEEDS_VERIFICATION'
+            ? 'Needs Verification'
+            : raw === 'INSUFFICIENT_EVIDENCE'
+              ? 'Insufficient Evidence'
+              : 'Unavailable'
+      }
+    }
+  } else if (item.classification) {
+    verdict = mapVerdict(item.classification)
+    if (verdict === VerdictValue.Reliable) overallLabel = 'Likely reliable'
+    else if (verdict === VerdictValue.Hallucinated) overallLabel = 'Likely hallucinated'
+  }
+
   return {
     id: item.id,
     question: item.question,
     model: item.generator_model,
-    score: item.hallucination_score,
-    verdict: mapVerdict(item.classification),
+    score: combinedRisk,
+    combinedRiskScore: combinedRisk,
+    metaqaScore,
+    webConsistencyScore: webScore,
+    verdict,
+    overallVerdict: item.overall_verdict ?? null,
+    overallLabel,
+    metaqaClassification: item.classification ?? null,
     status: mapStatus(item.status),
     createdAt: item.created_at,
   }

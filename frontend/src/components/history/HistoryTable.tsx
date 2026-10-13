@@ -1,7 +1,7 @@
 import { Search } from 'lucide-react'
 import type { HistoryRun, Verdict } from '../../types'
 import { RunStatus, Verdict as VerdictValue, isAnalysisFailureStatus } from '../../types'
-import { classNames, formatDate } from '../../lib/format'
+import { classNames, formatDate, formatPercent, formatScore } from '../../lib/format'
 import { ScoreMeter } from '../detect/ScoreGauge'
 import { EmptyState, VerdictBadge } from '../ui/Status'
 
@@ -18,6 +18,7 @@ const filters: Array<{ value: Verdict | 'all'; label: string }> = [
   { value: 'all', label: 'All' },
   { value: VerdictValue.Reliable, label: 'Likely reliable' },
   { value: VerdictValue.Hallucinated, label: 'Likely hallucinated' },
+  { value: VerdictValue.Uncertain, label: 'Needs verification' },
 ]
 
 export function HistoryTable({
@@ -111,8 +112,24 @@ export function HistoryTable({
                     <td className="max-w-[22rem] truncate px-4 py-3 text-ink">{run.question}</td>
                     <td className="px-4 py-3 text-ink-secondary">{run.model}</td>
                     <td className="px-4 py-3">
-                      {run.status === RunStatus.Completed && run.score != null && run.verdict ? (
-                        <ScoreMeter score={run.score} verdict={run.verdict} />
+                      {run.status === RunStatus.Completed && run.combinedRiskScore != null && run.verdict ? (
+                        <div className="space-y-0.5">
+                          <ScoreMeter score={run.combinedRiskScore} verdict={run.verdict} />
+                          <div className="text-[11px] text-ink-muted">
+                            <span>MetaQA {run.metaqaScore != null ? formatScore(run.metaqaScore) : '—'}</span>
+                            <span className="mx-1">•</span>
+                            <span>Web {run.webConsistencyScore != null ? formatPercent(run.webConsistencyScore) : '—'}</span>
+                          </div>
+                        </div>
+                      ) : run.status === RunStatus.Completed && run.combinedRiskScore == null ? (
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-medium text-ink-muted">Unavailable</span>
+                          {run.metaqaScore != null ? (
+                            <div className="text-[11px] text-ink-muted">
+                              <span>MetaQA only: {formatScore(run.metaqaScore)}</span>
+                            </div>
+                          ) : null}
+                        </div>
                       ) : isAnalysisFailureStatus(run.status) ? (
                         <span className="text-xs text-hallucinated">Analysis failed</span>
                       ) : (
@@ -121,7 +138,7 @@ export function HistoryTable({
                     </td>
                     <td className="px-4 py-3">
                       {run.verdict ? (
-                        <VerdictBadge verdict={run.verdict} />
+                        <VerdictBadge verdict={run.verdict} label={run.overallLabel || undefined} />
                       ) : (
                         <span className="text-xs text-ink-muted">
                           {isAnalysisFailureStatus(run.status) ? 'Incomplete' : 'In progress'}
@@ -145,9 +162,13 @@ export function HistoryTable({
                 >
                   <p className="text-sm leading-6 text-ink">{run.question}</p>
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
-                    {run.verdict ? <VerdictBadge verdict={run.verdict} /> : null}
-                    {run.score != null && run.verdict ? (
-                      <ScoreMeter score={run.score} verdict={run.verdict} />
+                    {run.verdict ? (
+                      <VerdictBadge verdict={run.verdict} label={run.overallLabel || undefined} />
+                    ) : null}
+                    {run.status === RunStatus.Completed && run.combinedRiskScore != null && run.verdict ? (
+                      <ScoreMeter score={run.combinedRiskScore} verdict={run.verdict} />
+                    ) : run.status === RunStatus.Completed && run.combinedRiskScore == null ? (
+                      <span className="text-xs text-ink-muted">Risk unavailable</span>
                     ) : (
                       <span className="text-xs text-ink-muted">
                         {isAnalysisFailureStatus(run.status) ? 'Analysis failed' : 'Analyzing…'}
@@ -156,6 +177,17 @@ export function HistoryTable({
                     <span className="text-xs text-ink-muted">{run.model}</span>
                     <span className="text-xs text-ink-muted">{formatDate(run.createdAt)}</span>
                   </div>
+                  {run.combinedRiskScore != null && (run.metaqaScore != null || run.webConsistencyScore != null) ? (
+                    <div className="mt-2 text-[11px] text-ink-muted">
+                      <span>MetaQA {run.metaqaScore != null ? formatScore(run.metaqaScore) : '—'}</span>
+                      <span className="mx-1">•</span>
+                      <span>Web {run.webConsistencyScore != null ? formatPercent(run.webConsistencyScore) : '—'}</span>
+                    </div>
+                  ) : run.status === RunStatus.Completed && run.combinedRiskScore == null && run.metaqaScore != null ? (
+                    <div className="mt-2 text-[11px] text-ink-muted">
+                      <span>MetaQA only: {formatScore(run.metaqaScore)}</span>
+                    </div>
+                  ) : null}
                 </button>
               </li>
             ))}

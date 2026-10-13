@@ -332,7 +332,13 @@ export interface HistoryRun {
   question: string
   model: string
   score: number | null
+  combinedRiskScore: number | null
+  metaqaScore: number | null
+  webConsistencyScore: number | null
   verdict: Verdict | null
+  overallVerdict: string | null
+  overallLabel: string | null
+  metaqaClassification: string | null
   status: RunStatus
   createdAt: string
 }

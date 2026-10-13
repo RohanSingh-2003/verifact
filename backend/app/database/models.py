@@ -37,6 +37,8 @@ class Run(Base):
     web_evidence_error: Mapped[str] = mapped_column(Text, nullable=False, default="")
     web_evidence_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
     ai_verdicts_json: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    combined_risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
+    overall_verdict: Mapped[str | None] = mapped_column(String(64), nullable=True)
     answer_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     mutation_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
     verify_ms: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -190,6 +190,7 @@ def persist_web_evidence_result(db: Session, run_id: str, result: WebEvidenceRes
     run.web_evidence_status = result.status.value
     run.web_evidence_error = (result.error or "").strip()
     run.web_evidence_json = json.dumps(result.to_dict(), ensure_ascii=False)
+    _update_run_verification_summary(run)
     db.flush()
 
 
@@ -282,6 +283,28 @@ def web_evidence_from_run(run: Run) -> WebEvidenceOut | None:
         consistency_verdict_label=payload.get("consistency_verdict_label"),
         claims=claims_out,
     )
+
+
+def _update_run_verification_summary(run: Run) -> None:
+    status = _parse_run_status(run.status)
+    complete = status == RunStatus.COMPLETED
+    classification = (
+        Classification(run.classification)
+        if complete and run.classification in Classification._value2member_map_
+        else None
+    )
+    score = run.hallucination_score if complete else None
+    web_evidence = web_evidence_from_run(run)
+    summary_payload = build_verification_summary(
+        status=status,
+        classification=classification,
+        score=score,
+        threshold=run.threshold,
+        web_evidence=web_evidence,
+    )
+    if summary_payload.get("ready"):
+        run.combined_risk_score = summary_payload.get("combined_risk_score")
+        run.overall_verdict = summary_payload.get("overall_verdict")
 
 
 def update_run_status(db: Session, run_id: str, status: RunStatus) -> None:
@@ -454,6 +477,7 @@ def complete_run_analysis(
             existing.verified = is_verified
             if verdicts_json:
                 existing.verdicts_json = verdicts_json
+    _update_run_verification_summary(run)
     db.flush()
     db.refresh(run)
     return run
@@ -516,26 +540,56 @@ def _parse_run_status(value: str) -> RunStatus:
 
 def _to_run_summary(run: Run) -> RunSummary:
     status = _parse_run_status(run.status)
-    if not _is_complete(run):
-        return RunSummary(
-            id=run.id,
-            question=run.question,
-            generator_model=run.generator_model,
-            hallucination_score=None,
-            classification=None,
+    complete = _is_complete(run)
+
+    classification = (
+        Classification(run.classification)
+        if complete and run.classification in Classification._value2member_map_
+        else None
+    )
+    hallucination_score = run.hallucination_score if complete else None
+
+    combined_risk_score = getattr(run, "combined_risk_score", None)
+    overall_verdict = getattr(run, "overall_verdict", None)
+
+    web_evidence = web_evidence_from_run(run)
+    web_consistency_score: float | None = None
+    if web_evidence and web_evidence.consistency_score is not None:
+        web_consistency_score = web_evidence.consistency_score
+
+    if (combined_risk_score is None or overall_verdict is None) and (complete or web_evidence):
+        summary_payload = build_verification_summary(
             status=status,
-            created_at=run.created_at,
+            classification=classification,
+            score=hallucination_score,
+            threshold=run.threshold,
+            web_evidence=web_evidence,
         )
+        if summary_payload.get("ready"):
+            if combined_risk_score is None:
+                combined_risk_score = summary_payload.get("combined_risk_score")
+            if overall_verdict is None:
+                overall_verdict = summary_payload.get("overall_verdict")
+
+    overall_label = None
+    if overall_verdict:
+        from app.services.verification_summary import _OVERALL_LABELS, OverallVerdict
+        try:
+            ov_enum = OverallVerdict(overall_verdict)
+            overall_label = _OVERALL_LABELS.get(ov_enum, overall_verdict.replace("_", " ").title())
+        except ValueError:
+            overall_label = overall_verdict.replace("_", " ").title()
+
     return RunSummary(
         id=run.id,
         question=run.question,
         generator_model=run.generator_model,
-        hallucination_score=run.hallucination_score,
-        classification=(
-            Classification(run.classification)
-            if run.classification in Classification._value2member_map_
-            else None
-        ),
+        hallucination_score=hallucination_score,
+        classification=classification,
+        combined_risk_score=combined_risk_score,
+        overall_verdict=overall_verdict,
+        overall_label=overall_label,
+        web_consistency_score=web_consistency_score,
         status=status,
         created_at=run.created_at,
     )
