@@ -30,10 +30,6 @@ Prior to final product release, VeriFact was used to evaluate same-model versus 
 | Document | Purpose |
 | :--- | :--- |
 | **[final_results_lock.md](final_results_lock.md)** | Research artifact lock for the frozen 40-question mock study (`58baff20-fb86-4f43-b20e-895a086ceb6b`). Highlights that the study used mock fixtures and that the live experiment was frozen as not executed. |
-| **[experiment_methodology.md](experiment_methodology.md)** | Historical specification of the 2×2 same-model vs. cross-model design, fixed mutation controls, and Wilcoxon signed-rank testing. |
-| **[results.md](results.md)** | Statistical breakdown of the frozen 2×2 study and verifier calibration confounds. |
-| **[discussion.md](discussion.md)** | Scientific interpretation of experimental findings, self-verification hypotheses, and future directions. |
-| **[research_audit.md](research_audit.md)** | Internal research integrity and reproducibility audit report. |
 
 ---
 

@@ -85,6 +85,3 @@ This pattern is a deterministic calibration characteristic of the mock fixtures,
 ## Related Documentation
 
 - [`docs/final_results_lock.md`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/docs/final_results_lock.md): Full audit lock of the frozen 40-question mock run.
-- [`docs/experiment_methodology.md`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/docs/experiment_methodology.md): Experimental design, mutation reuse, and statistical testing protocol.
-- [`docs/results.md`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/docs/results.md): Statistical breakdown of the 2×2 study results.
-- [`docs/research_audit.md`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/docs/research_audit.md): Complete research and engineering integrity audit report.
