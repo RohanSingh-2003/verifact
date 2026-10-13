@@ -154,3 +154,23 @@ export function mutationInterpretation(
 export function classNames(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(' ')
 }
+
+/**
+ * Validates and sanitizes external web evidence URLs.
+ * Accepts only absolute, parseable URLs with http: and https: protocols.
+ * Returns the normalized URL string, or null for empty, missing, malformed, relative, or unsafe URLs.
+ */
+export function sanitizeExternalUrl(url: string | null | undefined): string | null {
+  if (!url || typeof url !== 'string') return null
+  const trimmed = url.trim()
+  if (!trimmed) return null
+  try {
+    const parsed = new URL(trimmed)
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href
+    }
+    return null
+  } catch {
+    return null
+  }
+}

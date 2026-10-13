@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AlertTriangle, Check, ExternalLink, X } from 'lucide-react'
 import type { VerificationSummary, WebClaimRecord } from '../../types'
 import { EvidenceVerdict } from '../../types'
-import { classNames } from '../../lib/format'
+import { classNames, sanitizeExternalUrl } from '../../lib/format'
 
 interface VerificationSummaryPanelProps {
   summary: VerificationSummary | null | undefined
@@ -71,27 +71,36 @@ function AttentionClaim({
               <p className="mt-1 text-sm text-ink-muted">No sources retrieved for this claim.</p>
             ) : (
               <ul className="mt-2 space-y-2">
-                {claim.sources.map((source) => (
-                  <li
-                    key={`${claim.id}:${source.url}`}
-                    className="rounded-[var(--radius-sm)] border border-line bg-surface px-3 py-2.5"
-                  >
-                    <p className="text-sm font-medium text-ink">{source.title}</p>
-                    <p className="mt-0.5 text-xs text-ink-muted">{source.domain || source.url}</p>
-                    {source.snippet ? (
-                      <p className="mt-1.5 text-xs leading-5 text-ink-secondary">{source.snippet}</p>
-                    ) : null}
-                    <a
-                      href={source.url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+                {claim.sources.map((source) => {
+                  const safeUrl = sanitizeExternalUrl(source.url)
+                  return (
+                    <li
+                      key={`${claim.id}:${source.url}`}
+                      className="rounded-[var(--radius-sm)] border border-line bg-surface px-3 py-2.5"
                     >
-                      Open source
-                      <ExternalLink className="h-3 w-3" aria-hidden="true" />
-                    </a>
-                  </li>
-                ))}
+                      <p className="text-sm font-medium text-ink">{source.title}</p>
+                      <p className="mt-0.5 text-xs text-ink-muted">{source.domain || source.url}</p>
+                      {source.snippet ? (
+                        <p className="mt-1.5 text-xs leading-5 text-ink-secondary">{source.snippet}</p>
+                      ) : null}
+                      {safeUrl ? (
+                        <a
+                          href={safeUrl}
+                          target="_blank"
+                          rel="noreferrer noopener"
+                          className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-accent hover:underline"
+                        >
+                          Open source
+                          <ExternalLink className="h-3 w-3" aria-hidden="true" />
+                        </a>
+                      ) : (
+                        <span className="mt-2 inline-block text-[11px] text-ink-muted">
+                          Source link unavailable
+                        </span>
+                      )}
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

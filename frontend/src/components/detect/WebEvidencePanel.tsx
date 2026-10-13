@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Check, ChevronDown, Circle, ExternalLink, X } from 'lucide-react'
 import type { WebClaimRecord, WebEvidenceResult, WebSourceRecord } from '../../types'
 import { EvidenceVerdict, WebEvidenceStatus } from '../../types'
-import { classNames } from '../../lib/format'
+import { classNames, sanitizeExternalUrl } from '../../lib/format'
 import { AnalysisProgress, type ProgressStepItem, type StepState } from './AnalysisProgress'
 
 interface WebEvidencePanelProps {
@@ -230,6 +230,7 @@ function SourceCard({
   const isAuth = isAuthoritativeTier(source.sourceType)
   const isLow = (source.sourceType || '').toUpperCase() === 'LOW_PRIORITY'
   const evidenceSummary = getCleanSourceEvidence(source, claimVerdict)
+  const safeUrl = sanitizeExternalUrl(source.url)
 
   return (
     <li className="rounded-[var(--radius-sm)] border border-line bg-surface p-4 sm:p-5 space-y-3">
@@ -279,15 +280,21 @@ function SourceCard({
         >
           {source.url}
         </span>
-        <a
-          href={source.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex items-center gap-1 font-medium text-accent hover:underline shrink-0"
-        >
-          <span>Open source</span>
-          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-        </a>
+        {safeUrl ? (
+          <a
+            href={safeUrl}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="inline-flex items-center gap-1 font-medium text-accent hover:underline shrink-0"
+          >
+            <span>Open source</span>
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          </a>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-[11px] text-ink-muted shrink-0">
+            Source link unavailable
+          </span>
+        )}
       </div>
     </li>
   )
