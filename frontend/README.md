@@ -220,7 +220,7 @@ frontend/src/
     ```
 - **Port 5173 already in use**:
   - Vite will automatically attempt the next available port (e.g., 5174). If this happens, ensure `FRONTEND_ORIGIN` in `backend/.env` is updated to match the new port.
-- **Model selector displays "Unconfigured"**:
+- **Provider status displays "Unconfigured"**:
   - The cloud provider API key has not been added to `backend/.env`. Add the corresponding key (e.g., `OLLAMA_API_KEY`, `GEMINI_API_KEY`) and restart the backend.
 - **Styles not rendering properly**:
   - Ensure dependencies are installed via `npm install` and that Tailwind CSS is correctly processed via `@tailwindcss/vite`.

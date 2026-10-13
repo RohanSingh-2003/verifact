@@ -88,7 +88,7 @@ VeriFact is built with a decoupled architecture separating the presentation laye
 │   ├── routes_runs.py          → GET /api/runs, GET /api/runs/{id}      │
 │   ├── routes_evaluations.py   → POST /api/evaluations/run, exports     │
 │   ├── routes_health.py        → GET /api/health                        │
-│   └── routes_settings.py      → GET /api/settings                      │
+│   └── routes_settings.py      → GET /api/settings (model metadata)     │
 │                                                                        │
 │   Core Pipelines:                                                      │
 │   ├── app.metaqa              → Mutation generation, scoring, verifier │
@@ -113,13 +113,14 @@ VeriFact is built with a decoupled architecture separating the presentation laye
 
 ### Frontend–Backend Communication Flow
 1. **Reverse Proxying**: In local development, the Vite frontend development server (`http://localhost:5173`) proxies all requests starting with `/api` directly to the FastAPI backend (`http://127.0.0.1:8000`). This avoids Cross-Origin Resource Sharing (CORS) complications during development.
-2. **Immediate Handshake**: When a user submits a question on the Detect page, the frontend issues `POST /api/detect` with the question and the user-selected `answer_model`.
+2. **Immediate Handshake**: When a user submits a question on the Detect page, the frontend issues `POST /api/detect` with the question and dedicated `answer_model: "gemma"`.
 3. **Instant Response**: The backend synchronously generates the candidate answer, persists a run with status `answer_ready`, schedules verification background tasks, and immediately returns the answer JSON. The UI renders the answer in seconds.
-4. **State Polling**: The frontend initiates polling on `GET /api/runs/{id}` (every 1,000ms). As background workers update SQLite, the frontend progressively renders:
+4. **State Polling**: The frontend initiates polling on `GET /api/runs/{id}` (every 1,200ms). As background workers update SQLite, the frontend progressively renders:
    - Mutation generation status (`generating_mutations` → `mutations_ready`)
    - Individual mutation verification progress (`verifying_mutations`)
+   - Independent peer verdicts from the multi-model verifier pool
    - Web Evidence stages (`classifying_question` → `searching_web` → `verifying_evidence`)
-   - Final Overall VeriFact Assessment and Combined Hallucination Risk once both branches finish.
+   - Final Overall VeriFact Assessment and Combined Hallucination Risk once all branches finish.
 
 ---
 
@@ -413,7 +414,7 @@ Open your browser at **[http://localhost:5173](http://localhost:5173)**.
 All automated unit tests run against deterministic mock fixtures and do **not** call external APIs or require live credits:
 
 ```bash
-# 1. Run Backend Pytest Suite (339 tests)
+# 1. Run Backend Pytest Suite (458 test items collected at time of audit)
 cd backend
 pytest
 
@@ -486,7 +487,7 @@ verifact/
 │   │   └── main.py                         # Application factory & CORS middleware
 │   ├── data/
 │   │   └── datasets/                       # Curated evaluation datasets (pilot.json)
-│   ├── tests/                              # Automated test suite (339 tests)
+│   ├── tests/                              # Automated test suite (458 items at audit time)
 │   ├── requirements.txt                    # Python dependencies
 │   └── README.md                           # Backend developer guide
 ├── frontend/                               # React 19 + TypeScript + Vite UI
@@ -516,13 +517,13 @@ verifact/
 │   ├── limitations.md                      # Detailed system boundaries & constraints
 │   ├── screenshots/                        # Application UI screenshots
 │   └── README.md                           # Documentation directory index
-├── experiments/                            # Historical 2x2 research run artifacts
-│   ├── config/                             # Intended live config (frozen, not run)
+├── experiments/                            # Historical 2x2 research run archive
+│   ├── config/                             # Unexecuted live config (final_experiment.yaml)
 │   ├── results/                            # Frozen mock run 58baff20 results
-│   └── README.md                           # Experiment artifacts guide
-├── analysis/                               # Research table & chart generation
-│   ├── output/                             # Generated CSVs and PNG charts
-│   └── README.md                           # Analysis script documentation
+│   └── README.md                           # Historical experiment archive guide
+├── analysis/                               # Historical research table & chart archive
+│   ├── output/                             # Preserved CSVs and PNG charts
+│   └── README.md                           # Analysis documentation guide
 └── README.md                               # Repository root documentation (this file)
 ```
 

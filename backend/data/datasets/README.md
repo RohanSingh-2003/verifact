@@ -145,8 +145,8 @@ During execution:
 | **Objective** | Measure detector accuracy against known ground-truth labels. | Provide real-time explainable hallucination analysis for arbitrary user questions. |
 | **Input** | Static dataset files (`pilot.json`). | Ad-hoc user-submitted question. |
 | **Ground Truth** | Reference answers and aliases provided in dataset. | **Reference-free**: No ground-truth answer exists or is consulted. |
-| **Verification** | MetaQA metamorphic testing over dataset answers. | **Dual-branch**: MetaQA metamorphic testing + real-time Tavily Web Evidence search. |
-| **Output** | Precision, Recall, F1, confusion matrix, threshold curves. | Candidate answer, mutation breakdowns, web source cards, Overall VeriFact Assessment. |
+| **Verification** | MetaQA metamorphic testing over dataset answers. | **Three-branch**: MetaQA metamorphic testing + Direct-Answer Multi-Model Peer Review + real-time Tavily Web Evidence search. |
+| **Output** | Precision, Recall, F1, confusion matrix, threshold curves. | Candidate answer, mutation breakdowns, peer review consensus, web source cards, Overall VeriFact Assessment. |
 
 ---
 

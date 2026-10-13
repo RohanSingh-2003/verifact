@@ -18,22 +18,22 @@ VeriFact implements **MetaQA**, a metamorphic testing methodology designed to ev
 Instead of directly asking if an answer is correct, MetaQA tests whether the model behaves coherently when the core claims of its answer are restated in meaning-preserving and meaning-reversing forms.
 
 - **MetaQA** refers to the theoretical metamorphic testing method (claim extraction, synonym/antonym mutations, independent verification, and deterministic score aggregation).
-- **VeriFact** is the software framework that implements this methodology into an interactive progressive web application, local Ollama engine, and independent Web Evidence verification layer.
+- **VeriFact** is the software framework that implements this methodology into an interactive progressive web application, Ollama Cloud API engine (`https://ollama.com/api` with Gemma 4:26B), direct-answer Multi-Model Peer Review, and independent Web Evidence verification layer.
 
 ---
 
 ## 3. Base Answer Generation
 
-Given a factual user query, the generator model (`gemma4:26b` in live Ollama mode) produces a concise factual answer. 
+Given a factual user query, the generator model (`gemma4:26b` via the official Ollama Cloud API in live mode) produces a concise factual answer.
 
 - Ground-truth references are **never** provided to the prompt.
-- In the interactive Detect pipeline, answer generation is decoupled from verification: the answer is stored and returned immediately to the frontend (`status: answer_ready`), allowing the user to read the AI's response while MetaQA and Web Evidence proceed **in parallel** on the same run. Either branch may fail or encounter rate limits without blocking the other or hiding the answer.
+- In the interactive Detect pipeline, answer generation is decoupled from verification: the answer is stored and returned immediately to the frontend (`status: answer_ready`), allowing the user to read the AI's response while MetaQA, Multi-Model Peer Review, and Web Evidence proceed **in parallel** on the same run. Any branch may fail or encounter rate limits without blocking the others or hiding the generated answer.
 
 ---
 
 ## 4. Metamorphic Mutation Generation
 
-To ensure reliable, focused testing, VeriFact does not attempt to rewrite an entire multi-sentence answer in a single prompt. Instead, it extracts **3–4 atomic core factual claims** (`CoreClaim`) and generates paired mutations from those claims:
+To ensure reliable, focused testing, VeriFact does not attempt to rewrite an entire multi-sentence answer in a single prompt. Instead, it extracts **atomic core factual claims** (`CoreClaim`) and generates paired mutations from those claims:
 
 ### Synonym Mutations (Meaning-Preserving)
 - **Definition**: A restatement that preserves the semantic meaning and factual assertions of the original claim using different vocabulary, voice, or sentence structure.
@@ -46,8 +46,8 @@ To ensure reliable, focused testing, VeriFact does not attempt to rewrite an ent
 - **Expected Verifier Verdict**: `NO` (Not Supported)
 
 ### Mutation Counts
-- **Interactive Detect**: Uses **3 synonym + 3 antonym = 6 mutations** (`SYNONYM_COUNT=3`, `ANTONYM_COUNT=3`) to maintain responsive latency on local 26B parameter hardware.
-- **Offline Research Studies**: Configured for 5 synonym + 5 antonym = 10 mutations during previous offline 2×2 study trials.
+- **Interactive Detect**: Uses **3 synonym + 3 antonym = 6 mutations** (`SYNONYM_COUNT=3`, `ANTONYM_COUNT=3`) to maintain responsive latency over cloud API round-trips.
+- **Archival Research Studies**: Configured for 5 synonym + 5 antonym = 10 mutations during previous offline 2×2 study trials preserved in the repository archive.
 
 ### Syntactic & Semantic Heuristic Gates
 Every candidate mutation is validated by strict heuristic filters before being accepted:
@@ -64,7 +64,7 @@ Every candidate mutation is validated by strict heuristic filters before being a
 Each accepted mutation is submitted independently to the multi-model verifier pool:
 - **Multi-Model Verification Architecture**:
   - **Generator**: Gemma 4:26B generates the base answer and creates all synonym and antonym mutations.
-  - **Mutation Verifier Pool**: Configured non-Gemma cloud models (`gemini`, `glm`, `qwen`, `openrouter`) verify each mutation concurrently via `multi_verifier.py`.
+  - **Mutation Verifier Pool**: Configured non-Gemma cloud models (`gemini`, `cloudflare`, `groq`, `openrouter`) verify each mutation concurrently via `multi_verifier.py`.
   - **Direct-Answer Peer Review**: Concurrently, peer models evaluate Gemma's original complete answer text with full contextual inputs (question, answer, claims, mutations, web snippets) via `independent_verifiers.py` to produce qualitative peer consensus and contradictory claim flags.
   - **Scoring Engine**: VeriFact's deterministic scoring engine evaluates mutation verdicts against programmatically derived expectations.
 - **Why Cross-Model Verification Exists**:
@@ -88,7 +88,7 @@ Each accepted mutation is submitted independently to the multi-model verifier po
   - `NO`: The statement is not supported by (or contradicts) the candidate answer.
   - `NOT SURE`: The verifier cannot determine support, or returned ambiguous text.
 - **No Silent Fallback**:
-  - If Gemini API is unconfigured, rate-limited, or unavailable, MetaQA explicitly reports that Gemini verification is unavailable. It **never** silently substitutes Ollama as the verifier, preserving the scientific integrity of the cross-model experiment.
+  - If external cloud verifier APIs are unconfigured, rate-limited, or unavailable, MetaQA explicitly reports that verification is unavailable. It **never** silently substitutes the generator as the verifier, preserving the scientific integrity of cross-model evaluation.
 - **Robust Parser**: If the verifier output contains malformed formatting, it safely parses to `NOT SURE` with `parse_failed=True`.
 
 ---
@@ -189,16 +189,16 @@ Higher values mean more checked claims were supported by retrieved snippets. Thi
 
 ---
 
-## 9. Verification Summary (Side-by-Side Signal Synthesis)
+## 9. Verification Summary (Multi-Signal Synthesis)
 
-After both pipelines finish (or one fails/becomes unavailable), VeriFact synthesizes a **Verification Summary** that contrasts MetaQA and Web Evidence:
+After all verification branches finish (or handle failures), VeriFact synthesizes a **Verification Summary** that contrasts MetaQA, Peer Review, and Web Evidence:
 - `AGREE`: Both internal consistency and external sources indicate reliability or both indicate hallucination.
 - `DISAGREE`: Internal consistency conflicts with external evidence (e.g., model is internally consistent but contradicted externally, or vice versa).
 - `BOTH_CONCERNING`: Both internal inconsistency and external contradictions are detected.
 - `WEB_INSUFFICIENT`: MetaQA completed, but external search yielded insufficient evidence.
-- `PARTIAL`: One pipeline completed successfully while the other experienced an error or missing configuration.
+- `PARTIAL`: One pipeline completed successfully while another experienced an error or missing configuration.
 
-There is strictly **no fused single percentage**. Both perspectives are maintained clearly.
+The UI displays the independent metrics side-by-side alongside a heuristic Combined Risk assessment card. There is strictly **no fused single percentage** collapsing the research scores.
 
 ---
 

@@ -170,5 +170,5 @@ Relying on a single model to both generate and verify factual claims exposes the
 ## 6. Research Boundary & Parallel Verification
 
 - **MetaQA zero-resource constraint**: MetaQA itself operates without live web retrieval, Google Search, Wikipedia, or RAG.
-- **Parallel Web Evidence**: After the AI answer is generated, MetaQA and Web Evidence execute as **independent parallel verification pipelines**. Either pipeline may complete, fail, or become unavailable without blocking the other. The AI answer is always displayed independently of verification.
-- **Separate scores**: MetaQA score and Web Evidence consistency score remain separate. No combined hallucination percentage is produced. Partial verification is a valid state. Verification failure is not equivalent to hallucination.
+- **Concurrent Three-Branch Verification**: After the AI answer is generated, MetaQA, Direct-Answer Multi-Model Peer Review, and Web Evidence execute as **independent parallel verification branches**. Any branch may complete, fail, or become unavailable without blocking the others. The AI answer is always displayed independently of verification.
+- **Separate scores & heuristic risk card**: MetaQA Hallucination Score, Web Consistency Score, and Multi-Model Verdicts remain strictly independent signals. The UI presents each metric on dedicated cards alongside a heuristic Combined Risk Card; the underlying research scores are never merged or collapsed into an arbitrary percentage. Partial verification is a valid state, and verification failure is not equivalent to hallucination.

@@ -34,7 +34,7 @@ FastAPI service powering VeriFact's explainable hallucination detection system. 
   3. **Web Evidence Grounding** (external Tavily search retrieval + claim-level fact-checking)
   None of the background verification branches block each other.
 - **100% Cloud-Based Model Inference**: All inference runs through official cloud provider APIs (Ollama Cloud, Cloudflare Workers AI, Groq, OpenRouter, Google Gemini). **No local Ollama daemon or local GPU inference is used.**
-- **Deterministic Offline Mock Mode**: Setting `LLM_MODE=mock` replaces all external LLM and search calls with deterministic fixtures, enabling the entire 422-test suite to run in ~8 seconds without network access or live API credits.
+- **Deterministic Offline Mock Mode**: Setting `LLM_MODE=mock` replaces all external LLM and search calls with deterministic fixtures, enabling the automated test suite (458 test items collected at time of audit) to run in seconds without network access or live API credits.
 
 ---
 
@@ -276,7 +276,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 ## Running Automated Tests
 
-The backend includes a comprehensive automated test suite with **422 tests** covering all pipelines, scoring functions, mutation edge cases, independent peer verifiers, error handlers, and summary fusion rules:
+The backend includes a comprehensive automated test suite (458 test items collected at the time of the audit) covering all pipelines, scoring functions, mutation edge cases, independent peer verifiers, error handlers, and summary fusion rules:
 
 ```bash
 # Run the complete test suite

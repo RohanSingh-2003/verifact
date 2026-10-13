@@ -1,86 +1,132 @@
-# Experiment Artifacts & Research Reference
+# Experiment Artifacts & Historical Research Archive
 
-This directory preserves offline research artifacts, frozen configuration snapshots, raw generation traces, processed tables, and visual charts from the 2×2 same-model versus cross-model verifier investigation ($A \to A, A \to B, B \to A, B \to B$).
+> **Archival Notice:**
+> This directory is a **historical research archive**. The original 2×2 same-model versus cross-model experiment execution engine, batch runner service (`experiment_service.py`), and associated endpoints (`/api/experiments/*`) have been **retired and removed from the active codebase**.
+> The interactive VeriFact product focuses on real-time, three-branch hallucination detection (MetaQA, Direct-Answer Multi-Model Review, and Web Evidence Grounding) across cloud-hosted models, alongside a standalone dataset evaluation API (`/api/evaluations/*`).
 
 ---
 
 ## Table of Contents
 
-- [Overview & Research Question](#overview--research-question)
-- [Locked Research Run (`58baff20`)](#locked-research-run-58baff20)
-- [Unexecuted Live Experiment (`final_experiment.yaml`)](#unexecuted-live-experiment-final_experimentyaml)
-- [Directory Organization](#directory-organization)
-- [Relationship to Primary Product](#relationship-to-primary-product)
-- [Key Findings & Scientific Caution](#key-findings--scientific-caution)
-- [Related Documentation](#related-documentation)
+- [Archival Status & Research Purpose](#archival-status--research-purpose)
+- [The Historical 2×2 Research Question](#the-historical-22-research-question)
+- [Locked Historical Mock Run (`58baff20`)](#locked-historical-mock-run-58baff20)
+- [Unexecuted Live Experiment Configuration (`final_experiment.yaml`)](#unexecuted-live-experiment-configuration-final_experimentyaml)
+- [Archived Directory Organization](#archived-directory-organization)
+- [Scientific Caution & Methodological Limitations](#scientific-caution--methodological-limitations)
+- [Related Research Documentation](#related-research-documentation)
 
 ---
 
-## Overview & Research Question
+## Archival Status & Research Purpose
 
-The 2×2 experiment investigated whether a model verifying mutations of its own answer exhibits systematic self-confirmation bias compared to an independent cross-model verifier:
+During earlier research phases of VeriFact, an offline 2×2 experimental harness was built to test whether Large Language Models exhibit systematic self-confirmation bias when verifying mutations of their own answers.
+
+Following completion and auditing of that baseline research:
+1. The batch experiment runner service and experiment API routes were **permanently retired**.
+2. Automated test run residues were cleaned from the repository.
+3. The baseline mock study traces and design-time live configuration were preserved in this directory as **immutable research records** to ensure auditability and scientific reproducibility.
+
+---
+
+## The Historical 2×2 Research Question
+
+The 2×2 factorial study evaluated whether a model verifying mutations of its own answer exhibits systematic self-confirmation bias compared to an independent cross-model verifier:
+
 - **Condition $A \to A$**: Model A generates answer and mutations; Model A verifies.
 - **Condition $A \to B$**: Model A generates answer and mutations; Model B verifies.
 - **Condition $B \to A$**: Model B generates answer and mutations; Model A verifies.
 - **Condition $B \to B$**: Model B generates answer and mutations; Model B verifies.
 
-The experimental protocol held the generated answer, extracted claims, and mutation sets strictly constant while swapping the verifier model.
+### Invariance Protocol
+To isolate verifier calibration confounds from answer generation differences, the protocol enforced strict invariance:
+- The base generated answer, extracted factual claims, and exact mutation statements were generated once and held constant.
+- Only the verifier identity was swapped across experimental conditions.
 
 ---
 
-## Locked Research Run (`58baff20`)
+## Locked Historical Mock Run (`58baff20`)
 
 The primary historical artifact preserved in this repository is:
+
 - **Run ID**: `58baff20-fb86-4f43-b20e-895a086ceb6b`
 - **Execution Mode**: **`mock` (DEMO / MOCK DATA)**
-- **Timestamp**: Started `2026-09-04T11:25:23.102104+00:00`, completed in 0.61s.
-- **Dataset**: `backend/data/datasets/pilot.json` (40 curated questions, 8 per category).
+- **Execution Timestamp**: Started `2026-09-04T11:25:23.102104+00:00`, completed in 0.61s.
+- **Dataset Evaluated**: `backend/data/datasets/pilot.json` (40 curated factual questions across 5 categories).
 - **Models Used**: Deterministic mock identifiers `model-a` and `model-b`.
-- **Exclusions**: 2 items (`q032`, `q039`) flagged as `needs_review` are excluded from automatic Precision/Recall/F1 metrics, leaving 38 labeled items.
-- **Stored Artifact Path**: `experiments/results/58baff20-fb86-4f43-b20e-895a086ceb6b/`.
+- **Review Exclusions**: 2 items (`q032`, `q039`) flagged with `needs_review: true` are excluded from automated metrics, evaluating across the remaining 38 labeled items.
+- **Audit Lock Specification**: Formally recorded in [`docs/final_results_lock.md`](../docs/final_results_lock.md).
 
 ---
 
-## Unexecuted Live Experiment (`final_experiment.yaml`)
+## Unexecuted Live Experiment Configuration (`final_experiment.yaml`)
 
-- **Configuration File**: [`experiments/config/final_experiment.yaml`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/experiments/config/final_experiment.yaml)
+- **Configuration File**: [`experiments/config/final_experiment.yaml`](config/final_experiment.yaml)
 - **Status**: **FROZEN, NOT EXECUTED**
 - **Intended Models**: Generator A & Verifier A = `gpt-4o-mini`; Generator B & Verifier B = `gpt-4o`.
-- **Reason Not Run**: The runtime environment operated with `LLM_MODE=mock` and live API keys were not configured. To preserve academic integrity and avoid unbudgeted API consumption, the intended live run was frozen as not executed.
-- **Academic Standard**: No live 2×2 benchmark was ever run. The locked results are mock demonstration data only and must **never** be cited as empirical findings about live LLM self-verification.
+- **Reason Not Run**: The execution environment operated under `LLM_MODE=mock` and live cloud credentials were not configured. To uphold academic integrity and prevent unbudgeted API consumption, the intended live run was frozen as not executed.
+- **Academic Standard**: **No live 2×2 benchmark was ever run.** The locked mock run records must **never** be cited or represented as empirical findings about live LLM self-verification behavior.
 
 ---
 
-## Directory Organization
+## Archived Directory Organization
 
-| Directory | Purpose |
+Following the repository cleanup, this directory contains exclusively the locked historical artifacts:
+
+```text
+experiments/
+├── README.md               # Historical research archive guide (this file)
+├── charts/                 # Empty placeholder directory
+├── config/
+│   └── final_experiment.yaml # Frozen design-time live configuration (not executed)
+├── raw/
+│   └── 58baff20-fb86-4f43-b20e-895a086ceb6b/
+│       ├── experiment_config.json
+│       └── generation_traces.json
+├── processed/
+│   └── 58baff20-fb86-4f43-b20e-895a086ceb6b/
+│       ├── category_analysis.csv
+│       ├── classification_flips.csv
+│       ├── condition_summary.csv
+│       ├── exclusions.json
+│       ├── experiment_config.json
+│       ├── paired_comparisons.csv
+│       ├── question_level_results.csv
+│       └── threshold_sweep.csv
+└── results/
+    └── 58baff20-fb86-4f43-b20e-895a086ceb6b/
+        ├── chart1_condition_means.png
+        ├── chart2_score_difference.png
+        ├── chart3_flip_rate.png
+        ├── chart4_threshold_sweep.png
+        ├── chart5_category.png
+        ├── experiment_config.json
+        └── results_summary.md
+```
+
+| Path | Preserved Content & Purpose |
 | :--- | :--- |
-| **`config/`** | Contains `final_experiment.yaml` (intended live configuration frozen at design time). |
-| **`raw/`** | Raw per-question generation traces, mutation sets, and verifier payloads. |
-| **`processed/`** | Structured condition tables, paired score differences, and threshold sweep data. |
-| **`results/`** | Subdirectories per experiment ID containing `results_summary.md`, `experiment_config.json`, and charts. |
-| **`charts/`** | Visual figures illustrating mean scores, paired differences, flip rates, and threshold curves. |
+| **`config/`** | Contains `final_experiment.yaml` (design-time intended live configuration frozen at design time). |
+| **`raw/58baff20.../`** | Raw per-question generation traces, atomic claims, and mutation sets for the 40 pilot questions. |
+| **`processed/58baff20.../`** | Processed condition tables, paired score differences, and threshold sweep data. |
+| **`results/58baff20.../`** | High-resolution condition comparison charts, config snapshot, and markdown results summary. |
+| **`charts/`** | Preserved directory structure; active figures for the locked run are organized inside `results/58baff20.../` and [`analysis/output/`](../analysis/output/). |
 
 ---
 
-## Relationship to Primary Product
-
-- **Independent from Interactive Detect UI**: The 2×2 study was an offline research investigation. The main user-facing application focuses on live, interactive hallucination detection across current cloud models (Gemma 4:26B, Gemini Flash 3.8, GLM-4.7-Flash, Qwen-2.5-32B, OpenRouter).
-- **Preserved Research Records**: Historical experiment runs and analysis tables are retained as frozen research records, while the interactive application and live evaluation APIs operate independently.
-
----
-
-## Key Findings & Scientific Caution
+## Scientific Caution & Methodological Limitations
 
 Within the locked mock run (`58baff20-fb86-4f43-b20e-895a086ceb6b`), hallucination scores tracked **verifier identity**:
 - Verifier A assigned score `0.0` in both $A \to A$ and $B \to A$.
 - Verifier B assigned score `1.0` in both $A \to B$ and $B \to B$.
 - This caused paired differences to equal $-1.0$ for Generator A and $+1.0$ for Generator B.
 
-This pattern is a deterministic calibration characteristic of the mock fixtures, not empirical evidence of LLM self-verification behavior. The core scientific question regarding live LLMs remains open.
+This pattern is a deterministic calibration characteristic of the mock test fixtures, **not** empirical evidence of LLM self-verification behavior in the real world. The core scientific question regarding live LLM self-confirmation bias remains open for future empirical study.
 
 ---
 
-## Related Documentation
+## Related Research Documentation
 
-- [`docs/final_results_lock.md`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/docs/final_results_lock.md): Full audit lock of the frozen 40-question mock run.
+- [`docs/final_results_lock.md`](../docs/final_results_lock.md): Full audit lock of the frozen 40-question mock run.
+- [`analysis/output/`](../analysis/output/): Standalone copy of the locked mock study tables and charts.
+- [`backend/data/datasets/README.md`](../backend/data/datasets/README.md): Documentation of the 40-question curated `pilot.json` benchmark dataset.
