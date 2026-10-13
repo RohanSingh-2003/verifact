@@ -734,7 +734,7 @@ class GeminiClientAdapter(ModelClient):
         *,
         api_key: str,
         model_name: str = "gemini-3.8-flash",
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 10.0,
         max_retries: int = 3,
         initial_retry_delay: float = 1.0,
         max_retry_delay: float = 10.0,

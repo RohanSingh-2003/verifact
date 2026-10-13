@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.database.models import Run
-from app.llm.base import LLMClient, LLMError, LLMRateLimitError, LLMUnavailableError
+from app.llm.base import LLMClient, LLMError, LLMRateLimitError, LLMTimeoutError, LLMUnavailableError
 from app.llm.gemini import _sanitize_error_message
 from app.llm.mock import MockLLMClient
 from app.llm.registry import (
@@ -249,6 +249,21 @@ async def evaluate_single_verifier(
             model_name=model_name,
             provider=provider_name,
             verdict="FAILED — Service unavailable",
+            reasoning="",
+            rationale="",
+            contradictory_claims=[],
+            confidence=None,
+            error=f"API Error: {sanitized}",
+            status="failed",
+        )
+    except LLMTimeoutError as exc:
+        sanitized = _sanitize_error_message(str(exc))
+        logger.warning("Independent verifier %s timed out: %s", model_id, sanitized)
+        return IndependentVerifierVerdict(
+            model_id=model_id,
+            model_name=model_name,
+            provider=provider_name,
+            verdict="FAILED — Request timed out",
             reasoning="",
             rationale="",
             contradictory_claims=[],

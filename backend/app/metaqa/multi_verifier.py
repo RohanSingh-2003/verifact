@@ -183,7 +183,7 @@ async def evaluate_mutation_for_model(
             provider=provider_name,
             verdict="FAILED — Timeout",
             rationale="",
-            error=f"API Error: Request timed out ({sanitized})",
+            error=f"API Error: {sanitized}" if sanitized.lower().startswith("gemini") else f"API Error: Request timed out ({sanitized})",
             status="failed",
             contribution=None,
         )

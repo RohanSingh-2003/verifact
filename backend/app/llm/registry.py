@@ -208,7 +208,7 @@ def get_model_client(model_id: str, settings: Settings) -> ModelClient:
         return GeminiClientAdapter(
             api_key=getattr(settings, "gemini_api_key", ""),
             model_name=getattr(settings, "gemini_model", mdef.default_model_name),
-            timeout_seconds=getattr(settings, "gemini_timeout_seconds", settings.llm_timeout_seconds),
+            timeout_seconds=getattr(settings, "gemini_timeout_seconds", 10.0),
             max_retries=getattr(settings, "gemini_max_retries", 3),
             initial_retry_delay=getattr(settings, "gemini_initial_retry_delay", 1.0),
             max_retry_delay=getattr(settings, "gemini_max_retry_delay", 10.0),

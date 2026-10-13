@@ -1,13 +1,21 @@
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_BACKEND_DIR = Path(__file__).resolve().parent.parent
+_ROOT_DIR = _BACKEND_DIR.parent
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            str(_ROOT_DIR / ".env"),
+            str(_BACKEND_DIR / ".env"),
+            ".env",
+        ),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -57,6 +65,7 @@ class Settings(BaseSettings):
     gemini_initial_retry_delay: float = Field(default=1.0, ge=0.1, le=10.0)
     gemini_max_retry_delay: float = Field(default=10.0, ge=1.0, le=60.0)
     gemini_total_retry_timeout: float = Field(default=30.0, ge=5.0, le=120.0)
+    gemini_timeout_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
 
     # Provider & model parameters
     llm_provider: str = "cloud"

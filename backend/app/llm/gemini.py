@@ -90,7 +90,11 @@ class GeminiRateLimitError(GeminiVerifierError, LLMRateLimitError):
 
 
 class GeminiAuthError(GeminiVerifierError):
-    """Raised on authentication / authorization failure (HTTP 401 / 403). Non-retryable."""
+    """Raised on authentication failure (HTTP 401 - invalid or unauthenticated API key). Non-retryable."""
+
+
+class GeminiPermissionError(GeminiVerifierError):
+    """Raised on authorization failure (HTTP 403 - permission denied / API not enabled). Non-retryable."""
 
 
 class GeminiModelNotFoundError(GeminiVerifierError, LLMModelNotFoundError):
@@ -110,7 +114,7 @@ class GeminiClient(LLMClient):
         *,
         api_key: str,
         default_model: str = "gemini-3.8-flash",
-        timeout_seconds: float = 30.0,
+        timeout_seconds: float = 10.0,
         max_retries: int = 3,
         temperature: float = 0.0,
         initial_retry_delay: float = 1.0,
@@ -245,24 +249,52 @@ class GeminiClient(LLMClient):
 
         config = types.GenerateContentConfig(**config_kwargs)
 
+        min_attempt_budget = min(1.0, max(0.01, self._total_retry_timeout / (self._max_retries + 1) * 0.2))
         start_overall = time.perf_counter()
         last_error: Exception | None = None
+        timeout_count = 0
+        attempts_made = 0
 
         for attempt in range(self._max_retries + 1):
             elapsed_overall = time.perf_counter() - start_overall
             remaining_total_budget = self._total_retry_timeout - elapsed_overall
-            if attempt > 0 and remaining_total_budget <= 0:
+            if remaining_total_budget < min_attempt_budget:
                 logger.warning(
-                    "Gemini total retry time budget (%.1fs) exhausted for model %s after %d attempts",
+                    "Gemini total retry time budget (%.1fs) exhausted for model %s after %d attempts (remaining=%.2fs)",
                     self._total_retry_timeout,
                     effective_model,
                     attempt,
+                    remaining_total_budget,
                 )
                 break
 
-            gen_start = time.perf_counter()
-            call_timeout = min(self._timeout_seconds, max(1.0, remaining_total_budget))
+            attempts_made += 1
+            retries_left = self._max_retries - attempt
+            if retries_left > 0:
+                # Ensure an individual attempt cannot consume the entire retry budget when retries are still available.
+                # Reserve safe budget for subsequent attempts and backoff.
+                reserved_for_retries = min(
+                    remaining_total_budget * 0.5,
+                    retries_left * (min_attempt_budget + min(self._initial_retry_delay, 1.0)),
+                )
+                max_for_attempt = max(min_attempt_budget, remaining_total_budget - reserved_for_retries)
+                call_timeout = min(self._timeout_seconds, max_for_attempt)
+            else:
+                call_timeout = min(self._timeout_seconds, remaining_total_budget)
 
+            call_timeout = max(min_attempt_budget, call_timeout)
+
+            # Synchronize SDK-level HTTP timeout with per-attempt call_timeout
+            try:
+                if hasattr(types, "HttpOptions"):
+                    config.http_options = types.HttpOptions(
+                        timeout=max(1000, int(call_timeout * 1000)),
+                        retry_options=types.HttpRetryOptions(attempts=1),
+                    )
+            except (TypeError, ValueError, AttributeError) as exc:
+                logger.debug("HttpOptions on GenerateContentConfig not set: %s", exc)
+
+            gen_start = time.perf_counter()
             last_raw_exc: Exception | None = None
             try:
                 response = await asyncio.wait_for(
@@ -303,14 +335,16 @@ class GeminiClient(LLMClient):
                 return text.strip()
 
             except TimeoutError:
+                timeout_count += 1
                 last_error = LLMTimeoutError(
                     f"Gemini request timed out after {call_timeout:.1f}s."
                 )
                 logger.warning(
-                    "Gemini timeout for model %s (attempt %d/%d)",
+                    "Gemini timeout for model %s (attempt %d/%d, call_timeout=%.1fs)",
                     effective_model,
                     attempt + 1,
                     self._max_retries + 1,
+                    call_timeout,
                 )
 
             except GeminiVerifierError:
@@ -320,6 +354,8 @@ class GeminiClient(LLMClient):
             except LLMError as exc:
                 last_error = exc
                 last_raw_exc = exc
+                if isinstance(exc, LLMTimeoutError):
+                    timeout_count += 1
                 logger.warning(
                     "Gemini LLMError for model %s (attempt %d/%d): %s",
                     effective_model,
@@ -334,41 +370,83 @@ class GeminiClient(LLMClient):
                 lower_exc = exc_str.lower()
                 status_code = getattr(exc, "status_code", None) or getattr(exc, "code", None)
 
-                # 1. Non-retryable: Authentication / Authorization (401, 403)
+                # 1. Non-retryable: 401 Unauthorized (invalid key, unauthenticated)
                 if (
-                    status_code in (401, 403)
+                    status_code == 401
                     or "api key not valid" in lower_exc
                     or "unauthenticated" in lower_exc
-                    or "permission_denied" in lower_exc
-                    or "401" in lower_exc
-                    or "403" in lower_exc
+                    or "invalid api key" in lower_exc
                 ):
                     raise GeminiAuthError(
-                        "Gemini API returned HTTP 401/403 (unauthorized). "
+                        "Gemini API returned HTTP 401 (unauthorized): Invalid API key. "
                         "Check GEMINI_API_KEY configuration."
                     ) from exc
 
-                # 2. Non-retryable: Model Not Found (404)
-                if status_code == 404 or "not found" in lower_exc or "not_found" in lower_exc or "404" in lower_exc:
+                # 2. Non-retryable: 403 Forbidden / Permission Denied (unless it's quota-related)
+                if (
+                    status_code == 403
+                    or "permission_denied" in lower_exc
+                    or "forbidden" in lower_exc
+                ):
+                    if "quota" in lower_exc or "rate" in lower_exc or "exhausted" in lower_exc or "ratelimit" in lower_exc:
+                        last_error = GeminiRateLimitError(
+                            f"Gemini API returned HTTP 403 (quota/rate limit exceeded): {exc_str}"
+                        )
+                        logger.warning(
+                            "Gemini 403 quota/rate limit for model %s (attempt %d/%d): %s",
+                            effective_model,
+                            attempt + 1,
+                            self._max_retries + 1,
+                            exc_str[:200],
+                        )
+                    else:
+                        raise GeminiPermissionError(
+                            f"Gemini API returned HTTP 403 (forbidden): Model access denied for '{effective_model}'. "
+                            f"Check project permissions and API enablement in Google AI Studio."
+                        ) from exc
+
+                # 3. Non-retryable: Model Not Found (404)
+                if status_code == 404 or "not found" in lower_exc or "not_found" in lower_exc:
                     raise GeminiModelNotFoundError(
                         f"Gemini API returned HTTP 404: model '{effective_model}' not found. "
                         f"Check GEMINI_VERIFIER_MODEL configuration."
                     ) from exc
 
-                # 3. Non-retryable: Bad Request / Invalid Argument (400)
+                # 4. Non-retryable: Bad Request / Invalid Argument (400)
                 if status_code == 400 or "invalid_argument" in lower_exc or "bad request" in lower_exc:
                     raise GeminiVerifierError(
                         f"Gemini API rejected request as invalid (HTTP 400): {exc_str}"
                     ) from exc
 
-                # 4. Non-retryable: Safety Blocks
+                # 5. Non-retryable: Safety Blocks
                 if "safety" in lower_exc or "blocked" in lower_exc:
                     raise GeminiVerifierError(
                         f"Gemini blocked response due to safety filters: {exc_str}"
                     ) from exc
 
-                # 5. Retryable: 503 High Demand / Service Unavailable
+                # 5. Retryable: Timeouts (HTTP 504 / socket / client timeouts)
                 if (
+                    status_code == 504
+                    or "timeout" in lower_exc
+                    or "timed out" in lower_exc
+                    or "deadline_exceeded" in lower_exc
+                    or "connecttimeout" in lower_exc
+                    or "readtimeout" in lower_exc
+                ):
+                    timeout_count += 1
+                    last_error = LLMTimeoutError(
+                        f"Gemini request timed out after {call_timeout:.1f}s."
+                    )
+                    logger.warning(
+                        "Gemini request timeout for model %s (attempt %d/%d): %s",
+                        effective_model,
+                        attempt + 1,
+                        self._max_retries + 1,
+                        exc_str[:200],
+                    )
+
+                # 6. Retryable: 503 High Demand / Service Unavailable
+                elif (
                     status_code == 503
                     or "503" in lower_exc
                     or "unavailable" in lower_exc
@@ -386,7 +464,7 @@ class GeminiClient(LLMClient):
                         exc_str[:200],
                     )
 
-                # 6. Retryable: 429 Rate Limit / Quota Exceeded
+                # 7. Retryable: 429 Rate Limit / Quota Exceeded
                 elif (
                     status_code == 429
                     or "429" in lower_exc
@@ -405,8 +483,8 @@ class GeminiClient(LLMClient):
                         exc_str[:200],
                     )
 
-                # 7. Retryable: 5xx Server Errors (500, 502, 504)
-                elif status_code in (500, 502, 504) or "bad gateway" in lower_exc or "gateway timeout" in lower_exc:
+                # 8. Retryable: 5xx Server Errors (500, 502)
+                elif status_code in (500, 502) or "bad gateway" in lower_exc or "internal server error" in lower_exc:
                     last_error = GeminiVerifierError(
                         f"Gemini API server error (HTTP {status_code}): {exc_str}"
                     )
@@ -433,24 +511,44 @@ class GeminiClient(LLMClient):
             if attempt >= self._max_retries:
                 break
 
+            elapsed = time.perf_counter() - start_overall
+            remaining_budget = self._total_retry_timeout - elapsed
+            if remaining_budget <= min_attempt_budget:
+                logger.warning(
+                    "Gemini retry budget exhausted for model %s before backoff sleep (remaining=%.2fs)",
+                    effective_model,
+                    remaining_budget,
+                )
+                break
+
             # Calculate bounded exponential backoff with jitter
             server_delay = _parse_retry_delay(last_raw_exc) if last_raw_exc is not None else None
             calc_backoff = (self._initial_retry_delay * (self._backoff_factor ** attempt)) + random.uniform(0.0, self._jitter)
             delay = server_delay if server_delay is not None else calc_backoff
             delay = min(delay, self._max_retry_delay)
 
-            elapsed = time.perf_counter() - start_overall
-            remaining_budget = self._total_retry_timeout - elapsed
-            if remaining_budget <= 0.0:
+            # Backoff must not exceed remaining budget, and must leave at least min_attempt_budget for next attempt
+            max_sleep = remaining_budget - min_attempt_budget
+            if max_sleep <= 0.0:
                 logger.warning(
-                    "Gemini retry budget exhausted for model %s (remaining=%.2fs)",
-                    effective_model,
+                    "Insufficient time remaining (%.2fs) for backoff sleep and next attempt",
                     remaining_budget,
                 )
                 break
 
-            sleep_secs = min(delay, remaining_budget)
+            sleep_secs = min(delay, max_sleep)
             await asyncio.sleep(sleep_secs)
+
+        if timeout_count > 0:
+            if attempts_made > 1 or timeout_count > 1:
+                raise LLMTimeoutError(
+                    "Gemini timed out after multiple attempts. Please try again later."
+                )
+            if isinstance(last_error, LLMTimeoutError):
+                raise last_error
+            raise LLMTimeoutError(
+                "Gemini timed out after multiple attempts. Please try again later."
+            )
 
         raise last_error or GeminiVerifierError("Gemini request failed after retries.")
 

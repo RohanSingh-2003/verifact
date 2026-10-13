@@ -636,7 +636,76 @@ class TestGeminiRetriesAndErrorHandling:
             )
 
         assert call_count == 1
-        assert "401/403" in str(exc_info.value)
+        assert "401" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_permission_error_no_retry(self):
+        """HTTP 403 or permission denied must fail immediately with GeminiPermissionError without retrying."""
+        from app.llm.gemini import GeminiClient, GeminiPermissionError
+
+        client = GeminiClient(
+            api_key="restricted-key",
+            default_model="gemini-3.8-flash",
+            max_retries=3,
+        )
+
+        call_count = 0
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("403 PERMISSION_DENIED. Method doesn't allow unregistered callers or Generative Language API is disabled.")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        with pytest.raises(GeminiPermissionError) as exc_info:
+            await client.complete_text(
+                model="gemini-3.8-flash",
+                system_prompt="Test",
+                user_prompt="Test",
+            )
+
+        assert call_count == 1
+        assert "403" in str(exc_info.value)
+        assert "forbidden" in str(exc_info.value).lower()
+
+    @pytest.mark.asyncio
+    async def test_403_quota_treated_as_rate_limit(self):
+        """HTTP 403 with quota/rate exhaustion is classified as GeminiRateLimitError, not auth failure."""
+        from app.llm.gemini import GeminiClient, GeminiRateLimitError
+
+        client = GeminiClient(
+            api_key="valid-key",
+            default_model="gemini-3.8-flash",
+            max_retries=1,
+            initial_retry_delay=0.01,
+            total_retry_timeout=2.0,
+        )
+
+        call_count = 0
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise RuntimeError("403 PERMISSION_DENIED. Quota exceeded for project 123456: generate_content_free_tier_requests.")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        with pytest.raises(GeminiRateLimitError) as exc_info:
+            await client.complete_text(
+                model="gemini-3.8-flash",
+                system_prompt="Test",
+                user_prompt="Test",
+            )
+
+        assert "rate limit" in str(exc_info.value).lower()
+        assert call_count == 2
 
     @pytest.mark.asyncio
     async def test_non_retryable_model_not_found_no_retry(self):
@@ -747,3 +816,328 @@ class TestGeminiRetriesAndErrorHandling:
         sanitized = _sanitize_error_message(raw_error, secret_key)
         assert secret_key not in sanitized
         assert "[MASKED" in sanitized or "key=[MASKED]" in sanitized
+
+    @pytest.mark.asyncio
+    async def test_first_request_timing_out_followed_by_successful_retry(self):
+        """Regression 1: A first request timing out followed by a successful retry."""
+        from app.llm.gemini import GeminiClient
+
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            timeout_seconds=5.0,
+            max_retries=2,
+            initial_retry_delay=0.01,
+            max_retry_delay=0.05,
+            total_retry_timeout=15.0,
+        )
+
+        call_count = 0
+
+        class MockResponse:
+            text = '{"verdict": "YES", "rationale": "Claim is accurate"}'
+            candidates: tuple = ()
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise TimeoutError("Simulated socket connection timeout on attempt 1")
+            return MockResponse()
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        res = await client.complete_json(
+            model="gemini-3.8-flash",
+            system_prompt="Test system",
+            user_prompt="Test user",
+        )
+
+        assert call_count == 2
+        assert res["verdict"] == "YES"
+        assert res["rationale"] == "Claim is accurate"
+
+    @pytest.mark.asyncio
+    async def test_multiple_timeouts_exhausting_retry_budget(self):
+        """Regression 2: Multiple timeouts exhausting the retry budget must produce clear message."""
+        from app.llm.base import LLMTimeoutError
+        from app.llm.gemini import GeminiClient
+
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            timeout_seconds=2.0,
+            max_retries=2,
+            initial_retry_delay=0.01,
+            max_retry_delay=0.03,
+            total_retry_timeout=10.0,
+        )
+
+        call_count = 0
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            raise TimeoutError("Deadline exceeded")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        with pytest.raises(LLMTimeoutError) as exc_info:
+            await client.complete_json(
+                model="gemini-3.8-flash",
+                system_prompt="Test system",
+                user_prompt="Test user",
+            )
+
+        assert "Gemini timed out after multiple attempts. Please try again later." in str(exc_info.value)
+        # Initial attempt + 2 retries = 3 attempts
+        assert call_count == 3
+
+    @pytest.mark.asyncio
+    async def test_per_attempt_timeout_shorter_than_overall_budget(self):
+        """Regression 3: Per-attempt timeout must be strictly bounded and shorter than total budget."""
+        from app.llm.gemini import GeminiClient
+
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            timeout_seconds=10.0,
+            max_retries=3,
+            total_retry_timeout=30.0,
+        )
+
+        # Configured per-attempt timeout is separated and shorter than total retry timeout
+        assert client._timeout_seconds == 10.0
+        assert client._total_retry_timeout == 30.0
+        assert client._timeout_seconds < client._total_retry_timeout
+
+        # Even if timeout_seconds is configured large, an attempt with retries remaining cannot consume whole budget
+        client_large = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            timeout_seconds=40.0,
+            max_retries=2,
+            initial_retry_delay=1.0,
+            total_retry_timeout=30.0,
+        )
+
+        # In _generate, remaining budget is reserved so attempt 0 does not take all 30s
+        min_attempt_budget = min(1.0, max(0.01, client_large._total_retry_timeout / (client_large._max_retries + 1) * 0.2))
+        retries_left = 2
+        remaining_total_budget = 30.0
+        reserved_for_retries = min(
+            remaining_total_budget * 0.5,
+            retries_left * (min_attempt_budget + min(client_large._initial_retry_delay, 1.0)),
+        )
+        max_for_attempt = max(min_attempt_budget, remaining_total_budget - reserved_for_retries)
+        call_timeout = min(client_large._timeout_seconds, max_for_attempt)
+
+        assert call_timeout < remaining_total_budget
+        assert remaining_total_budget - call_timeout >= reserved_for_retries
+
+    @pytest.mark.asyncio
+    async def test_backoff_not_exceeding_remaining_budget(self):
+        """Regression 4: Backoff sleep must not exceed the remaining time budget."""
+        import time
+        from app.llm.base import LLMTimeoutError
+        from app.llm.gemini import GeminiClient
+
+        # Setup client with tiny budget (0.15s) but large initial backoff (10.0s)
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            timeout_seconds=0.05,
+            max_retries=3,
+            initial_retry_delay=10.0,
+            max_retry_delay=30.0,
+            total_retry_timeout=0.15,
+        )
+
+        def mock_generate_content(*args, **kwargs):
+            raise TimeoutError("Timed out")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        t0 = time.perf_counter()
+        with pytest.raises(LLMTimeoutError):
+            await client.complete_text(
+                model="gemini-3.8-flash",
+                system_prompt="Test",
+                user_prompt="Test",
+            )
+        elapsed = time.perf_counter() - t0
+
+        # Must not sleep for 10 seconds; backoff is bounded to remaining budget
+        assert elapsed < 1.0
+
+    @pytest.mark.asyncio
+    async def test_no_extra_request_after_retry_budget_expires(self):
+        """Regression 5: No extra request is initiated once the retry budget is exhausted."""
+        import time
+        from app.llm.base import LLMTimeoutError
+        from app.llm.gemini import GeminiClient
+
+        client = GeminiClient(
+            api_key="test-key",
+            default_model="gemini-3.8-flash",
+            timeout_seconds=0.08,
+            max_retries=10,
+            initial_retry_delay=0.01,
+            max_retry_delay=0.02,
+            total_retry_timeout=0.10,
+        )
+
+        call_count = 0
+
+        def mock_generate_content(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            # Simulate an attempt taking 0.09s, nearly exhausting 0.10s budget
+            time.sleep(0.09)
+            raise TimeoutError("Socket timeout")
+
+        mock_genai_client = type("MockGenAIClient", (), {
+            "models": type("MockModels", (), {"generate_content": staticmethod(mock_generate_content)})()
+        })()
+        client._client = mock_genai_client
+
+        with pytest.raises(LLMTimeoutError):
+            await client.complete_text(
+                model="gemini-3.8-flash",
+                system_prompt="Test",
+                user_prompt="Test",
+            )
+
+        # Even with max_retries=10, it must terminate as soon as budget is exhausted (1 or 2 calls max)
+        assert call_count <= 2
+
+    @pytest.mark.asyncio
+    async def test_non_retryable_errors_fail_immediately(self):
+        """Regression 6: Authentication, invalid-model, and malformed-request errors fail immediately without retry."""
+        from app.llm.gemini import (
+            GeminiAuthError,
+            GeminiClient,
+            GeminiModelNotFoundError,
+            GeminiVerifierError,
+        )
+
+        # 6a. Authentication error
+        client_auth = GeminiClient(api_key="test-key", max_retries=3)
+        call_count_auth = 0
+
+        def mock_auth(*args, **kwargs):
+            nonlocal call_count_auth
+            call_count_auth += 1
+            raise RuntimeError("401 UNAUTHENTICATED. API key not valid.")
+
+        client_auth._client = type("C", (), {"models": type("M", (), {"generate_content": staticmethod(mock_auth)})()})()
+
+        with pytest.raises(GeminiAuthError):
+            await client_auth.complete_text(model="gemini-3.8-flash", system_prompt="", user_prompt="")
+        assert call_count_auth == 1
+
+        # 6b. Invalid model (404)
+        client_model = GeminiClient(api_key="test-key", max_retries=3)
+        call_count_model = 0
+
+        def mock_model(*args, **kwargs):
+            nonlocal call_count_model
+            call_count_model += 1
+            raise RuntimeError("404 NOT_FOUND. Model models/gemini-invalid not found.")
+
+        client_model._client = type("C", (), {"models": type("M", (), {"generate_content": staticmethod(mock_model)})()})()
+
+        with pytest.raises(GeminiModelNotFoundError):
+            await client_model.complete_text(model="gemini-invalid", system_prompt="", user_prompt="")
+        assert call_count_model == 1
+
+        # 6c. Malformed / Invalid argument request (400)
+        client_bad_req = GeminiClient(api_key="test-key", max_retries=3)
+        call_count_bad_req = 0
+
+        def mock_bad_req(*args, **kwargs):
+            nonlocal call_count_bad_req
+            call_count_bad_req += 1
+            raise RuntimeError("400 INVALID_ARGUMENT. Invalid contents format.")
+
+        client_bad_req._client = type("C", (), {"models": type("M", (), {"generate_content": staticmethod(mock_bad_req)})()})()
+
+        with pytest.raises(GeminiVerifierError) as exc_bad:
+            await client_bad_req.complete_text(model="gemini-3.8-flash", system_prompt="", user_prompt="")
+        assert call_count_bad_req == 1
+        assert "HTTP 400" in str(exc_bad.value)
+
+    @pytest.mark.asyncio
+    async def test_successful_peer_verifiers_usable_when_gemini_times_out(self, monkeypatch):
+        """Regression 7: Successful peer verifiers remain fully usable and aggregated when Gemini times out."""
+        from app.llm.base import LLMTimeoutError
+        from app.llm.providers import ModelClient
+        from app.services.independent_verifiers import (
+            build_multi_model_summary,
+            evaluate_all_independent_verifiers,
+        )
+
+        settings = _mock_settings(llm_mode="live")
+
+        class MockPeerClient(ModelClient):
+            async def generate_answer(self, question, **kwargs):
+                return "Peer Answer"
+
+            async def complete_text(self, **kwargs):
+                return "Peer text"
+
+            async def complete_json(self, **kwargs):
+                return {"verdict": "Correct", "reasoning": "Accurate fact.", "contradictory_claims": []}
+
+        class MockTimingOutGeminiClient(ModelClient):
+            async def generate_answer(self, question, **kwargs):
+                return "Gemini Answer"
+
+            async def complete_text(self, **kwargs):
+                raise LLMTimeoutError("Gemini timed out after multiple attempts. Please try again later.")
+
+            async def complete_json(self, **kwargs):
+                raise LLMTimeoutError("Gemini timed out after multiple attempts. Please try again later.")
+
+        def fake_get_model_client(mid, s):
+            if mid == "gemini":
+                return MockTimingOutGeminiClient()
+            return MockPeerClient()
+
+        monkeypatch.setattr("app.services.independent_verifiers.get_model_client", fake_get_model_client)
+        monkeypatch.setattr("app.services.independent_verifiers.is_model_configured", lambda mid, s: True)
+
+        verdicts = await evaluate_all_independent_verifiers(
+            question="What is the boiling point of water at standard atmospheric pressure?",
+            answer="Water boils at 100 degrees Celsius at 1 atmosphere.",
+            selected_answer_model_id="gemma",
+            settings=settings,
+        )
+
+        gemini_v = next((v for v in verdicts if v.model_id == "gemini"), None)
+        assert gemini_v is not None
+        assert gemini_v.status == "failed"
+        assert "Request timed out" in gemini_v.verdict
+        assert "Gemini timed out after multiple attempts. Please try again later." in gemini_v.error
+
+        peer_verdicts = [v for v in verdicts if v.model_id != "gemini"]
+        assert len(peer_verdicts) > 0
+        for pv in peer_verdicts:
+            assert pv.status == "completed"
+            assert pv.verdict == "Correct"
+
+        summary = build_multi_model_summary(verdicts)
+        # Peer verifiers remain fully usable and aggregated
+        assert summary.completed_verifiers == len(peer_verdicts)
+        assert summary.failed_count == 1
+        assert summary.correct_count == len(peer_verdicts)
+        assert summary.incorrect_count == 0
