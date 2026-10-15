@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AlertCircle, ChevronDown, Search } from 'lucide-react'
 import type { ModelVerifierVerdictRecord } from '../../types'
-import { classNames } from '../../lib/format'
+import { classNames, formatVerifierProvider } from '../../lib/format'
 
 export function VerdictBadge({ verdict, status }: { verdict: string; status?: string }) {
   const norm = (verdict || '').toUpperCase().trim()
@@ -122,14 +122,17 @@ export function CollapsibleModelVerdicts({
   const filteredVerdicts = useMemo(() => {
     if (!filterQuery.trim()) return verdicts
     const q = filterQuery.toLowerCase()
-    return verdicts.filter(
-      (v) =>
+    return verdicts.filter((v) => {
+      const providerLabel = formatVerifierProvider(v.provider, v.modelName || v.model, v.modelId)
+      return (
         (v.modelName && v.modelName.toLowerCase().includes(q)) ||
         (v.provider && v.provider.toLowerCase().includes(q)) ||
+        (providerLabel && providerLabel.toLowerCase().includes(q)) ||
         (v.model && v.model.toLowerCase().includes(q)) ||
         (v.modelId && v.modelId.toLowerCase().includes(q)) ||
-        (v.verdict && v.verdict.toLowerCase().includes(q)),
-    )
+        (v.verdict && v.verdict.toLowerCase().includes(q))
+      )
+    })
   }, [verdicts, filterQuery])
 
   const toggleModel = (modelId: string) => {
@@ -244,7 +247,7 @@ export function CollapsibleModelVerdicts({
                           {v.modelName || v.model || v.modelId}
                         </span>
                         <span className="text-[10px] text-ink-muted truncate">
-                          · {v.provider}
+                          · {formatVerifierProvider(v.provider, v.modelName || v.model, v.modelId)}
                         </span>
                       </div>
                       <span className="text-[10px] text-ink-muted mt-0.5 block">
@@ -308,7 +311,7 @@ export function CollapsibleModelVerdicts({
                       {/* Model & Provider Identifiers and Score Contribution */}
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[10px] text-ink-muted border-t border-line/40">
                         <div className="flex flex-wrap items-center gap-2">
-                          <span>Provider: <strong className="text-ink font-medium">{v.provider}</strong></span>
+                          <span>Provider: <strong className="text-ink font-medium">{formatVerifierProvider(v.provider, v.modelName || v.model, v.modelId)}</strong></span>
                           {v.model && (
                             <span>· Model ID: <code className="font-mono text-[10px] bg-surface px-1 py-0.5 rounded border border-line/50 text-ink">{v.model}</code></span>
                           )}

@@ -441,6 +441,7 @@ class OpenRouterClient(BaseOpenAICompatibleProviderClient):
         base_url: str = "https://openrouter.ai/api/v1",
         api_key: str,
         model_name: str = "liquid/lfm-2.5-2.6b:free",
+        fallback_model_name: str | None = None,
         timeout_seconds: float = 60.0,
         max_retries: int = 3,
         initial_retry_wait: float = 1.0,
@@ -464,6 +465,7 @@ class OpenRouterClient(BaseOpenAICompatibleProviderClient):
             timeout_seconds=timeout_seconds,
             max_retries=max_retries,
         )
+        self.fallback_model_name = (fallback_model_name or "").strip() or None
         self.initial_retry_wait = max(0.01, initial_retry_wait)
         self.max_retry_wait = max(0.1, max_retry_wait)
         self.total_retry_timeout = max(1.0, total_retry_timeout)
@@ -516,8 +518,11 @@ class OpenRouterClient(BaseOpenAICompatibleProviderClient):
         if not self._api_key or self._api_key.startswith("replace-with-"):
             raise LLMError(f"{self.provider_name} API key is not configured.")
 
+        current_model = self.model_name
+        tried_fallback = False
+
         payload: dict[str, Any] = {
-            "model": self.model_name,
+            "model": current_model,
             "temperature": temperature,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -560,6 +565,19 @@ class OpenRouterClient(BaseOpenAICompatibleProviderClient):
                 )
 
                 if response.status_code == 429:
+                    if self.fallback_model_name and not tried_fallback and self.fallback_model_name != current_model:
+                        body_text = response.text.lower()
+                        if "free-models-per-day" in body_text or "openrouter_free_tier_daily" in body_text:
+                            logger.warning(
+                                "OpenRouter free-model daily limit reached (HTTP 429) for '%s'. Falling back to '%s'.",
+                                current_model,
+                                self.fallback_model_name,
+                            )
+                            current_model = self.fallback_model_name
+                            payload["model"] = current_model
+                            tried_fallback = True
+                            continue
+
                     retry_after_hdr = response.headers.get("retry-after")
                     rl_reset_hdr = response.headers.get("x-ratelimit-reset") or response.headers.get("ratelimit-reset")
                     retry_after_val = self._parse_retry_after(retry_after_hdr)
@@ -639,8 +657,18 @@ class OpenRouterClient(BaseOpenAICompatibleProviderClient):
                     raise LLMError("OpenRouter access forbidden (HTTP 403).")
 
                 if response.status_code == 404:
+                    if self.fallback_model_name and not tried_fallback and self.fallback_model_name != current_model:
+                        logger.warning(
+                            "OpenRouter model '%s' not found (HTTP 404). Falling back to '%s'.",
+                            current_model,
+                            self.fallback_model_name,
+                        )
+                        current_model = self.fallback_model_name
+                        payload["model"] = current_model
+                        tried_fallback = True
+                        continue
                     logger.error("OpenRouter HTTP 404 Not Found: %s", response.text[:300])
-                    raise LLMError(f"OpenRouter model '{self.model_name}' not found or unavailable (HTTP 404).")
+                    raise LLMError(f"OpenRouter model '{current_model}' not found or unavailable (HTTP 404).")
 
                 if response.status_code >= 500:
                     last_error = LLMError(f"{self.provider_name} returned HTTP {response.status_code}.")

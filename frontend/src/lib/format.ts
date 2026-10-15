@@ -81,11 +81,18 @@ export function formatModelDisplay(model: string | null | undefined): string | n
     const capitalizedType = geminiMatch[2].charAt(0).toUpperCase() + geminiMatch[2].slice(1)
     return `Gemini ${geminiMatch[1]} ${capitalizedType}`
   }
+  if (model.toLowerCase().includes('phi-4') || model.toLowerCase().includes('phi')) {
+    return 'Phi-4 Reasoning'
+  }
   return model
 }
 
 export function formatProviderDisplay(provider: string | null | undefined, model?: string): string {
-  if (model?.toLowerCase().includes('gemini')) return 'Google'
+  const normModel = (model || '').toLowerCase()
+  if (normModel.includes('microsoft') || normModel.includes('phi')) return 'Microsoft'
+  if (normModel.includes('liquid') || normModel.includes('lfm')) return 'Liquid (Liquid AI)'
+  if (normModel.includes('gemini')) return 'Google'
+  if (provider === 'Microsoft' || provider === 'Liquid (Liquid AI)') return provider
   if (!provider) return ''
   if (provider === 'ollama') return 'Ollama Cloud'
   if (provider === 'cloudflare') return 'Cloudflare Workers AI'
@@ -94,6 +101,40 @@ export function formatProviderDisplay(provider: string | null | undefined, model
   if (provider === 'gemini') return 'Google'
   if (provider === 'openai_compatible') return 'OpenAI Compatible'
   return provider.charAt(0).toUpperCase() + provider.slice(1)
+}
+
+export function formatVerifierProvider(
+  provider: string | null | undefined,
+  modelName?: string,
+  modelId?: string,
+): string {
+  if (provider === 'Microsoft' || provider === 'Liquid (Liquid AI)') {
+    return provider
+  }
+
+  const candidate = `${modelId || ''} ${modelName || ''} ${provider || ''}`.toLowerCase()
+  if (candidate.includes('microsoft') || candidate.includes('phi')) {
+    return 'Microsoft'
+  }
+  if (
+    candidate.includes('liquid') ||
+    candidate.includes('lfm') ||
+    modelId?.toLowerCase() === 'openrouter' ||
+    modelName?.toLowerCase() === 'openrouter'
+  ) {
+    return 'Liquid (Liquid AI)'
+  }
+  if (candidate.includes('cloudflare') || candidate.includes('glm')) {
+    return 'Cloudflare Workers AI'
+  }
+  if (candidate.includes('groq') || candidate.includes('qwen') || candidate.includes('alibaba')) {
+    return 'Alibaba / Groq'
+  }
+  if (candidate.includes('ollama') || candidate.includes('gemma')) {
+    return 'Ollama Cloud'
+  }
+
+  return formatProviderDisplay(provider, modelName)
 }
 
 export function verifierLabel(value: VerifierResponse) {

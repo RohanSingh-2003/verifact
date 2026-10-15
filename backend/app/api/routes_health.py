@@ -21,7 +21,11 @@ class HealthResponse(BaseModel):
     verifier_model: str
     web_evidence_ready: bool = False
     web_evidence_enabled: bool = True
-    # Gemini cross-model verifier status
+    # Phi cross-model verifier status
+    phi_verifier_enabled: bool = True
+    phi_verifier_ready: bool = False
+    phi_verifier_model: str = ""
+    # Gemini cross-model verifier status (legacy)
     gemini_verifier_enabled: bool = False
     gemini_verifier_ready: bool = False
     gemini_verifier_model: str = ""
@@ -48,7 +52,8 @@ def health(settings: Settings = Depends(settings_dep)) -> HealthResponse:
         "cloudflare": ProviderStatus(name="Cloudflare Workers AI", ready=is_model_configured("glm", settings)),
         "groq": ProviderStatus(name="Alibaba / Groq", ready=is_model_configured("qwen", settings)),
         "openrouter": ProviderStatus(name="OpenRouter", ready=is_model_configured("openrouter", settings)),
-        "gemini": ProviderStatus(name="Google Gemini", ready=is_model_configured("gemini", settings)),
+        "phi": ProviderStatus(name="OpenRouter (Phi-4 Reasoning)", ready=is_model_configured("phi", settings)),
+        "gemini": ProviderStatus(name="Google Gemini", ready=False),
     }
 
     return HealthResponse(
@@ -60,9 +65,12 @@ def health(settings: Settings = Depends(settings_dep)) -> HealthResponse:
         verifier_model=settings.effective_verifier_model,
         web_evidence_ready=settings.web_evidence_ready,
         web_evidence_enabled=settings.web_evidence_enabled,
-        gemini_verifier_enabled=settings.gemini_configured,
-        gemini_verifier_ready=settings.gemini_verifier_ready,
-        gemini_verifier_model=settings.gemini_verifier_model,
+        phi_verifier_enabled=settings.phi_configured,
+        phi_verifier_ready=settings.phi_verifier_ready,
+        phi_verifier_model=settings.phi_model,
+        gemini_verifier_enabled=False,
+        gemini_verifier_ready=False,
+        gemini_verifier_model="",
         database_connected=db_connected,
         providers=provider_statuses,
     )

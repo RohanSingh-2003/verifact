@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import { AlertCircle, AlertTriangle, Bot, ChevronDown, CheckCircle2, Search, ShieldAlert } from 'lucide-react'
 import type { IndependentAiVerdict, MultiModelVerificationSummary } from '../../types'
-import { classNames } from '../../lib/format'
+import { classNames, formatVerifierProvider } from '../../lib/format'
 import { VerdictBadge } from './CollapsibleModelVerdicts'
 
 interface IndependentVerdictsCardProps {
@@ -64,11 +64,16 @@ export function IndependentVerdictsCard({
     if (!filterQuery.trim()) return verdicts
     const q = filterQuery.toLowerCase()
     return verdicts.filter(
-      (v) =>
-        (v.modelName && v.modelName.toLowerCase().includes(q)) ||
-        (v.provider && v.provider.toLowerCase().includes(q)) ||
-        (v.modelId && v.modelId.toLowerCase().includes(q)) ||
-        (v.verdict && v.verdict.toLowerCase().includes(q)),
+      (v) => {
+        const providerLabel = formatVerifierProvider(v.provider, v.modelName, v.modelId)
+        return (
+          (v.modelName && v.modelName.toLowerCase().includes(q)) ||
+          (v.provider && v.provider.toLowerCase().includes(q)) ||
+          (providerLabel && providerLabel.toLowerCase().includes(q)) ||
+          (v.modelId && v.modelId.toLowerCase().includes(q)) ||
+          (v.verdict && v.verdict.toLowerCase().includes(q))
+        )
+      },
     )
   }, [verdicts, filterQuery])
 
@@ -236,7 +241,7 @@ export function IndependentVerdictsCard({
                           {item.modelName}
                         </span>
                         <span className="text-[10px] text-ink-muted truncate">
-                          · {item.provider}
+                          · {formatVerifierProvider(item.provider, item.modelName, item.modelId)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">

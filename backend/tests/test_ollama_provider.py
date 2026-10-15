@@ -205,7 +205,7 @@ async def test_gemini_client_mocked_api() -> None:
 # 8. Dynamic verifier selection excludes the selected Answer Model
 def test_dynamic_verifier_selection_excludes_answer_model() -> None:
     settings = Settings(llm_mode="mock")
-    all_models = ["gemma", "glm", "qwen", "openrouter", "gemini"]
+    all_models = ["gemma", "glm", "qwen", "openrouter", "phi"]
     for answer_model in all_models:
         pool = get_verifier_pool(answer_model, settings)
         verifier_ids = [v["id"] for v in pool]

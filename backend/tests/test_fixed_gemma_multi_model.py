@@ -35,7 +35,7 @@ def test_gemma_is_fixed_answer_generator_ignoring_override() -> None:
         # Verifier pool excludes Gemma and includes all other models
         verifier_ids = [v["id"] for v in data["verifiers"]]
         assert "gemma" not in verifier_ids
-        for candidate in ["glm", "qwen", "openrouter", "gemini"]:
+        for candidate in ["glm", "qwen", "openrouter", "phi"]:
             assert candidate in verifier_ids
 
 
@@ -46,7 +46,7 @@ async def test_independent_verifiers_receive_context_and_return_structured_resul
     settings = get_settings()
 
     verdict = await evaluate_single_verifier(
-        "gemini",
+        "phi",
         question="What is the capital of Australia?",
         answer="Canberra is the capital of Australia.",
         settings=settings,
@@ -55,8 +55,8 @@ async def test_independent_verifiers_receive_context_and_return_structured_resul
         web_evidence="Canberra was selected as the federal capital in 1908.",
     )
 
-    assert verdict.model_id == "gemini"
-    assert verdict.model_name == "Gemini Flash 3.8"
+    assert verdict.model_id == "phi"
+    assert verdict.model_name == "Phi-4 Reasoning"
     assert verdict.verdict in {"Correct", "Incorrect", "Uncertain"}
     assert verdict.status == "completed"
     assert verdict.reasoning != ""
@@ -81,7 +81,7 @@ async def test_all_independent_verifiers_evaluate_concurrently() -> None:
     )
 
     model_ids = {v.model_id for v in verdicts}
-    assert model_ids == {"glm", "qwen", "openrouter", "gemini"}
+    assert model_ids == {"glm", "qwen", "openrouter", "phi"}
     assert "gemma" not in model_ids
 
     for v in verdicts:
@@ -139,7 +139,7 @@ def test_api_detect_flow_returns_ai_verdicts_and_multi_model_summary() -> None:
     assert "ai_verdicts" in data
     assert len(data["ai_verdicts"]) == 4
     for v in data["ai_verdicts"]:
-        assert v["model_id"] in {"glm", "qwen", "openrouter", "gemini"}
+        assert v["model_id"] in {"glm", "qwen", "openrouter", "phi"}
 
     assert "multi_model_summary" in data
     assert data["multi_model_summary"] is not None

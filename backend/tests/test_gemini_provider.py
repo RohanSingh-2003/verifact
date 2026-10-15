@@ -778,8 +778,21 @@ class TestGeminiRetriesAndErrorHandling:
                 return MockFailingGeminiClient()
             return MockWorkingClient()
 
+        from app.llm.registry import MODEL_REGISTRY, AnswerModelDefinition
         monkeypatch.setattr("app.services.independent_verifiers.get_model_client", fake_get_model_client)
         monkeypatch.setattr("app.services.independent_verifiers.is_model_configured", lambda mid, s: True)
+        monkeypatch.setitem(
+            MODEL_REGISTRY,
+            "gemini",
+            AnswerModelDefinition(
+                id="gemini",
+                display_name="Gemini Flash 3.8",
+                provider="gemini",
+                provider_display="Google",
+                default_model_name="gemini-3.8-flash",
+                env_key_name="GEMINI_API_KEY",
+            ),
+        )
 
         verdicts = await evaluate_all_independent_verifiers(
             question="What is the capital of Australia?",
@@ -1113,8 +1126,21 @@ class TestGeminiRetriesAndErrorHandling:
                 return MockTimingOutGeminiClient()
             return MockPeerClient()
 
+        from app.llm.registry import MODEL_REGISTRY, AnswerModelDefinition
         monkeypatch.setattr("app.services.independent_verifiers.get_model_client", fake_get_model_client)
         monkeypatch.setattr("app.services.independent_verifiers.is_model_configured", lambda mid, s: True)
+        monkeypatch.setitem(
+            MODEL_REGISTRY,
+            "gemini",
+            AnswerModelDefinition(
+                id="gemini",
+                display_name="Gemini Flash 3.8",
+                provider="gemini",
+                provider_display="Google",
+                default_model_name="gemini-3.8-flash",
+                env_key_name="GEMINI_API_KEY",
+            ),
+        )
 
         verdicts = await evaluate_all_independent_verifiers(
             question="What is the boiling point of water at standard atmospheric pressure?",

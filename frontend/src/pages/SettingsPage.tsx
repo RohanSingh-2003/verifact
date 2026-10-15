@@ -56,22 +56,15 @@ export function SettingsPage() {
   // Resolve verifier model and provider
   const verifierModelName =
     settings?.effectiveVerifierModel ||
-    settings?.geminiVerifierModel ||
     settings?.verifierModel ||
-    'gemini-3.8-flash'
+    'microsoft/phi-4-reasoning:free'
 
-  const isGeminiVerifier =
-    verifierModelName.toLowerCase().includes('gemini') ||
-    Boolean(settings?.geminiVerifierReady)
-
-  const verifierProviderName = isGeminiVerifier
-    ? 'Google Gemini'
-    : formatProviderDisplay(settings?.llmProvider, verifierModelName)
+  const verifierProviderName = formatProviderDisplay('openrouter', verifierModelName)
 
   const generatorModelDisplay = formatModelDisplay(settings?.generatorModel) ?? 'Gemma 4:26B'
   const generatorProviderDisplay =
-    formatProviderDisplay(settings?.llmProvider, settings?.generatorModel) || 'Ollama'
-  const verifierModelDisplay = formatModelDisplay(verifierModelName) ?? 'Gemini 3.8 Flash'
+    formatProviderDisplay(settings?.llmProvider, settings?.generatorModel) || 'Ollama Cloud'
+  const verifierModelDisplay = formatModelDisplay(verifierModelName) ?? 'Phi-4 Reasoning'
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">

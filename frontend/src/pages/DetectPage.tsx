@@ -51,7 +51,7 @@ function ActiveProviderStatus({
       <p className="flex items-center gap-2 text-xs text-ink-muted">
         <span className="h-1.5 w-1.5 rounded-full bg-[hsl(210,80%,60%)]" aria-hidden="true" />
         <span>
-          Independent verification by Gemini, GLM, Qwen &amp; OpenRouter
+          Independent verification by Phi-4 Reasoning, GLM, Qwen &amp; OpenRouter
         </span>
       </p>
       <p className="flex items-center gap-2 text-xs text-ink-muted">

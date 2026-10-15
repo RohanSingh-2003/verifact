@@ -27,7 +27,7 @@ const metaqaComparisonRows: ComparisonRow[] = [
   {
     dimension: 'Mutation Verifier',
     research: 'Self-verification: the evaluated target LLM verified its own mutated statements',
-    implementation: 'Cross-model verification: independent models (default Google Gemini 3.8 Flash, or multi-verifier models) evaluate statements against the candidate answer',
+    implementation: 'Cross-model verification: independent models (default Microsoft Phi-4 Reasoning, or multi-verifier models) evaluate statements against the candidate answer',
   },
   {
     dimension: 'Verifier Blindness',
@@ -47,7 +47,7 @@ const metaqaComparisonRows: ComparisonRow[] = [
   {
     dimension: 'Multi-Model Cross-Verification',
     research: 'Not evaluated (focused on single-model self-consistency)',
-    implementation: 'Complementary feature: all other configured models (Gemini, GLM-4.7, Qwen-2.5, OpenRouter) independently evaluate Gemma’s answer without altering MetaQA scores',
+    implementation: 'Complementary feature: all other configured models (Phi-4 Reasoning, GLM-4.7, Qwen-2.5, OpenRouter) independently evaluate Gemma’s answer without altering MetaQA scores',
   },
   {
     dimension: 'External Evidence',
@@ -172,7 +172,7 @@ export function MetaQAPage() {
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="w-full rounded border border-line bg-surface py-1 px-1.5 text-[10px] font-medium text-ink">
                     Multi-Model Verifiers
-                    <span className="block text-[9px] text-ink-muted font-normal">Gemini, GLM, Qwen, OpenRouter</span>
+                    <span className="block text-[9px] text-ink-muted font-normal">Phi-4, GLM, Qwen, OpenRouter</span>
                   </div>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="rounded bg-reliable-soft px-2 py-0.5 text-[10px] font-bold text-reliable">
@@ -192,7 +192,7 @@ export function MetaQAPage() {
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="w-full rounded border border-line bg-surface py-1 px-1.5 text-[10px] font-medium text-ink">
                     Multi-Model Verifiers
-                    <span className="block text-[9px] text-ink-muted font-normal">Gemini, GLM, Qwen, OpenRouter</span>
+                    <span className="block text-[9px] text-ink-muted font-normal">Phi-4, GLM, Qwen, OpenRouter</span>
                   </div>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="rounded bg-reliable-soft px-2 py-0.5 text-[10px] font-bold text-reliable">
@@ -440,7 +440,7 @@ export function MetaQAPage() {
               <h3 className="mt-1.5 text-xs font-bold text-ink">Metamorphic Mutation Testing</h3>
               <p className="mt-2 text-xs text-ink-secondary leading-5">
                 Gemma 4:26B generates synonym and antonym mutations from extracted claims. The{' '}
-                <strong className="text-ink">multi-model verifier pool</strong> (Gemini, GLM, Qwen, OpenRouter)
+                <strong className="text-ink">multi-model verifier pool</strong> (Phi-4 Reasoning, GLM, Qwen, OpenRouter)
                 acts as the mutation verifier stage, evaluating every variant to compute the MetaQA Inconsistency Score.
               </p>
             </div>

@@ -470,7 +470,7 @@ def test_openrouter_excluded_when_selected_as_generator() -> None:
     pool = get_verifier_pool("openrouter", settings)
     verifier_ids = [v["id"] for v in pool]
     assert "openrouter" not in verifier_ids
-    assert set(verifier_ids) == {"gemma", "glm", "qwen", "gemini"}
+    assert set(verifier_ids) == {"gemma", "glm", "qwen", "phi"}
 
 
 # 11. evaluate_single_verifier produces FAILED — Rate limit exceeded for 429

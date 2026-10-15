@@ -40,7 +40,7 @@ def test_selecting_gemma() -> None:
 # 3. Passing other answer_model in request does NOT override Gemma
 def test_other_answer_model_does_not_override_gemma() -> None:
     client = _client()
-    for other_model in ["qwen", "glm", "openrouter", "gemini"]:
+    for other_model in ["qwen", "glm", "openrouter", "phi"]:
         resp = client.post("/api/detect", json={"question": "What is gravity?", "answer_model": other_model})
         assert resp.status_code == 200
         data = resp.json()
@@ -65,7 +65,7 @@ def test_gemma_excluded_from_verifier_pool() -> None:
     assert "gemma" not in verifier_ids, "Answer model Gemma was improperly included in verifier pool"
     # Exactly the 4 other models should be present
     assert len(verifiers) == 4
-    for other_id in ["glm", "qwen", "openrouter", "gemini"]:
+    for other_id in ["glm", "qwen", "openrouter", "phi"]:
         assert other_id in verifier_ids
 
 
@@ -162,7 +162,7 @@ def test_get_models_endpoint() -> None:
     assert "default_model" in data
     assert data["default_model"] == "gemma"
     ids = [m["id"] for m in data["models"]]
-    assert ids == ["gemma", "glm", "qwen", "openrouter", "gemini"]
+    assert ids == ["gemma", "glm", "qwen", "openrouter", "phi"]
     for m in data["models"]:
         assert "api_key" not in m
         assert "name" in m
@@ -188,14 +188,14 @@ def test_selected_gemma_generates_and_all_others_verify() -> None:
     assert len(mutations) > 0, "Mutations must be generated"
     for m in mutations:
         verifier_ids = {v["model_id"] for v in m["verdicts"]}
-        assert verifier_ids == {"glm", "qwen", "openrouter", "gemini"}
+        assert verifier_ids == {"glm", "qwen", "openrouter", "phi"}
         assert "gemma" not in verifier_ids, "Gemma must NOT verify its own mutations"
 
 
 # 15. Test 2: Requesting non-Gemma model still generates with Gemma and all others verify
 def test_requesting_non_gemma_still_generates_with_gemma() -> None:
     client = _client()
-    for requested_model in ["qwen", "gemini"]:
+    for requested_model in ["qwen", "phi"]:
         resp = client.post(
             "/api/detect",
             json={"question": "What is the speed of sound in air?", "answer_model": requested_model},
@@ -211,7 +211,7 @@ def test_requesting_non_gemma_still_generates_with_gemma() -> None:
         assert len(mutations) > 0, "Mutations must be generated"
         for m in mutations:
             verifier_ids = {v["model_id"] for v in m["verdicts"]}
-            assert verifier_ids == {"glm", "qwen", "openrouter", "gemini"}
+            assert verifier_ids == {"glm", "qwen", "openrouter", "phi"}
             assert "gemma" not in verifier_ids, "Gemma must NOT verify its own mutations"
 
 

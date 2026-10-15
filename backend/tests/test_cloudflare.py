@@ -200,7 +200,7 @@ def test_dynamic_verifier_exclusion_when_glm_selected() -> None:
     assert "gemma" in verifier_ids
     assert "qwen" in verifier_ids
     assert "openrouter" in verifier_ids
-    assert "gemini" in verifier_ids
+    assert "phi" in verifier_ids
     assert len(verifier_ids) == 4
 
 

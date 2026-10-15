@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeExternalUrl } from './format'
+import { sanitizeExternalUrl, formatProviderDisplay, formatVerifierProvider } from './format'
 
 describe('sanitizeExternalUrl', () => {
   it('accepts valid http and https URLs', () => {
@@ -41,5 +41,28 @@ describe('sanitizeExternalUrl', () => {
     expect(sanitizeExternalUrl('htp://invalid-scheme')).toBeNull()
     expect(sanitizeExternalUrl('https://')).toBeNull()
     expect(sanitizeExternalUrl('http://')).toBeNull()
+  })
+})
+
+describe('formatVerifierProvider & formatProviderDisplay', () => {
+  it('formats Liquid verifier as Liquid (Liquid AI)', () => {
+    expect(formatVerifierProvider('openrouter', 'OpenRouter', 'openrouter')).toBe('Liquid (Liquid AI)')
+    expect(formatVerifierProvider('OpenRouter', 'liquid/lfm-2.5-2.6b:free', 'openrouter')).toBe('Liquid (Liquid AI)')
+    expect(formatVerifierProvider('Liquid (Liquid AI)', 'OpenRouter', 'openrouter')).toBe('Liquid (Liquid AI)')
+    expect(formatProviderDisplay('openrouter', 'liquid/lfm-2.5-2.6b:free')).toBe('Liquid (Liquid AI)')
+  })
+
+  it('formats Phi-4 Reasoning verifier as Microsoft', () => {
+    expect(formatVerifierProvider('openrouter', 'Phi-4 Reasoning', 'phi')).toBe('Microsoft')
+    expect(formatVerifierProvider('OpenRouter', 'microsoft/phi-4-reasoning:free', 'phi')).toBe('Microsoft')
+    expect(formatVerifierProvider('Microsoft', 'Phi-4 Reasoning', 'phi')).toBe('Microsoft')
+    expect(formatProviderDisplay('openrouter', 'microsoft/phi-4-reasoning:free')).toBe('Microsoft')
+  })
+
+  it('preserves GLM and Qwen labels unchanged', () => {
+    expect(formatVerifierProvider('Cloudflare Workers AI', 'GLM-4.7-Flash', 'glm')).toBe('Cloudflare Workers AI')
+    expect(formatVerifierProvider('cloudflare', '@cf/zai-org/glm-4.7-flash', 'glm')).toBe('Cloudflare Workers AI')
+    expect(formatVerifierProvider('Alibaba / Groq', 'Qwen', 'qwen')).toBe('Alibaba / Groq')
+    expect(formatVerifierProvider('groq', 'qwen-2.5-32b', 'qwen')).toBe('Alibaba / Groq')
   })
 })

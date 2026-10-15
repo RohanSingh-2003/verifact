@@ -58,17 +58,17 @@ MODEL_REGISTRY: dict[str, AnswerModelDefinition] = {
         id="openrouter",
         display_name="OpenRouter",
         provider="openrouter",
-        provider_display="OpenRouter",
+        provider_display="Liquid (Liquid AI)",
         default_model_name="liquid/lfm-2.5-2.6b:free",
         env_key_name="OPENROUTER_API_KEY",
     ),
-    "gemini": AnswerModelDefinition(
-        id="gemini",
-        display_name="Gemini Flash 3.8",
-        provider="gemini",
-        provider_display="Google",
-        default_model_name="gemini-3.8-flash",
-        env_key_name="GEMINI_API_KEY",
+    "phi": AnswerModelDefinition(
+        id="phi",
+        display_name="Phi-4 Reasoning",
+        provider="openrouter",
+        provider_display="Microsoft",
+        default_model_name="microsoft/phi-4-reasoning:free",
+        env_key_name="OPENROUTER_API_KEY",
     ),
 }
 
@@ -101,8 +101,10 @@ def resolve_model_id(identifier: str) -> str:
         return "qwen"
     if "openrouter" in cleaned or "liquid" in cleaned:
         return "openrouter"
+    if "phi" in cleaned or "microsoft" in cleaned:
+        return "phi"
     if "gemini" in cleaned:
-        return "gemini"
+        return "phi"
 
     return ""
 
@@ -142,7 +144,7 @@ def is_model_configured(model_id: str, settings: Settings) -> bool:
     if mid == "qwen":
         key = getattr(settings, "groq_api_key", "").strip()
         return bool(key) and not key.startswith("replace-with-")
-    if mid == "openrouter":
+    if mid in {"openrouter", "phi"}:
         key = getattr(settings, "openrouter_api_key", "").strip()
         return bool(key) and not key.startswith("replace-with-")
     if mid == "gemini":
@@ -193,10 +195,26 @@ def get_model_client(model_id: str, settings: Settings) -> ModelClient:
         )
 
     if canonical_id == "openrouter":
+        openrouter_model = (getattr(settings, "openrouter_model", "") or "").strip() or mdef.default_model_name
         return OpenRouterClient(
             base_url=getattr(settings, "openrouter_base_url", "https://openrouter.ai/api/v1"),
             api_key=getattr(settings, "openrouter_api_key", ""),
-            model_name=(getattr(settings, "openrouter_model", "") or "").strip() or mdef.default_model_name,
+            model_name=openrouter_model,
+            fallback_model_name="liquid/lfm-2.5-24b-a2b",
+            timeout_seconds=getattr(settings, "openrouter_timeout_seconds", settings.llm_timeout_seconds),
+            max_retries=getattr(settings, "openrouter_max_retries", settings.llm_max_retries),
+            initial_retry_wait=getattr(settings, "openrouter_initial_retry_wait", 1.0),
+            max_retry_wait=getattr(settings, "openrouter_max_retry_wait", 30.0),
+            total_retry_timeout=getattr(settings, "openrouter_total_retry_timeout", 60.0),
+        )
+
+    if canonical_id == "phi":
+        phi_model = (getattr(settings, "phi_model", "") or "").strip() or mdef.default_model_name
+        return OpenRouterClient(
+            base_url=getattr(settings, "openrouter_base_url", "https://openrouter.ai/api/v1"),
+            api_key=getattr(settings, "openrouter_api_key", ""),
+            model_name=phi_model,
+            fallback_model_name="microsoft/phi-4",
             timeout_seconds=getattr(settings, "openrouter_timeout_seconds", settings.llm_timeout_seconds),
             max_retries=getattr(settings, "openrouter_max_retries", settings.llm_max_retries),
             initial_retry_wait=getattr(settings, "openrouter_initial_retry_wait", 1.0),
@@ -207,7 +225,7 @@ def get_model_client(model_id: str, settings: Settings) -> ModelClient:
     if canonical_id == "gemini":
         return GeminiClientAdapter(
             api_key=getattr(settings, "gemini_api_key", ""),
-            model_name=getattr(settings, "gemini_model", mdef.default_model_name),
+            model_name=getattr(settings, "gemini_model", "gemini-3.8-flash"),
             timeout_seconds=getattr(settings, "gemini_timeout_seconds", 10.0),
             max_retries=getattr(settings, "gemini_max_retries", 3),
             initial_retry_delay=getattr(settings, "gemini_initial_retry_delay", 1.0),

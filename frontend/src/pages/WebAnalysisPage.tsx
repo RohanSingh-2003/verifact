@@ -613,7 +613,7 @@ export function WebAnalysisPage() {
                   <ArrowDown className="mx-auto h-3 w-3 text-ink-muted" />
                   <div className="rounded border border-accent/30 bg-accent-soft/40 p-1.5 text-[10px] text-ink font-medium space-y-0.5">
                     <span className="font-bold text-accent block">2. Multi-Model Mutation Verifier</span>
-                    Gemini, GLM, Qwen &amp; OpenRouter score variants
+                    Phi-4 Reasoning, GLM, Qwen &amp; OpenRouter score variants
                   </div>
                   <ArrowDown className="mx-auto h-3 w-3 text-ink-muted" />
                   <div className="mt-auto rounded bg-surface p-1.5 border border-line text-[10px] font-bold text-ink">
@@ -758,7 +758,7 @@ export function WebAnalysisPage() {
             </li>
             <li>
               <strong className="text-ink">Multi-Model Peer Review Distinction:</strong> The independent verifier models
-              (Gemini, GLM, Qwen, OpenRouter) conduct cross-model review of Gemma&apos;s answer. Their peer agreement
+              (Phi-4 Reasoning, GLM, Qwen, OpenRouter) conduct cross-model review of Gemma&apos;s answer. Their peer agreement
               does not substitute for external factual documentation and does not alter the Web Evidence score.
             </li>
           </ul>

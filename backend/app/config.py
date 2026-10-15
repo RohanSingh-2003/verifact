@@ -67,10 +67,13 @@ class Settings(BaseSettings):
     gemini_total_retry_timeout: float = Field(default=30.0, ge=5.0, le=120.0)
     gemini_timeout_seconds: float = Field(default=10.0, ge=1.0, le=60.0)
 
+    # 5. Microsoft Phi-4 Reasoning (via OpenRouter)
+    phi_model: str = "microsoft/phi-4-reasoning:free"
+
     # Provider & model parameters
     llm_provider: str = "cloud"
     generator_model: str = "gemma4:26b"
-    verifier_model: str = "gemini-3.8-flash"
+    verifier_model: str = "microsoft/phi-4-reasoning:free"
     mutation_model: str = ""
 
     synonym_count: int = Field(default=5, ge=1, le=20)
@@ -242,6 +245,17 @@ class Settings(BaseSettings):
         return bool(key) and not key.startswith("replace-with-")
 
     @property
+    def phi_configured(self) -> bool:
+        if self.llm_mode == "mock":
+            return True
+        key = self.openrouter_api_key.strip()
+        return bool(key) and not key.startswith("replace-with-")
+
+    @property
+    def phi_verifier_ready(self) -> bool:
+        return self.phi_configured
+
+    @property
     def effective_mutation_model(self) -> str:
         """The model used for MetaQA mutation generation.
 
@@ -254,16 +268,14 @@ class Settings(BaseSettings):
 
     @property
     def effective_verifier_model(self) -> str:
-        """The model used for MetaQA mutation verification.
-
-        Returns the Gemini model when configured or in mock mode, otherwise falls back
-        to the standard verifier_model.
-        """
-        if self.llm_mode == "mock":
+        """The model used for MetaQA mutation verification."""
+        if self.gemini_configured and self.gemini_verifier_model and "gemini" in self.gemini_verifier_model:
             return self.gemini_verifier_model
-        if self.gemini_configured:
+        if self.llm_mode == "mock" and self.gemini_verifier_model and self.gemini_verifier_model != "gemini-3.8-flash":
             return self.gemini_verifier_model
-        return self.verifier_model
+        if self.verifier_model and self.verifier_model not in {"gemini-3.8-flash", "microsoft/phi-4-reasoning:free"}:
+            return self.verifier_model
+        return self.phi_model or self.verifier_model or "microsoft/phi-4-reasoning:free"
 
     def require_model(self, model: str) -> str:
         if self.llm_mode == "mock":
