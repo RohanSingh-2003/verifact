@@ -63,6 +63,10 @@ def _annotate_sources(
                 relevance_score=source.relevance_score,
                 source_type=source_type,
                 question_type=question_type,
+                evidence_summary=source.evidence_summary,
+                quality_rationale=source.quality_rationale,
+                relevance_rationale=source.relevance_rationale,
+                extracted_passage=source.extracted_passage,
             )
         )
     return enriched
@@ -313,43 +317,66 @@ async def _search_claims_concurrent(
             alt_queries = claim_to_search_queries(
                 claim.text, question_type=question_type, question_text=question_text
             )
-            fallback_query = alt_queries[1] if len(alt_queries) > 1 else query
+            accumulated_hits = list(pass1_hits)
+            last_query = query
+            candidates = [q for q in alt_queries if q.strip().casefold() != query.strip().casefold()] or [query]
 
-            # Try secondary domains first if available
-            if sec_list:
+            for alt_q in candidates:
+                last_query = alt_q
+                if sec_list:
+                    try:
+                        hits2 = await _search_once(
+                            search,
+                            alt_q,
+                            max_results=results_per_claim,
+                            include_domains=sec_list,
+                            days=days,
+                            topic=topic,
+                            question_type=question_type,
+                        )
+                        usable2 = [h for h in hits2 if sources_have_usable_snippets([h])]
+                        if usable2:
+                            accumulated_hits.extend(usable2)
+                            relevant_check = _annotate_and_sort_sources(
+                                accumulated_hits,
+                                question_type=question_type,
+                                claim_text=claim.text,
+                                detected_countries=countries,
+                            )
+                            if relevant_check:
+                                return ("ok", claim, alt_q, accumulated_hits, countries, None)
+                    except WebSearchAuthError as exc:
+                        return ("auth", claim, alt_q, accumulated_hits, countries, exc)
+                    except WebSearchError:
+                        pass
+
                 try:
-                    hits2 = await _search_once(
+                    hits_gen = await _search_once(
                         search,
-                        fallback_query,
+                        alt_q,
                         max_results=results_per_claim,
-                        include_domains=sec_list,
+                        include_domains=None,
                         days=days,
                         topic=topic,
                         question_type=question_type,
                     )
-                    usable2 = [h for h in hits2 if sources_have_usable_snippets([h])]
-                    if usable2:
-                        return ("ok", claim, fallback_query, pass1_hits + usable2, countries, None)
+                    usable_gen = [h for h in hits_gen if sources_have_usable_snippets([h])]
+                    if usable_gen or hits_gen:
+                        accumulated_hits.extend(usable_gen or hits_gen)
+                        relevant_check = _annotate_and_sort_sources(
+                            accumulated_hits,
+                            question_type=question_type,
+                            claim_text=claim.text,
+                            detected_countries=countries,
+                        )
+                        if relevant_check:
+                            return ("ok", claim, alt_q, accumulated_hits, countries, None)
+                except WebSearchAuthError as exc:
+                    return ("auth", claim, alt_q, accumulated_hits, countries, exc)
                 except WebSearchError:
                     pass
 
-            # Fall back to general web search with targeted query
-            try:
-                hits_gen = await _search_once(
-                    search,
-                    fallback_query,
-                    max_results=results_per_claim,
-                    include_domains=None,
-                    days=days,
-                    topic=topic,
-                    question_type=question_type,
-                )
-                usable_gen = [h for h in hits_gen if sources_have_usable_snippets([h])]
-                return ("ok", claim, fallback_query, pass1_hits + (usable_gen or hits_gen), countries, None)
-            except WebSearchAuthError as exc:
-                return ("auth", claim, fallback_query, pass1_hits, countries, exc)
-            except WebSearchError as exc:
-                return ("err", claim, fallback_query, pass1_hits, countries, exc)
+            return ("ok", claim, last_query, accumulated_hits, countries, None)
 
         fb_results = await asyncio.gather(
             *[run_fallback(c, q, p1, s, k) for c, q, p1, s, k in fallback_batch]
@@ -547,11 +574,11 @@ async def run_web_evidence(
 
     used_fallback_search = any(used_fb for _, _, _, _, used_fb in claim_sources)
 
-    if auth_failed and not any(sources for _, _, _, sources, _ in claim_sources):
+    if (auth_failed or search_error) and not any(sources for _, _, _, sources, _ in claim_sources):
         return _finalize(
             WebEvidenceResult(
                 status=WebEvidenceStatus.FAILED,
-                error=f"Web evidence unavailable: {search_error}",
+                error=f"Web evidence retrieval failed: {search_error or 'Authentication failed'}",
                 searches_used=searches_used,
                 sources_found=0,
                 used_fallback_search=used_fallback_search,
@@ -568,35 +595,54 @@ async def run_web_evidence(
 
     set_stage(WebEvidenceStatus.VERIFYING_EVIDENCE)
     verify_started = time.perf_counter()
+    # Strict eligibility gate: only claims with relevant evidence sources proceed to LLM verification
     batch_input = [
-        (claim_id, claim_text, sources) for claim_id, claim_text, _query, sources, _fb in claim_sources
+        (claim_id, claim_text, sources)
+        for claim_id, claim_text, _query, sources, _fb in claim_sources
+        if sources
     ]
     # Slightly larger token budget for batch JSON (still compact reasons).
     batch_tokens = max(settings.llm_web_verify_max_tokens, min(480, 120 * max(1, len(batch_input))))
-    verdict_map = await verify_claims_batch(
-        llm,
-        model=verifier_model,
-        claims=batch_input,
-        max_tokens=batch_tokens,
+    verdict_map = (
+        await verify_claims_batch(
+            llm,
+            model=verifier_model,
+            claims=batch_input,
+            max_tokens=batch_tokens,
+        )
+        if batch_input
+        else {}
     )
     verify_ms = (time.perf_counter() - verify_started) * 1000
     logger.info("web_verification_ms=%.0f claims=%s", verify_ms, len(batch_input))
 
     verified: list[VerifiedClaim] = []
     for claim_id, claim_text, query, sources, used_fallback in claim_sources:
+        # Strict eligibility gate:
+        # Case D — No relevant source found (or all rejected by relevance gate)
+        if not sources:
+            verified.append(
+                VerifiedClaim(
+                    id=claim_id,
+                    text=claim_text,
+                    search_query=query or claim_to_search_query(claim_text),
+                    verdict=EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE,
+                    reason=(
+                        "No sufficiently relevant source was found addressing this claim. "
+                        "The claim was not assessed and is excluded from Web Evidence score aggregation."
+                    ),
+                    sources=[],
+                    used_fallback=used_fallback,
+                )
+            )
+            continue
+
         verdict_reason = verdict_map.get(claim_id)
         if verdict_reason is None:
             verdict = EvidenceVerdict.INSUFFICIENT_EVIDENCE
             reason = "Evidence verification could not be completed for this claim."
         else:
             verdict, reason = verdict_reason
-
-        if verdict is EvidenceVerdict.SUPPORTED and not sources:
-            verdict = EvidenceVerdict.INSUFFICIENT_EVIDENCE
-            reason = "No web sources were retrieved for this claim."
-        if not sources and verdict is EvidenceVerdict.CONTRADICTED:
-            verdict = EvidenceVerdict.INSUFFICIENT_EVIDENCE
-            reason = "No web sources were retrieved for this claim."
 
         # Compound-claim verification: if evidence only supports some components,
         # retain INSUFFICIENT_EVIDENCE unless all components are covered.
@@ -635,6 +681,9 @@ async def run_web_evidence(
                     source_type=src.source_type,
                     question_type=src.question_type,
                     evidence_summary=summary,
+                    quality_rationale=getattr(src, "quality_rationale", None),
+                    relevance_rationale=getattr(src, "relevance_rationale", None),
+                    extracted_passage=getattr(src, "extracted_passage", None) or summary,
                 )
             )
 

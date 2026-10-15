@@ -12,12 +12,15 @@ interface VerificationSummaryPanelProps {
 function verdictLabel(verdict: EvidenceVerdict | string): string {
   if (verdict === EvidenceVerdict.Supported) return 'Supported'
   if (verdict === EvidenceVerdict.Contradicted) return 'Contradicted'
+  if (verdict === EvidenceVerdict.NotAssessedNoRelevantSource) return 'Not assessed (no relevant source)'
   return 'Insufficient evidence'
 }
 
 function verdictTone(verdict: EvidenceVerdict | string): string {
   if (verdict === EvidenceVerdict.Supported) return 'text-reliable bg-reliable-soft'
   if (verdict === EvidenceVerdict.Contradicted) return 'text-hallucinated bg-hallucinated-soft'
+  if (verdict === EvidenceVerdict.NotAssessedNoRelevantSource)
+    return 'text-ink-secondary bg-surface-muted border border-line/60'
   return 'text-uncertain bg-uncertain-soft'
 }
 

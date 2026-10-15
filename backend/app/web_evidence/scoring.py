@@ -46,7 +46,7 @@ _VERDICT_LABELS = {
     WebConsistencyVerdict.MIXED: "Mixed — some claims contradicted",
     WebConsistencyVerdict.CONTRADICTIONS_FOUND: "Potential factual contradiction detected",
     WebConsistencyVerdict.INSUFFICIENT: "Not enough external evidence to fully verify",
-    WebConsistencyVerdict.NO_CLAIMS: "No claims to score",
+    WebConsistencyVerdict.NO_CLAIMS: "No eligible assessed claims to score",
 }
 
 
@@ -55,11 +55,26 @@ def claim_contribution(verdict: EvidenceVerdict) -> float:
 
 
 def compute_consistency_score(claims: list[VerifiedClaim]) -> float | None:
-    """Mean claim contribution in [0, 1], or None when there are no claims."""
-    if not claims:
+    """Mean claim contribution in [0, 1] across eligible assessed claims, or None when none exist.
+
+    Eligible assessed claims have verdict in {SUPPORTED (1.0), INSUFFICIENT_EVIDENCE (0.5), CONTRADICTED (0.0)}.
+    NOT_ASSESSED_NO_RELEVANT_SOURCE claims are strictly excluded from both numerator and denominator.
+    If no claims are eligible for assessment, returns None.
+    """
+    assessed = [
+        c
+        for c in claims
+        if c.verdict
+        in {
+            EvidenceVerdict.SUPPORTED,
+            EvidenceVerdict.CONTRADICTED,
+            EvidenceVerdict.INSUFFICIENT_EVIDENCE,
+        }
+    ]
+    if not assessed:
         return None
-    total = sum(claim_contribution(claim.verdict) for claim in claims)
-    return round(total / len(claims), 4)
+    total = sum(claim_contribution(claim.verdict) for claim in assessed)
+    return round(total / len(assessed), 4)
 
 
 def consistency_verdict_for(
@@ -68,6 +83,7 @@ def consistency_verdict_for(
     supported: int,
     contradicted: int,
     insufficient: int,
+    unassessed: int = 0,
 ) -> WebConsistencyVerdict:
     if score is None and supported + contradicted + insufficient == 0:
         return WebConsistencyVerdict.NO_CLAIMS

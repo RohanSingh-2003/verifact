@@ -10,8 +10,12 @@ from app.web_evidence.types import ExtractedClaim
 
 logger = logging.getLogger("verifact.web_evidence.claims")
 
-WEB_CLAIM_SYSTEM = """You extract factual claims from an AI answer for external evidence verification.
-You must not invent facts that are not supported by the answer.
+WEB_CLAIM_SYSTEM = """You extract atomic factual claims from an AI answer for external evidence verification.
+Extract independently verifiable factual claims rather than broad paragraphs or multiple unrelated facts combined into one claim.
+Preserve the original wording and meaning of every extracted claim.
+Avoid treating opinions, hypothetical statements, vague predictions, rhetorical statements, and purely subjective judgments as objectively verifiable facts.
+Preserve traceability from each extracted claim to the original answer.
+Do not silently drop ordinary factual claims.
 You must not use tools, retrieval, browsing, or outside knowledge beyond the answer text.
 Return JSON only."""
 
@@ -21,24 +25,25 @@ WEB_CLAIM_USER = """Question:
 Answer:
 {answer}
 
-Extract up to {max_claims} important factual claims from the answer.
+Extract up to {max_claims} independently verifiable factual claims from the answer.
 
 Rules:
-- Each claim must be one short, self-contained factual sentence.
-- Claims must be independently verifiable on the open web when possible.
-- Prefer atomic claims (one fact each): entities, dates, places, events, quantities.
-- Preserve qualifiers (some, approximately, reported, may).
-- Do not invent outside knowledge.
+- Each claim must be an atomic factual proposition (one independently checkable fact: entity, date, place, event, quantity, relationship).
+- Preserve the original wording and factual meaning from the answer — do not distort or extrapolate.
+- Claims must be objectively verifiable against external factual sources.
+- Preserve qualifiers (some, approximately, reported, designated).
+- Do NOT extract opinions, hypothetical statements ("what if", "could theoretically"), or vague predictions ("will likely one day").
+- Do NOT extract rhetorical questions or purely subjective judgments ("amazing", "best ever", "arguably").
 - Do NOT extract greetings, thanks, or conversational filler.
 - Do NOT extract vague conclusions with no checkable fact.
-- Do NOT extract pure opinions, preferences, or subjective judgments.
 - Do NOT extract duplicate or near-duplicate claims.
+- Do not drop ordinary factual claims simply because web search might be challenging.
 - If the answer has no verifiable factual claims, return {{"claims": []}}.
 
 Return JSON only:
 {{
   "claims": [
-    {{"id": "claim_1", "text": "short factual sentence"}}
+    {{"id": "claim_1", "text": "exact factual proposition from answer"}}
   ]
 }}"""
 
@@ -49,7 +54,16 @@ _OPINION_RE = re.compile(
     r"\b("
     r"i think|i believe|in my opinion|it seems|seems like|probably|maybe|perhaps|"
     r"i feel|personally|prefer|should|ought|beautiful|wonderful|amazing|terrible|"
-    r"best ever|worst|love this|hate this"
+    r"best ever|worst|love this|hate this|matter of opinion|matter of taste|"
+    r"arguably|undeniably great"
+    r")\b",
+    re.IGNORECASE,
+)
+_HYPOTHETICAL_OR_PREDICTION_RE = re.compile(
+    r"\b("
+    r"if we were to|what if|hypothetically|could theoretically|in theory|"
+    r"assuming that|suppose that|will likely eventually|might one day|someday|"
+    r"in the distant future|time will tell|who knows if"
     r")\b",
     re.IGNORECASE,
 )
@@ -119,7 +133,7 @@ def is_near_duplicate(candidate: str, existing: list[str], *, threshold: float =
 
 
 def is_non_factual_claim(text: str) -> bool:
-    """Filter greetings, vague filler, and clearly subjective statements."""
+    """Filter greetings, vague filler, opinions, hypotheticals, and subjective statements."""
     cleaned = " ".join(text.split()).strip()
     if not cleaned:
         return True
@@ -128,6 +142,8 @@ def is_non_factual_claim(text: str) -> bool:
     if _VAGUE_RE.search(cleaned):
         return True
     if _OPINION_RE.search(cleaned):
+        return True
+    if _HYPOTHETICAL_OR_PREDICTION_RE.search(cleaned):
         return True
     # Pure rhetorical questions are not claims.
     if cleaned.endswith("?") and _word_count(cleaned) < 12:

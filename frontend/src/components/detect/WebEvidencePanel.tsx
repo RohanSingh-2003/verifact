@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, ChevronDown, Circle, ExternalLink, X } from 'lucide-react'
+import { Check, ChevronDown, Circle, ExternalLink, HelpCircle, X } from 'lucide-react'
 import type { WebClaimRecord, WebEvidenceResult, WebSourceRecord } from '../../types'
 import { EvidenceVerdict, WebEvidenceStatus } from '../../types'
 import { classNames, sanitizeExternalUrl } from '../../lib/format'
@@ -12,12 +12,15 @@ interface WebEvidencePanelProps {
 function verdictLabel(verdict: EvidenceVerdict): string {
   if (verdict === EvidenceVerdict.Supported) return 'Supported'
   if (verdict === EvidenceVerdict.Contradicted) return 'Contradicted'
+  if (verdict === EvidenceVerdict.NotAssessedNoRelevantSource) return 'Not assessed (no relevant source)'
   return 'Insufficient evidence'
 }
 
 function verdictTone(verdict: EvidenceVerdict): string {
   if (verdict === EvidenceVerdict.Supported) return 'text-reliable bg-reliable-soft'
   if (verdict === EvidenceVerdict.Contradicted) return 'text-hallucinated bg-hallucinated-soft'
+  if (verdict === EvidenceVerdict.NotAssessedNoRelevantSource)
+    return 'text-ink-secondary bg-surface-muted border border-line/60'
   return 'text-uncertain bg-uncertain-soft'
 }
 
@@ -229,7 +232,7 @@ function SourceCard({
 }) {
   const isAuth = isAuthoritativeTier(source.sourceType)
   const isLow = (source.sourceType || '').toUpperCase() === 'LOW_PRIORITY'
-  const evidenceSummary = getCleanSourceEvidence(source, claimVerdict)
+  const evidenceSummary = source.extractedPassage || getCleanSourceEvidence(source, claimVerdict)
   const safeUrl = sanitizeExternalUrl(source.url)
 
   return (
@@ -255,11 +258,16 @@ function SourceCard({
                   ? 'bg-uncertain-soft text-uncertain'
                   : 'bg-canvas text-ink-muted',
             )}
+            title={source.qualityRationale || undefined}
           >
             {sourceTypeLabel(source.sourceType)}
           </span>
         </div>
       </div>
+
+      {source.qualityRationale ? (
+        <p className="text-[11px] text-ink-muted italic -mt-1">{source.qualityRationale}</p>
+      ) : null}
 
       {/* 2. Source Title */}
       <p className="text-sm font-medium text-ink leading-snug">{source.title}</p>
@@ -302,7 +310,10 @@ function SourceCard({
 
 function ClaimRow({ claim }: { claim: WebClaimRecord }) {
   const [open, setOpen] = useState(false)
-  const claimEvidence = getClaimEvidenceSummary(claim)
+  const isUnassessed = claim.verdict === EvidenceVerdict.NotAssessedNoRelevantSource
+  const claimEvidence = isUnassessed
+    ? 'No sufficiently relevant web source met the evidence eligibility gate for this claim.'
+    : getClaimEvidenceSummary(claim)
 
   return (
     <article id={`web-claim-${claim.id}`} className="border-b border-line last:border-b-0 scroll-mt-24">
@@ -356,13 +367,25 @@ function ClaimRow({ claim }: { claim: WebClaimRecord }) {
             </span>
           </div>
 
-          {/* Evidence Summary */}
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Evidence</p>
-            <p className="mt-1 text-sm leading-relaxed text-ink [overflow-wrap:anywhere] break-words">
-              {claimEvidence}
-            </p>
-          </div>
+          {isUnassessed ? (
+            <div className="rounded-[var(--radius-sm)] border border-line/60 bg-surface-muted/60 p-3 sm:p-3.5 space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-ink-muted">
+                Evidence Eligibility Gate Notice
+              </p>
+              <p className="text-xs sm:text-[13px] leading-relaxed text-ink-secondary">
+                No sufficiently relevant external source was found on the web for this proposition. To
+                prevent ungrounded ratings, this claim was not assessed and is excluded from the Web Evidence
+                Consistency Score.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Evidence</p>
+              <p className="mt-1 text-sm leading-relaxed text-ink [overflow-wrap:anywhere] break-words">
+                {claimEvidence}
+              </p>
+            </div>
+          )}
 
           {/* Why */}
           <div>
@@ -376,7 +399,11 @@ function ClaimRow({ claim }: { claim: WebClaimRecord }) {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Sources</p>
             {claim.sources.length === 0 ? (
-              <p className="mt-1 text-sm text-ink-muted">No sources retrieved for this claim.</p>
+              <p className="mt-1 text-sm text-ink-muted">
+                {isUnassessed
+                  ? 'No web sources met the strict relevance acceptance threshold.'
+                  : 'No web sources were retrieved for this claim.'}
+              </p>
             ) : (
               <ul className="mt-2.5 space-y-3">
                 {claim.sources.map((source) => (
@@ -446,14 +473,16 @@ export function WebEvidencePanel({ evidence }: WebEvidencePanelProps) {
                   <span className="ml-1 text-sm font-normal text-ink-muted">/ 1.00</span>
                 </p>
               ) : (
-                <p className="mt-1 text-lg font-medium text-ink-muted">—</p>
+                <p className="mt-1 text-lg font-medium text-ink-muted">
+                  — <span className="ml-2 text-xs font-normal text-ink-muted">(No eligible assessed claims to score)</span>
+                </p>
               )}
               {evidence.consistencyVerdictLabel ? (
                 <p className="mt-1 text-sm font-medium text-ink">{evidence.consistencyVerdictLabel}</p>
               ) : null}
               <p className="mt-2 text-xs leading-5 text-ink-muted">
-                Mean claim contribution (SUPPORTED=1.0, INSUFFICIENT=0.5, CONTRADICTED=0.0). Insufficient
-                evidence is not treated as hallucination.
+                Mean claim contribution across eligible assessed claims (SUPPORTED=1.0, INSUFFICIENT=0.5, CONTRADICTED=0.0).
+                Claims with no relevant sources are excluded from score aggregation.
               </p>
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs">
                 <span className="inline-flex items-center gap-1 text-reliable">
@@ -468,6 +497,12 @@ export function WebEvidencePanel({ evidence }: WebEvidencePanelProps) {
                   <Circle className="h-3 w-3" aria-hidden="true" />
                   Insufficient: {evidence.insufficientClaims}
                 </span>
+                {Boolean(evidence.unassessedClaims && evidence.unassessedClaims > 0) && (
+                  <span className="inline-flex items-center gap-1 text-ink-muted">
+                    <HelpCircle className="h-3 w-3" aria-hidden="true" />
+                    Not Assessed: {evidence.unassessedClaims}
+                  </span>
+                )}
               </div>
             </div>
           ) : null}

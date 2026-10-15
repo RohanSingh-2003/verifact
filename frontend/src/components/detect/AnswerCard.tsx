@@ -21,6 +21,9 @@ function claimBadge(verdict: EvidenceVerdict): { label: string; className: strin
   if (verdict === EvidenceVerdict.Contradicted) {
     return { label: 'Contradicted', className: 'text-hallucinated bg-hallucinated-soft' }
   }
+  if (verdict === EvidenceVerdict.NotAssessedNoRelevantSource) {
+    return { label: 'Not assessed', className: 'text-ink-muted bg-surface-muted border border-line/60' }
+  }
   return { label: 'Insufficient', className: 'text-uncertain bg-uncertain-soft' }
 }
 

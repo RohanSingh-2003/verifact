@@ -67,6 +67,7 @@ export const EvidenceVerdict = {
   Supported: 'SUPPORTED',
   Contradicted: 'CONTRADICTED',
   InsufficientEvidence: 'INSUFFICIENT_EVIDENCE',
+  NotAssessedNoRelevantSource: 'NOT_ASSESSED_NO_RELEVANT_SOURCE',
 } as const
 
 export type EvidenceVerdict = (typeof EvidenceVerdict)[keyof typeof EvidenceVerdict]
@@ -121,6 +122,9 @@ export interface WebSourceRecord {
   sourceType?: string
   questionType?: string | null
   evidenceSummary?: string | null
+  qualityRationale?: string | null
+  relevanceRationale?: string | null
+  extractedPassage?: string | null
 }
 
 export interface WebClaimRecord {
@@ -148,6 +152,8 @@ export interface WebEvidenceResult {
   supportedClaims: number
   contradictedClaims: number
   insufficientClaims: number
+  unassessedClaims?: number
+  assessedClaims?: number
   consistencyScore?: number | null
   consistencyVerdict?: string | null
   consistencyVerdictLabel?: string | null

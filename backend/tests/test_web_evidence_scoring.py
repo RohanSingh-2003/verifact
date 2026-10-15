@@ -96,3 +96,57 @@ def test_score_explanation_not_probability() -> None:
     text = score_explanation().casefold()
     assert "not a probability" in text or "not a calibrated" in text
     assert "metaqa" in text
+
+
+def test_unassessed_claims_excluded_from_aggregate_score() -> None:
+    claims = [
+        _claim(EvidenceVerdict.SUPPORTED),
+        _claim(EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE),
+    ]
+    # Only the 1 SUPPORTED claim is eligible. Score = 1.0, not 0.5 or 0.75.
+    assert compute_consistency_score(claims) == 1.0
+    assert (
+        consistency_verdict_for(score=1.0, supported=1, contradicted=0, insufficient=0, unassessed=1)
+        is WebConsistencyVerdict.STRONGLY_SUPPORTED
+    )
+
+
+def test_all_unassessed_claims_produces_none_score() -> None:
+    claims = [
+        _claim(EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE),
+        _claim(EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE),
+    ]
+    # No eligible claims -> score must be None (not 0.0 or 1.0)
+    assert compute_consistency_score(claims) is None
+    assert (
+        consistency_verdict_for(score=None, supported=0, contradicted=0, insufficient=0, unassessed=2)
+        is WebConsistencyVerdict.NO_CLAIMS
+    )
+
+
+def test_web_evidence_result_counts_and_dict() -> None:
+    from app.web_evidence.types import WebEvidenceResult, WebEvidenceStatus
+
+    result = WebEvidenceResult(
+        status=WebEvidenceStatus.COMPLETED,
+        claims=[
+            _claim(EvidenceVerdict.SUPPORTED),
+            _claim(EvidenceVerdict.CONTRADICTED),
+            _claim(EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE),
+        ],
+    )
+    assert result.total_claims == 3
+    assert result.supported_claims == 1
+    assert result.contradicted_claims == 1
+    assert result.insufficient_claims == 0
+    assert result.unassessed_claims == 1
+    assert result.assessed_claims == 2
+
+    result.finalize_score()
+    # Mean of (1.0 + 0.0) / 2 = 0.5
+    assert result.consistency_score == 0.5
+    data = result.to_dict()
+    assert data["total_claims"] == 3
+    assert data["assessed_claims"] == 2
+    assert data["unassessed_claims"] == 1
+    assert data["consistency_score"] == 0.5

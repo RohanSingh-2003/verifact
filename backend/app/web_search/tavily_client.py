@@ -70,7 +70,7 @@ class TavilyClient(WebSearchClient):
             "search_depth": self._depth,
             "max_results": max(1, min(max_results, 10)),
             "include_answer": False,
-            "include_raw_content": False,
+            "include_raw_content": getattr(self._settings, "web_extract_raw_content", True),
             "include_images": False,
             "topic": topic_value,
         }
@@ -123,6 +123,47 @@ class TavilyClient(WebSearchClient):
         )
         return results
 
+    async def extract(self, urls: list[str]) -> dict[str, str]:
+        """Extract page content for candidate URLs via Tavily extract endpoint."""
+        valid_urls = [u.strip() for u in urls if u and u.strip().startswith(("http://", "https://"))]
+        if not valid_urls:
+            return {}
+        if not self._api_key or self._api_key.startswith("replace-with-"):
+            raise WebSearchAuthError("Tavily API key is not configured.")
+
+        url = f"{self._base_url}/extract"
+        payload = {
+            "api_key": self._api_key,
+            "urls": valid_urls[:10],
+        }
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                response = await client.post(url, json=payload)
+        except httpx.TimeoutException as exc:
+            logger.warning("Tavily extract timed out: %s", exc)
+            return {}
+        except httpx.HTTPError as exc:
+            logger.warning("Tavily extract failed: %s", exc)
+            return {}
+
+        if response.status_code != 200:
+            logger.warning("Tavily extract returned HTTP %s", response.status_code)
+            return {}
+
+        try:
+            data = response.json()
+        except ValueError:
+            return {}
+
+        results: dict[str, str] = {}
+        for item in data.get("results") or []:
+            if isinstance(item, dict):
+                item_url = str(item.get("url") or "").strip()
+                raw_text = str(item.get("raw_content") or item.get("content") or "").strip()
+                if item_url and raw_text:
+                    results[item_url] = raw_text
+        return results
+
 
 def normalize_tavily_results(raw_items: list[Any]) -> list[WebSource]:
     sources: list[WebSource] = []
@@ -134,7 +175,8 @@ def normalize_tavily_results(raw_items: list[Any]) -> list[WebSource]:
             continue
         title = str(item.get("title") or "").strip() or url
         raw_text = str(item.get("raw_content") or "").strip()
-        snippet = str(item.get("content") or item.get("snippet") or raw_text or "").strip()
+        content_text = str(item.get("content") or item.get("snippet") or "").strip()
+        snippet = (content_text or raw_text).strip()
         published = item.get("published_date") or item.get("published_at")
         published_at = str(published).strip() if published else None
         score_raw = item.get("score")
@@ -144,15 +186,17 @@ def normalize_tavily_results(raw_items: list[Any]) -> list[WebSource]:
         except (TypeError, ValueError):
             relevance = None
         domain = domain_from_url(url)
+        extracted_passage = raw_text[:3500] if raw_text else None
         sources.append(
             WebSource(
                 title=title,
                 url=url,
                 domain=domain,
-                snippet=snippet[:2500],
+                snippet=(snippet or raw_text)[:3500],
                 published_at=published_at,
                 relevance_score=relevance,
                 source_type=classify_source_type(domain).value,
+                extracted_passage=extracted_passage,
             )
         )
     return sources

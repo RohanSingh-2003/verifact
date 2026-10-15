@@ -445,6 +445,14 @@ class MockLLMClient(LLMClient):
                             "reason": "Retrieved evidence conflicts with the claim.",
                         }
                     )
+                elif "INSUFFICIENT_CLAIM:" in block or "inconclusive evidence" in lower:
+                    claims_out.append(
+                        {
+                            "claim_id": cid,
+                            "verdict": "INSUFFICIENT_EVIDENCE",
+                            "reason": "Retrieved evidence discusses topic but is inconclusive.",
+                        }
+                    )
                 else:
                     claims_out.append(
                         {
@@ -510,6 +518,14 @@ class MockLLMClient(LLMClient):
                     "reason": (
                         "The source states a different fact than the claim, so the retrieved "
                         "evidence contradicts the claim."
+                    ),
+                }
+            if "INSUFFICIENT_CLAIM:" in user_prompt or "inconclusive evidence" in lower_prompt:
+                return {
+                    "verdict": "INSUFFICIENT_EVIDENCE",
+                    "reason": (
+                        "Available evidence discusses the topic but is inconclusive and does "
+                        "not establish whether the claim is true or false."
                     ),
                 }
             # Pull a short snippet phrase for a claim-specific reason.

@@ -28,6 +28,8 @@ _STOP_WORDS = frozenset(
         "were", "be", "been", "being", "have", "has", "had", "do", "does", "did",
         "that", "this", "these", "those", "it", "its", "as", "of", "also", "serves",
         "served", "serve", "located", "location", "country", "state", "city",
+        "he", "she", "they", "them", "him", "his", "her", "hers", "their", "theirs",
+        "my", "mine", "your", "yours", "our", "ours", "who", "whom", "whose", "which",
     }
 )
 
@@ -43,13 +45,22 @@ def extract_claim_anchors_and_concepts(claim_text: str) -> tuple[list[str], list
     clean_claim = " ".join(claim_text.split()).strip()
 
     # Identify multi-word proper nouns like "Imperial Palace", "New South Wales"
-    multi_word_anchors = re.findall(
+    raw_mw = re.findall(
         r"\b(?:[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b", clean_claim
     )
-
+    multi_word_anchors: list[str] = []
     # Individual capitalized words (excluding first word if followed by lowercase unless recognized entity)
     words = clean_claim.split()
     single_anchors: list[str] = []
+    for m in raw_mw:
+        parts = m.split()
+        while parts and parts[0].casefold() in _STOP_WORDS:
+            parts.pop(0)
+        if len(parts) >= 2:
+            multi_word_anchors.append(" ".join(parts))
+        elif parts:
+            single_anchors.append(parts[0])
+
     for i, w in enumerate(words):
         stripped = re.sub(r"[^\w]", "", w)
         if not stripped:
@@ -104,88 +115,152 @@ def extract_claim_components(claim_text: str) -> list[str]:
     return [cleaned]
 
 
+def _concept_in_text(concept: str, text: str) -> bool:
+    c = concept.casefold()
+    if c in text:
+        return True
+    if len(c) >= 5:
+        stem = re.sub(r"(?:ies|ing|ed|ers?|ations?|ions?|s|y)$", "", c)
+        if len(stem) >= 4 and stem in text:
+            return True
+        if c[:-1] in text or (len(c) >= 6 and c[:-2] in text):
+            return True
+    return False
+
+
+def get_source_quality_rationale(domain: str, source_type: str | None = None) -> str:
+    """Return an authoritative human-readable description of source quality tier."""
+    clean_domain = (domain or "").strip().lower()
+    raw_type = str(source_type or "").upper()
+
+    if "GOVERNMENT" in raw_type or any(clean_domain.endswith(sfx) for sfx in (".gov", ".gov.in", ".gov.uk", ".gov.au", ".nic.in", ".europa.eu", ".mil", ".go.jp")):
+        return "Primary official government portal / public regulatory document"
+    if "ACADEMIC" in raw_type or any(clean_domain.endswith(sfx) for sfx in (".edu", ".ac.in", ".ac.uk", "nature.com", "science.org", "arxiv.org", "nih.gov", "cdc.gov", "who.int", "ncbi.nlm.nih.gov")):
+        return "Primary research / peer-reviewed academic or health institution"
+    if clean_domain in {"britannica.com", "archives.gov", "nationalarchives.gov.uk", "loc.gov", "si.edu"} or "REFERENCE" in raw_type:
+        return "Authoritative reference work / archival institution"
+    if "NEWS" in raw_type or clean_domain in {"reuters.com", "apnews.com", "bbc.com", "bbc.co.uk", "npr.org"}:
+        return "Reputable journalistic news organization"
+    if "FACT_CHECK" in raw_type:
+        return "Certified independent fact-checking organization"
+    if "LOW_PRIORITY" in raw_type:
+        return "Low priority aggregator / user forum / commercial blog"
+    return "General web source"
+
+
+def evaluate_source_relevance(
+    claim_text: str,
+    source: WebSource,
+    min_threshold: float = 0.20,
+    detected_countries: list[CountryAuthority] | None = None,
+) -> tuple[bool, float, str, str]:
+    """Evaluate source relevance according to the strict relevance acceptance policy.
+
+    Relevance Criteria:
+    1. Entity Identity Check: Source must discuss the target entity in the claim.
+       Reject if source discusses a different entity or omits the target entity entirely.
+    2. Different Fact Check: If the entity is mentioned, source must address the specific
+       proposition/predicate asserted, not merely a different fact about the entity.
+    3. Temporal / Date Scope Check: If the claim specifies a date or time period as a core
+       proposition, reject sources that discuss conflicting dates or different timeframes.
+    4. Geographic / Jurisdiction Check: Reject unrelated foreign jurisdictions that do not
+       cover the geographic scope of the claim.
+    5. Textual Adequacy: Reject pages with empty or insufficient textual evidence.
+
+    Returns: (is_relevant, score, relevance_rationale, quality_rationale)
+    """
+    quality_rationale = get_source_quality_rationale(source.domain, source.source_type)
+    clean_snippet = clean_raw_snippet(source.snippet or "")
+    clean_title = clean_raw_snippet(source.title or "")
+    raw_content = clean_raw_snippet(getattr(source, "extracted_passage", "") or "")
+    combined = f"{clean_title} {clean_snippet} {raw_content}".casefold()
+
+    if not combined.strip():
+        return False, 0.0, "Source has no textual content to assess", quality_rationale
+
+    words = _WORD_RE.findall(combined)
+    if len(words) < 5:
+        return False, 0.05, "Source snippet is too brief to substantiate claim", quality_rationale
+
+    anchors, concepts = extract_claim_anchors_and_concepts(claim_text)
+    clean_claim = " ".join(claim_text.split()).strip()
+    claim_tokens = _WORD_RE.findall(clean_claim)
+    claim_years = [t for t in claim_tokens if re.match(r"^\d{3,4}$", t)]
+
+    # 1. Entity Identity Check
+    if anchors:
+        matched_anchors = [a for a in anchors if a.casefold() in combined]
+        if not matched_anchors:
+            return False, 0.05, f"Entity mismatch: target entity '{anchors[0]}' not found in source text", quality_rationale
+
+    # 2. Proposition & Concept Check (Different Fact Check)
+    anchor_tokens = {tok.casefold() for a in anchors for tok in _WORD_RE.findall(a)}
+    predicate_concepts = [c for c in concepts if c not in anchor_tokens]
+    matched_predicate_concepts = [c for c in predicate_concepts if _concept_in_text(c, combined)]
+    matched_concepts = [c for c in concepts if _concept_in_text(c, combined)]
+    matched_years = [y for y in claim_years if y in combined]
+
+    if anchors and predicate_concepts:
+        if not matched_predicate_concepts and not matched_years and len(predicate_concepts) >= 2:
+            return False, 0.10, "Target entity mentioned but discusses a different fact or topic", quality_rationale
+    else:
+        if not matched_concepts and not matched_years:
+            return False, 0.10, "Source does not address claim proposition", quality_rationale
+
+    total_props = len(concepts) + len(claim_years)
+    matched_props = len(matched_concepts) + len(matched_years)
+    concept_ratio = matched_props / max(1, total_props) if total_props else 0.5
+
+    # 3. Temporal / Date Check
+    if claim_years:
+        claim_year = claim_years[0]
+        # If text explicitly discusses the entity with a conflicting 4-digit year for the event
+        found_years = set(re.findall(r"\b(1\d{3}|20\d{2})\b", combined))
+        if found_years and claim_year not in found_years and (concept_ratio < 0.60 or len(found_years) <= 2):
+            return False, 0.10, f"Date mismatch: source discusses year {', '.join(sorted(found_years))} rather than {claim_year}", quality_rationale
+
+    # 4. Jurisdiction & Foreign Institutional Mismatch Check
+    if detected_countries:
+        claim_country_codes = {c.country_code for c in detected_countries}
+        source_domain = (source.domain or "").lower()
+        is_foreign_gov = False
+        foreign_unrelated_terms = False
+
+        if "JP" in claim_country_codes:
+            if any(source_domain.endswith(sfx) for sfx in (".gov.au", ".gov.in", ".gov.uk", ".gc.ca", ".fed.us")):
+                is_foreign_gov = True
+            if any(term in combined for term in ("trade delegation", "trade mission", "export", "bilateral investment", "beef", "coal")):
+                foreign_unrelated_terms = True
+        elif "AU" in claim_country_codes:
+            if any(source_domain.endswith(sfx) for sfx in (".gov.in", ".gov.uk", ".gc.ca", ".go.jp")):
+                is_foreign_gov = True
+        elif "IN" in claim_country_codes:
+            if any(source_domain.endswith(sfx) for sfx in (".gov.au", ".gov.uk", ".gc.ca", ".go.jp")):
+                is_foreign_gov = True
+
+        if is_foreign_gov and (foreign_unrelated_terms or concept_ratio < 0.35):
+            return False, 0.05, "Geographic / jurisdictional mismatch: foreign government source addressing unrelated topic", quality_rationale
+
+    # 5. Composite Relevance Score
+    anchor_ratio = len([a for a in anchors if a.casefold() in combined]) / max(1, len(anchors)) if anchors else 1.0
+    computed_score = round((concept_ratio * 0.6) + (anchor_ratio * 0.4), 3)
+
+    if computed_score < min_threshold:
+        return False, computed_score, f"Relevance score ({computed_score:.2f}) below threshold ({min_threshold:.2f}); insufficient topical overlap", quality_rationale
+
+    return True, computed_score, f"Source directly discusses target entity and proposition (relevance={computed_score:.2f})", quality_rationale
+
+
 def compute_topical_relevance(
     claim_text: str,
     source: WebSource,
     detected_countries: list[CountryAuthority] | None = None,
 ) -> float:
-    """Compute topical relevance score (0.0 to 1.0) of a WebSource to claim_text.
-
-    Penalizes unrelated foreign domestic government sources (e.g. Queensland parliament
-    for a claim about Tokyo/Japan) and sources that lack the primary claim subject anchors.
-    """
-    clean_snippet = clean_raw_snippet(source.snippet or "")
-    clean_title = clean_raw_snippet(source.title or "")
-    combined = f"{clean_title} {clean_snippet}".casefold()
-
-    if not combined.strip():
-        return 0.0
-
-    anchors, concepts = extract_claim_anchors_and_concepts(claim_text)
-    if not concepts and not anchors:
-        return 0.5  # Neutral fallback for empty extracted concepts
-
-    # 1. Primary Subject Anchor Check
-    # If the claim has a primary named entity subject (e.g. Tokyo), verify presence
-    has_primary_anchor = False
-    if anchors:
-        primary = anchors[0].casefold()
-        has_primary_anchor = primary in combined
-        if not has_primary_anchor and len(anchors) > 1:
-            has_primary_anchor = any(a.casefold() in combined for a in anchors)
-    else:
-        has_primary_anchor = True
-
-    # Critical anchor penalty: if the primary subject entity is completely missing,
-    # the source cannot be sufficient evidence for this claim.
-    if anchors and not has_primary_anchor:
-        return 0.05
-
-    # 2. Informative Concept Overlap
-    matched_concepts = sum(1 for c in concepts if c in combined)
-    concept_ratio = matched_concepts / max(1, len(concepts))
-
-    # 3. Anchor Match Ratio
-    anchor_ratio = 1.0
-    if anchors:
-        matched_anchors = sum(1 for a in anchors if a.casefold() in combined)
-        anchor_ratio = matched_anchors / len(anchors)
-
-    base_relevance = (concept_ratio * 0.6) + (anchor_ratio * 0.4)
-
-    # 4. Jurisdiction & Foreign Institutional Mismatch Penalty
-    # An official government domain from an unrelated jurisdiction must not be
-    # accepted as evidence for a domestic geographic or constitutional claim.
-    if detected_countries:
-        claim_country_codes = {c.country_code for c in detected_countries}
-        source_domain = (source.domain or "").lower()
-
-        # Check if the source is from a foreign government domain
-        is_foreign_gov = False
-        foreign_unrelated_terms = False
-
-        if "JP" in claim_country_codes:
-            # Claim is specifically about Japan/Tokyo
-            if any(source_domain.endswith(sfx) for sfx in (".gov.au", ".gov.in", ".gov.uk", ".gc.ca", ".fed.us")):
-                is_foreign_gov = True
-            # Foreign bilateral trade, tourism, or overseas parliamentary delegation mentions
-            if any(term in combined for term in ("trade delegation", "trade mission", "export", "bilateral investment", "beef", "coal")):
-                foreign_unrelated_terms = True
-
-        elif "AU" in claim_country_codes:
-            if any(source_domain.endswith(sfx) for sfx in (".gov.in", ".gov.uk", ".gc.ca", ".go.jp")):
-                is_foreign_gov = True
-
-        elif "IN" in claim_country_codes:
-            if any(source_domain.endswith(sfx) for sfx in (".gov.au", ".gov.uk", ".gc.ca", ".go.jp")):
-                is_foreign_gov = True
-
-        if is_foreign_gov and (foreign_unrelated_terms or base_relevance < 0.40):
-            # Foreign government source discussing trade/overseas affairs
-            # rather than domestic constitutional geography
-            return 0.05
-
-    return min(1.0, max(0.0, base_relevance))
+    """Compute topical relevance score (0.0 to 1.0) of a WebSource to claim_text."""
+    _is_rel, score, _rationale, _qual = evaluate_source_relevance(
+        claim_text, source, min_threshold=0.20, detected_countries=detected_countries
+    )
+    return score
 
 
 def is_source_topically_relevant(
@@ -195,7 +270,10 @@ def is_source_topically_relevant(
     detected_countries: list[CountryAuthority] | None = None,
 ) -> bool:
     """Return True if source meets minimum topical relevance to the claim."""
-    return compute_topical_relevance(claim_text, source, detected_countries=detected_countries) >= min_threshold
+    is_rel, _score, _rationale, _qual = evaluate_source_relevance(
+        claim_text, source, min_threshold=min_threshold, detected_countries=detected_countries
+    )
+    return is_rel
 
 
 def filter_topically_relevant_sources(
@@ -204,17 +282,25 @@ def filter_topically_relevant_sources(
     min_threshold: float = 0.20,
     detected_countries: list[CountryAuthority] | None = None,
 ) -> list[WebSource]:
-    """Filter out sources that are off-topic or irrelevant to the claim."""
+    """Filter out sources that are off-topic or fail the strict relevance acceptance policy."""
     import dataclasses
 
     relevant: list[WebSource] = []
     for s in sources:
-        score = compute_topical_relevance(claim_text, s, detected_countries=detected_countries)
-        if score >= min_threshold:
-            if s.relevance_score is None or score > s.relevance_score:
-                relevant.append(dataclasses.replace(s, relevance_score=round(score, 3)))
-            else:
-                relevant.append(s)
+        is_rel, score, rel_rationale, qual_rationale = evaluate_source_relevance(
+            claim_text, s, min_threshold=min_threshold, detected_countries=detected_countries
+        )
+        if is_rel:
+            extracted_passage = getattr(s, "extracted_passage", None) or s.snippet[:1500]
+            relevant.append(
+                dataclasses.replace(
+                    s,
+                    relevance_score=score,
+                    relevance_rationale=rel_rationale,
+                    quality_rationale=qual_rationale,
+                    extracted_passage=extracted_passage,
+                )
+            )
     return relevant
 
 
@@ -231,8 +317,10 @@ def compute_source_priority(
     """
     from app.web_evidence.source_quality import source_tier_rank
 
-    relevance = compute_topical_relevance(claim_text, source, detected_countries=detected_countries)
-    if relevance < 0.20:
+    is_rel, relevance, _rel_rat, _qual_rat = evaluate_source_relevance(
+        claim_text, source, min_threshold=0.20, detected_countries=detected_countries
+    )
+    if not is_rel or relevance < 0.20:
         return 0.0
 
     # Tier rank: 1 (Primary/Gov) -> 6 (Low priority)

@@ -15,11 +15,18 @@ def _annotate(source: WebSource) -> WebSource:
         relevance_score=source.relevance_score,
         source_type=source.source_type or classify_source_type(domain).value,
         question_type=source.question_type,
+        evidence_summary=source.evidence_summary,
+        quality_rationale=source.quality_rationale,
+        relevance_rationale=source.relevance_rationale,
+        extracted_passage=source.extracted_passage,
     )
 
 
 class MockTavilyClient(WebSearchClient):
     """Deterministic web search for tests and Demo / Mock Mode."""
+
+    async def extract(self, urls: list[str]) -> dict[str, str]:
+        return {u: f"Extracted content for {u}" for u in urls}
 
     def __init__(
         self,

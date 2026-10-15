@@ -19,6 +19,9 @@ class WebSource:
     source_type: str = "GENERAL"
     question_type: str | None = None
     evidence_summary: str | None = None
+    quality_rationale: str | None = None
+    relevance_rationale: str | None = None
+    extracted_passage: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -31,6 +34,9 @@ class WebSource:
             "source_type": self.source_type,
             "question_type": self.question_type,
             "evidence_summary": self.evidence_summary,
+            "quality_rationale": self.quality_rationale,
+            "relevance_rationale": self.relevance_rationale,
+            "extracted_passage": self.extracted_passage,
         }
 
 
@@ -72,6 +78,10 @@ class WebSearchClient(ABC):
         question_type: str | None = None,
     ) -> list[WebSource]:
         """Return normalized search results for a query."""
+
+    async def extract(self, urls: list[str]) -> dict[str, str]:
+        """Extract full page text for candidate URLs where supported by provider."""
+        return {}
 
 
 @dataclass

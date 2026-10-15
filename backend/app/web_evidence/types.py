@@ -10,6 +10,7 @@ class EvidenceVerdict(str, Enum):
     SUPPORTED = "SUPPORTED"
     CONTRADICTED = "CONTRADICTED"
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+    NOT_ASSESSED_NO_RELEVANT_SOURCE = "NOT_ASSESSED_NO_RELEVANT_SOURCE"
 
 
 class WebEvidenceStatus(str, Enum):
@@ -96,6 +97,27 @@ class WebEvidenceResult:
             1 for item in self.claims if item.verdict is EvidenceVerdict.INSUFFICIENT_EVIDENCE
         )
 
+    @property
+    def unassessed_claims(self) -> int:
+        return sum(
+            1
+            for item in self.claims
+            if item.verdict is EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE
+        )
+
+    @property
+    def assessed_claims(self) -> int:
+        return sum(
+            1
+            for item in self.claims
+            if item.verdict
+            in {
+                EvidenceVerdict.SUPPORTED,
+                EvidenceVerdict.CONTRADICTED,
+                EvidenceVerdict.INSUFFICIENT_EVIDENCE,
+            }
+        )
+
     def finalize_score(self) -> None:
         """Attach consistency score/verdict from claim outcomes (does not touch MetaQA)."""
         from app.web_evidence.scoring import (
@@ -110,6 +132,7 @@ class WebEvidenceResult:
             supported=self.supported_claims,
             contradicted=self.contradicted_claims,
             insufficient=self.insufficient_claims,
+            unassessed=self.unassessed_claims,
         )
         self.consistency_score = score
         self.consistency_verdict = verdict.value
@@ -133,6 +156,8 @@ class WebEvidenceResult:
             "supported_claims": self.supported_claims,
             "contradicted_claims": self.contradicted_claims,
             "insufficient_claims": self.insufficient_claims,
+            "unassessed_claims": self.unassessed_claims,
+            "assessed_claims": self.assessed_claims,
             "consistency_score": self.consistency_score,
             "consistency_verdict": self.consistency_verdict,
             "consistency_verdict_label": self.consistency_verdict_label,

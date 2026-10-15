@@ -80,6 +80,9 @@ interface DetectApiWebSource {
   source_type?: string | null
   question_type?: string | null
   evidence_summary?: string | null
+  quality_rationale?: string | null
+  relevance_rationale?: string | null
+  extracted_passage?: string | null
 }
 
 interface DetectApiWebClaim {
@@ -107,6 +110,8 @@ interface DetectApiWebEvidence {
   supported_claims?: number
   contradicted_claims?: number
   insufficient_claims?: number
+  unassessed_claims?: number
+  assessed_claims?: number
   consistency_score?: number | null
   consistency_verdict?: string | null
   consistency_verdict_label?: string | null
@@ -316,6 +321,9 @@ function mapWebClaim(item: DetectApiWebClaim, index: number): WebClaimRecord {
       sourceType: source.source_type || 'GENERAL',
       questionType: source.question_type ?? null,
       evidenceSummary: source.evidence_summary ?? null,
+      qualityRationale: source.quality_rationale ?? null,
+      relevanceRationale: source.relevance_rationale ?? null,
+      extractedPassage: source.extracted_passage ?? null,
     }))
   return {
     id: item.id || `claim_${index + 1}`,
@@ -352,6 +360,8 @@ function mapWebEvidence(payload: DetectApiWebEvidence | null | undefined): WebEv
     supportedClaims: payload.supported_claims ?? 0,
     contradictedClaims: payload.contradicted_claims ?? 0,
     insufficientClaims: payload.insufficient_claims ?? 0,
+    unassessedClaims: payload.unassessed_claims ?? 0,
+    assessedClaims: payload.assessed_claims ?? 0,
     consistencyScore: payload.consistency_score ?? null,
     consistencyVerdict: payload.consistency_verdict ?? null,
     consistencyVerdictLabel: payload.consistency_verdict_label ?? null,

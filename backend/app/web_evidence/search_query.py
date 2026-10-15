@@ -230,6 +230,91 @@ def claim_to_search_queries(
                 if alt and alt not in queries and len(queries) < 3:
                     queries.append(alt)
 
+    refined = generate_refined_queries(
+        claim_text,
+        question_type=question_type,
+        question_text=question_text,
+        existing_queries=queries,
+        max_refinements=2,
+    )
+    for r in refined:
+        if r not in queries and len(queries) < 4:
+            queries.append(r)
+
     return queries
+
+
+def generate_refined_queries(
+    claim_text: str,
+    *,
+    question_type: str | None = None,
+    question_text: str | None = None,
+    existing_queries: list[str] | None = None,
+    max_refinements: int = 2,
+) -> list[str]:
+    """Generate precise refined search queries when initial discovery returns no relevant results.
+
+    Focuses on exact entities, dates, locations, quantities, and specific relationships.
+    Avoids repeating identical queries.
+    """
+    from app.web_evidence.relevance import extract_claim_anchors_and_concepts
+
+    seen = {q.strip().casefold() for q in (existing_queries or []) if q.strip()}
+    refined: list[str] = []
+
+    anchors, concepts = extract_claim_anchors_and_concepts(claim_text)
+    clean_claim = " ".join(claim_text.split()).strip().rstrip(".!?")
+    tokens = _TOKEN_RE.findall(clean_claim)
+
+    years = [t for t in tokens if _YEAR_RE.match(t)]
+    numbers = [t for t in tokens if _NUMBER_RE.match(t) and not _YEAR_RE.match(t)]
+
+    # Refinement 1: Exact quoted entity + date/year + key relational concepts
+    if anchors:
+        quoted_anchors = " ".join(f'"{a}"' if " " in a else a for a in anchors[:2])
+        key_concepts = [c for c in concepts if not any(c in a.casefold() for a in anchors)][:3]
+        year_str = f" {years[0]}" if years else ""
+        num_str = f" {numbers[0]}" if numbers else ""
+        q1 = f"{quoted_anchors}{year_str}{num_str} {' '.join(key_concepts)}".strip()
+        if q1 and q1.casefold() not in seen:
+            refined.append(q1)
+            seen.add(q1.casefold())
+
+    # Refinement 2: Natural proposition without quote marks (broadening entity boundary)
+    core_tokens: list[str] = []
+    if anchors:
+        core_tokens.extend(anchors[:2])
+    if years:
+        core_tokens.append(years[0])
+    if numbers and numbers[0] not in core_tokens:
+        core_tokens.append(numbers[0])
+    relational = [c for c in concepts if c not in {t.casefold() for t in core_tokens}][:4]
+    core_tokens.extend(relational)
+
+    q2 = " ".join(core_tokens).strip()
+    if q2 and q2.casefold() not in seen and len(refined) < max_refinements:
+        refined.append(q2)
+        seen.add(q2.casefold())
+
+    # Refinement 3: Domain-specific authority query
+    qtype_str = str(question_type or "").upper()
+    if len(refined) < max_refinements:
+        if qtype_str in {"SCIENCE", "MEDICAL"}:
+            q3 = f"{' '.join(anchors[:2])} {' '.join(relational[:2])} scientific research".strip()
+            if q3 and q3.casefold() not in seen:
+                refined.append(q3)
+                seen.add(q3.casefold())
+        elif qtype_str in {"GOVERNMENT_POLICY", "POLITICS", "STATISTICS"}:
+            q3 = f"{' '.join(anchors[:2])} {' '.join(relational[:2])} official statistics portal".strip()
+            if q3 and q3.casefold() not in seen:
+                refined.append(q3)
+                seen.add(q3.casefold())
+        elif qtype_str == "HISTORY":
+            q3 = f"{' '.join(anchors[:2])} {years[0] if years else ''} history Britannica".strip()
+            if q3 and q3.casefold() not in seen:
+                refined.append(q3)
+                seen.add(q3.casefold())
+
+    return refined[:max_refinements]
 
 

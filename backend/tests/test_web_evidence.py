@@ -119,7 +119,7 @@ def test_parse_evidence_verdicts() -> None:
     assert parse_evidence_verdict(None)[0] is EvidenceVerdict.INSUFFICIENT_EVIDENCE
 
 
-async def test_verify_claim_without_sources_is_insufficient() -> None:
+async def test_verify_claim_without_sources_is_unassessed() -> None:
     llm = MockLLMClient()
     verdict, reason = await verify_claim_against_evidence(
         llm,
@@ -127,8 +127,8 @@ async def test_verify_claim_without_sources_is_insufficient() -> None:
         claim="Alexander Fleming discovered penicillin.",
         sources=[],
     )
-    assert verdict is EvidenceVerdict.INSUFFICIENT_EVIDENCE
-    assert "No web sources" in reason
+    assert verdict is EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE
+    assert "No sufficiently relevant source" in reason
 
 
 async def test_verify_claim_supported_with_sources() -> None:
@@ -420,7 +420,7 @@ async def test_phase2_supported_contradicted_insufficient() -> None:
     empty = await verify_claim_against_evidence(
         llm, model="mock", claim="X happened in 1900.", sources=[]
     )
-    assert empty[0] is EvidenceVerdict.INSUFFICIENT_EVIDENCE
+    assert empty[0] is EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE
 
     thin = [
         WebSource(
@@ -451,7 +451,7 @@ async def test_phase2_empty_search_results_are_insufficient() -> None:
     )
     assert result.status is WebEvidenceStatus.COMPLETED
     assert result.total_claims >= 1
-    assert all(c.verdict is EvidenceVerdict.INSUFFICIENT_EVIDENCE for c in result.claims)
+    assert all(c.verdict is EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE for c in result.claims)
     assert all(c.verdict is not EvidenceVerdict.SUPPORTED for c in result.claims)
     assert all(c.verdict is not EvidenceVerdict.CONTRADICTED for c in result.claims)
 
@@ -749,8 +749,8 @@ async def test_preferred_and_fallback_empty_returns_insufficient() -> None:
         settings=settings,
     )
     assert result.status is WebEvidenceStatus.COMPLETED
-    # Empty results → insufficient, never invented SUPPORTED/CONTRADICTED.
-    assert all(c.verdict is EvidenceVerdict.INSUFFICIENT_EVIDENCE for c in result.claims)
+    # Empty results → unassessed, never invented SUPPORTED/CONTRADICTED.
+    assert all(c.verdict is EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE for c in result.claims)
 
 
 async def test_current_event_search_sets_days() -> None:
@@ -1683,8 +1683,8 @@ async def test_20_genuinely_insufficient_evidence_retains_insufficient_verdict()
     )
     assert result.status == WebEvidenceStatus.COMPLETED
     assert len(result.claims) > 0
-    # Because all retrieved sources were off-topic, verdict must be INSUFFICIENT_EVIDENCE
-    assert result.claims[0].verdict == EvidenceVerdict.INSUFFICIENT_EVIDENCE
+    # Because all retrieved sources were off-topic, verdict must be NOT_ASSESSED_NO_RELEVANT_SOURCE
+    assert result.claims[0].verdict == EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE
     assert result.claims[0].sources == []
 
 

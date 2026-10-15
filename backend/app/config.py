@@ -93,12 +93,15 @@ class Settings(BaseSettings):
     # Web Evidence (Tavily) — independent of MetaQA; optional when key missing.
     tavily_api_key: str = ""
     tavily_base_url: str = "https://api.tavily.com"
-    tavily_search_depth: Literal["basic", "advanced"] = "basic"
+    tavily_search_depth: Literal["basic", "advanced"] = "advanced"
     tavily_timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
     web_evidence_enabled: bool = True
     web_max_claims: int = Field(default=6, ge=1, le=20)
-    web_max_searches: int = Field(default=8, ge=1, le=30)
-    web_results_per_claim: int = Field(default=4, ge=1, le=10)
+    web_max_searches: int = Field(default=12, ge=1, le=50)
+    web_results_per_claim: int = Field(default=5, ge=1, le=10)
+    web_relevance_threshold: float = Field(default=0.25, ge=0.0, le=1.0)
+    web_max_query_refinements: int = Field(default=2, ge=0, le=5)
+    web_extract_raw_content: bool = True
     llm_web_claim_max_tokens: int = Field(default=400, ge=64, le=2048)
     llm_web_verify_max_tokens: int = Field(default=300, ge=32, le=2048)
 

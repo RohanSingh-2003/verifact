@@ -149,13 +149,13 @@ def parse_evidence_verdict(payload: dict[str, Any] | None) -> tuple[EvidenceVerd
 def _empty_source_result(sources: list[WebSource]) -> tuple[EvidenceVerdict, str] | None:
     if not sources:
         return (
-            EvidenceVerdict.INSUFFICIENT_EVIDENCE,
-            "No web sources were retrieved for this claim.",
+            EvidenceVerdict.NOT_ASSESSED_NO_RELEVANT_SOURCE,
+            "No sufficiently relevant source was found addressing this claim. The claim was not assessed and is excluded from Web Evidence score aggregation.",
         )
     if not sources_have_usable_snippets(sources):
         return (
             EvidenceVerdict.INSUFFICIENT_EVIDENCE,
-            "Retrieved sources do not include enough textual evidence to verify this claim.",
+            "Relevant sources were examined, but available evidence does not contain sufficient details to verify or contradict this claim.",
         )
     return None
 
