@@ -93,7 +93,7 @@ class Settings(BaseSettings):
     # Web Evidence (Tavily) — independent of MetaQA; optional when key missing.
     tavily_api_key: str = ""
     tavily_base_url: str = "https://api.tavily.com"
-    tavily_search_depth: Literal["basic", "advanced"] = "advanced"
+    tavily_search_depth: Literal["basic", "advanced"] = "basic"
     tavily_timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
     web_evidence_enabled: bool = True
     web_max_claims: int = Field(default=6, ge=1, le=20)
