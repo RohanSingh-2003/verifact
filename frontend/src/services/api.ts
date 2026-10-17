@@ -218,12 +218,23 @@ export async function getSettings(): Promise<AppSettings> {
     effective_verifier_model?: string
     gemini_verifier_model?: string
     gemini_verifier_ready?: boolean
+    phi_verifier_model?: string
+    phi_verifier_ready?: boolean
     tavily_search_depth?: string
     web_max_claims?: number
     web_max_searches?: number
     web_results_per_claim?: number
     web_evidence_enabled?: boolean
     web_evidence_ready?: boolean
+    models?: Array<{
+      id: string
+      name: string
+      provider: string
+      provider_display: string
+      model_name: string
+      configured: boolean
+      is_default?: boolean
+    }>
   }
   return {
     threshold: payload.threshold,
@@ -245,12 +256,25 @@ export async function getSettings(): Promise<AppSettings> {
     effectiveVerifierModel: payload.effective_verifier_model || payload.verifier_model,
     geminiVerifierModel: payload.gemini_verifier_model ?? '',
     geminiVerifierReady: payload.gemini_verifier_ready ?? false,
+    phiVerifierModel: payload.phi_verifier_model ?? '',
+    phiVerifierReady: payload.phi_verifier_ready ?? false,
     tavilySearchDepth: payload.tavily_search_depth ?? 'basic',
     webMaxClaims: payload.web_max_claims ?? 3,
     webMaxSearches: payload.web_max_searches ?? 3,
     webResultsPerClaim: payload.web_results_per_claim ?? 2,
     webEvidenceEnabled: payload.web_evidence_enabled ?? true,
     webEvidenceReady: payload.web_evidence_ready ?? false,
+    models: Array.isArray(payload.models)
+      ? payload.models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          provider: m.provider,
+          providerDisplay: m.provider_display,
+          modelName: m.model_name,
+          configured: Boolean(m.configured),
+          isDefault: Boolean(m.is_default),
+        }))
+      : [],
   }
 }
 

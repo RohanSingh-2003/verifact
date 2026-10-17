@@ -4,21 +4,21 @@ import { ChevronRight } from 'lucide-react'
 const STEPS = [
   {
     title: 'AI generates an answer',
-    detail: 'VeriFact first asks the AI to answer your question.',
+    detail: 'VeriFact uses Gemma 4:26B to generate an answer to your question.',
   },
   {
     title: 'VeriFact checks the answer',
-    detail: 'VeriFact checks the answer in two different ways: MetaQA and Web Analysis.',
+    detail: 'VeriFact checks the answer using MetaQA, independent AI models, and Web Analysis.',
   },
   {
-    title: 'Two checks, different purposes',
+    title: 'Three checks, different purposes',
     detail:
-      'MetaQA checks whether the AI stays consistent when the answer is changed. Web Analysis checks the answer against relevant information from the web.',
+      'MetaQA checks answer consistency. Independent AI models provide additional assessments. Web Analysis checks factual claims against relevant information found online.',
   },
   {
     title: 'You see the results',
     detail:
-      "VeriFact shows the AI's answer, the MetaQA findings, and the Web Analysis findings so you can see what was checked.",
+      'VeriFact displays the answer and its verification findings, helping you understand potential inconsistencies and unsupported claims.',
   },
 ] as const
 
@@ -57,8 +57,15 @@ export function MethodOverview() {
         </summary>
         <div className="mt-3 max-w-2xl space-y-2.5 text-xs leading-5 text-ink-secondary">
           <p>
-            MetaQA is one of the ways VeriFact checks an AI answer. It makes small changes to the
-            answer and checks whether the AI responds consistently.
+            MetaQA checks whether an AI answer stays consistent when small changes are made to it.
+            This helps identify possible inconsistencies, but consistency alone does not guarantee
+            that the answer is correct.
+          </p>
+          <p>
+            VeriFact creates controlled variations of the answer, including applicable synonym,
+            antonym, and negation changes, and uses verification to assess consistency. Because a
+            model can consistently defend an incorrect belief under testing, a consistent answer
+            can still be factually wrong.
           </p>
           <div>
             <Link
@@ -82,8 +89,14 @@ export function MethodOverview() {
         </summary>
         <div className="mt-3 max-w-2xl space-y-2.5 text-xs leading-5 text-ink-secondary">
           <p>
-            Web Analysis is another way VeriFact checks an AI answer. It looks at the factual claims
-            in the answer and checks them against relevant information found on the web.
+            Web Analysis checks the factual claims in an AI answer against relevant information
+            found online. It helps identify claims that are supported, contradicted, or not
+            sufficiently verified by the available evidence.
+          </p>
+          <p>
+            VeriFact retrieves sources through Tavily, evaluates their relevance and quality, and
+            compares them with factual claims. Claims with no relevant sources are marked as not
+            assessed, rather than automatically classified as true or false.
           </p>
           <div>
             <Link

@@ -26,7 +26,7 @@ export function VerdictBadge({ verdict, status }: { verdict: string; status?: st
         ? 'FAILED — Temporarily unavailable'
         : 'FAILED'
     return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-red-700 dark:bg-red-950/60 dark:text-red-300">
+      <span className="inline-flex items-center gap-1 rounded-full bg-hallucinated-soft px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-hallucinated">
         <AlertCircle className="h-3 w-3 shrink-0" />
         {failedLabel}
       </span>
@@ -43,7 +43,7 @@ export function VerdictBadge({ verdict, status }: { verdict: string; status?: st
 
   if (norm === 'NO' || norm === 'INCORRECT') {
     return (
-      <span className="inline-flex items-center rounded-full bg-red-100 dark:bg-red-950/60 px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-red-700 dark:text-red-300">
+      <span className="inline-flex items-center rounded-full bg-hallucinated-soft px-2.5 py-0.5 text-[11px] font-bold tracking-wide text-hallucinated">
         {norm === 'NO' ? 'NO' : 'INCORRECT'}
       </span>
     )
@@ -282,12 +282,12 @@ export function CollapsibleModelVerdicts({
 
                       {/* Explanation Block */}
                       {isFailed ? (
-                        <div className="rounded-md border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/30 p-2.5 text-xs text-red-700 dark:text-red-300 space-y-1">
-                          <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+                        <div className="rounded-md border border-hallucinated/30 bg-hallucinated-soft/40 p-2.5 text-xs text-ink space-y-1">
+                          <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider text-hallucinated">
                             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                             <span>API Error Explanation</span>
                           </div>
-                          <p className="leading-relaxed font-mono text-[11px]">
+                          <p className="leading-relaxed font-mono text-[11px] text-ink-secondary">
                             {v.error || 'The model API call failed without a specific error explanation.'}
                           </p>
                         </div>

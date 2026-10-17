@@ -30,12 +30,12 @@ const claimCheckComparisonRows: ComparisonRow[] = [
   {
     dimension: 'Search Provider',
     research: 'Google Search via Serper API + Google Programmable Search',
-    implementation: 'Tavily Search API with topical routing and 2-pass supplementary search fallback',
+    implementation: 'Tavily Search API with multi-pass retrieval, domain strategy routing, and ranked merging',
   },
   {
     dimension: 'Evidence Ingestion',
     research: 'Full web page scraping via Trafilatura, followed by QA model extraction and BM25 reranking',
-    implementation: 'Direct snippet ingestion with source authority classification, domain tiering, and relevance filtering',
+    implementation: 'Direct snippet ingestion with source authority classification, 6-tier domain ranking, and topical relevance filtering',
   },
   {
     dimension: 'Verification Model',
@@ -45,12 +45,12 @@ const claimCheckComparisonRows: ComparisonRow[] = [
   {
     dimension: 'Verdict Taxonomy',
     research: 'Supported, Refuted, Conflicting Evidence, Not Enough Evidence',
-    implementation: 'SUPPORTED (1.0), CONTRADICTED (0.0), and INSUFFICIENT_EVIDENCE (0.5)',
+    implementation: 'SUPPORTED (1.0), CONTRADICTED (0.0), INSUFFICIENT_EVIDENCE (0.5), and NOT_ASSESSED_NO_RELEVANT_SOURCE (excluded from score)',
   },
   {
     dimension: 'Scoring Formulation',
     research: 'Discrete classification accuracy and macro-F1 on benchmark test splits',
-    implementation: 'Deterministic Web Evidence Consistency Score (mean contribution in [0.0, 1.0]) and 7 categorical verdicts',
+    implementation: 'Deterministic Web Evidence Consistency Score: mean contribution in [0.0, 1.0] across assessed claims (excluding unassessed claims), mapped to 7 categorical verdicts',
   },
   {
     dimension: 'System Role',
@@ -63,41 +63,41 @@ const sourceQualityTiers = [
   {
     tier: 'Tier 1: Primary & Official',
     description: 'Government agencies (.gov, .nic.in, .gov.au), international bodies (UN, WHO), and official organizational portals.',
-    badgeClass: 'text-emerald-700 bg-emerald-500/10 border-emerald-500/20 dark:text-emerald-400',
+    badgeClass: 'text-[#2d6350] bg-[#eef6f2] border-[#cbe3d7] dark:text-[#7fbaa6] dark:bg-[#162720] dark:border-[#274639]',
   },
   {
     tier: 'Tier 2: Academic & Research',
     description: 'Universities (.edu, .ac.in), peer-reviewed repositories, scientific databases, and research institutions.',
-    badgeClass: 'text-blue-700 bg-blue-500/10 border-blue-500/20 dark:text-blue-400',
+    badgeClass: 'text-[#325b7a] bg-[#eef4f8] border-[#cce0ec] dark:text-[#8cb8d8] dark:bg-[#162633] dark:border-[#263e52]',
   },
   {
     tier: 'Tier 3: Reputable News & Fact-Check',
     description: 'Established journalistic organizations (Reuters, AP, BBC, The Hindu) and certified fact-checking outlets.',
-    badgeClass: 'text-indigo-700 bg-indigo-500/10 border-indigo-500/20 dark:text-indigo-400',
+    badgeClass: 'text-[#5a4e75] bg-[#f3f0f7] border-[#d8d0e5] dark:text-[#afa5cf] dark:bg-[#221c2e] dark:border-[#3d3350]',
   },
   {
     tier: 'Tier 4: Reference & Encyclopedias',
     description: 'Curated knowledge repositories, encyclopedias (Wikipedia, Britannica), and structured reference bases.',
-    badgeClass: 'text-amber-700 bg-amber-500/10 border-amber-500/20 dark:text-amber-400',
+    badgeClass: 'text-[#6e5833] bg-[#f6f2ec] border-[#e2d8c7] dark:text-[#cfbd9a] dark:bg-[#292217] dark:border-[#443825]',
   },
   {
     tier: 'Tier 5: General Web',
     description: 'General online publications, commercial domains, industry blogs, and standard internet articles.',
-    badgeClass: 'text-ink-secondary bg-surface-muted border-line',
+    badgeClass: 'text-[#5c5750] bg-[#f2efe9] border-[#ded9cf] dark:text-[#a69f93] dark:bg-[#201d19] dark:border-[#38332c]',
   },
   {
     tier: 'Tier 6: Low Priority',
     description: 'Marketing aggregators, user forums, content farms, and unverified blogs (deprioritized in retrieval).',
-    badgeClass: 'text-ink-muted bg-surface-muted/50 border-line/60',
+    badgeClass: 'text-[#7d776e] bg-[#f7f5f1] border-[#e5e0d7] dark:text-[#888176] dark:bg-[#191715] dark:border-[#2b2723]',
   },
 ]
 
 const inspectableFields = [
   { label: 'Claim Text', desc: 'The exact atomic factual proposition extracted from Gemma’s answer.' },
-  { label: 'Verdict Badge', desc: 'SUPPORTED, CONTRADICTED, or INSUFFICIENT_EVIDENCE with color-coded tone.' },
-  { label: 'Verifier Explanation', desc: 'Concise explanation identifying which facts substantiate, refute, or remain missing.' },
+  { label: 'Verdict Badge', desc: 'SUPPORTED, CONTRADICTED, INSUFFICIENT_EVIDENCE, or NOT_ASSESSED_NO_RELEVANT_SOURCE with distinct visual cues.' },
+  { label: 'Verifier Explanation', desc: 'Concise explanation identifying which facts substantiate, refute, or remain unassessed.' },
   { label: 'Source Title & URL', desc: 'Direct hyperlink and title of the external web document cited as evidence.' },
-  { label: 'Domain & Quality Tier', desc: 'Extracted web domain categorized into authority tiers (e.g., Government, Academic).' },
+  { label: 'Domain & Quality Tier', desc: 'Classified domain authority (Tiers 1–6) and topical relevance score (threshold ≥ 0.20).' },
   { label: 'Snippet Excerpt', desc: 'Verbatim excerpt extracted by Tavily from the source page used to ground the verdict.' },
 ]
 
@@ -135,125 +135,91 @@ export function WebAnalysisPage() {
       <section className="panel p-5 sm:p-6 space-y-3">
         <h2 className="text-sm font-semibold tracking-tight text-ink">What is Web Analysis?</h2>
         <p className="text-sm leading-7 text-ink-secondary">
-          Web Analysis is VeriFact&apos;s <strong>external evidence verification pipeline</strong>. While
-          metamorphic testing (MetaQA) checks whether an LLM maintains logical consistency when its
-          answers are modified, Web Analysis tests whether the factual claims in the answer are actually
-          substantiated by reliable external sources on the live web.
+          Web Analysis checks the factual claims in an AI answer against relevant information found online.
+          It helps identify claims that are supported, contradicted, or not sufficiently verified by the available evidence.
         </p>
         <p className="text-sm leading-7 text-ink-secondary border-t border-line/60 pt-3">
           VeriFact decomposes the answer generated by Gemma 4:26B into testable, atomic propositions,
-          queries the web using the Tavily Search API, prioritizes sources by authority, and evaluates each
-          claim strictly against retrieved snippets. The result is an evidence-grounded assessment that
-          operates independently of the model&apos;s internal parametric beliefs.
+          queries the web using the Tavily Search API, prioritizes sources across six quality tiers, and evaluates each
+          claim strictly against retrieved snippets. Claims with no relevant sources passing the relevance gate
+          are marked as not assessed, rather than automatically classified as true or false.
         </p>
       </section>
 
-      {/* 3. The End-to-End Web Evidence Workflow Diagram */}
+      {/* 3. The 5-Step Web Evidence Workflow */}
       <section className="space-y-4">
         <div>
           <h2 className="text-base font-semibold text-ink">Web Evidence Workflow</h2>
           <p className="mt-1 text-xs text-ink-muted">
-            The sequential stages executed by the backend pipeline from question to verified claims.
+            The 5-step evidence-grounding workflow executed by the backend pipeline from question to verified claims.
           </p>
         </div>
 
         <div className="panel p-5 sm:p-6">
           <div className="mx-auto flex max-w-md flex-col items-center">
-            {/* Step 1: User Question */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 1</span>
-              <p className="text-xs font-semibold text-ink">User Question</p>
-              <p className="text-[10px] text-ink-muted">Input prompt received by the system</p>
+            {/* Step 1: Claim Extraction */}
+            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2.5 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 1</span>
+              <p className="text-xs font-semibold text-ink">Extract Factual Claims</p>
+              <p className="text-[10px] text-ink-muted">Decomposes Gemma 4:26B’s answer into atomic factual claims</p>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Step 2: Fixed Gemma Answer */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-accent/40 bg-accent-soft/30 px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 2</span>
-              <p className="text-xs font-semibold text-ink">Gemma 4:26B Answer Generation</p>
-              <p className="text-[10px] text-ink-muted">Candidate response produced from parametric memory</p>
-            </div>
-
-            <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
-
-            {/* Step 3: Question Routing & Strategy */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 3</span>
-              <p className="text-xs font-semibold text-ink">Question Classification &amp; Routing</p>
-              <p className="text-[10px] text-ink-muted">Identifies domain strategy, country authority &amp; freshness</p>
-            </div>
-
-            <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
-
-            {/* Step 4: Atomic Claim Extraction */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-surface-muted px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 4</span>
-              <p className="text-xs font-semibold text-ink">Atomic Claim Extraction</p>
-              <p className="text-[10px] text-ink-muted">Decomposes response into up to 3 testable factual sentences</p>
-            </div>
-
-            <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
-
-            {/* Step 5: Web Search via Tavily */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                Step 5
+            {/* Step 2: Multi-Pass Tavily Search */}
+            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-accent/40 bg-accent-soft/30 px-3.5 py-2.5 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">
+                Step 2
               </span>
-              <p className="text-xs font-semibold text-ink">Concurrent Web Search (Tavily)</p>
-              <p className="text-[10px] text-ink-muted">Formulates keyword queries with 2-pass fallback search</p>
+              <p className="text-xs font-semibold text-ink">Retrieve Evidence via Tavily</p>
+              <p className="text-[10px] text-ink-muted">Executes targeted searches with multi-pass fallback for thin coverage</p>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Step 6: Evidence Processing & Tiering */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 6</span>
-              <p className="text-xs font-semibold text-ink">Source Deduplication &amp; Tiering</p>
-              <p className="text-[10px] text-ink-muted">Ranks by domain authority &amp; filters off-topic snippets</p>
+            {/* Step 3: Source Relevance & Quality Evaluation */}
+            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2.5 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 3</span>
+              <p className="text-xs font-semibold text-ink">Evaluate Source Relevance &amp; Quality</p>
+              <p className="text-[10px] text-ink-muted">Filters off-topic snippets (threshold ≥ 0.20) &amp; ranks across 6 authority tiers</p>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Step 7: Evidence Verification */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-surface px-4 py-2.5 text-center shadow-card">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 7</span>
-              <p className="text-xs font-bold text-ink">Batch Evidence Verification</p>
-              <p className="text-[10px] text-ink-muted">Strict snippet-only reasoning with compound-claim checking</p>
-            </div>
-
-            <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
-
-            {/* Step 8: Discrete Verdicts */}
-            <div className="w-full max-w-md space-y-1.5">
-              <div className="text-center text-[10px] font-semibold uppercase tracking-wider text-ink-muted">
-                Step 8: Claim Verdicts &amp; Contributions
+            {/* Step 4: Compare Evidence & Verify Claims */}
+            <div className="w-full max-w-md space-y-2">
+              <div className="rounded-[var(--radius-sm)] border border-line bg-surface px-4 py-2 text-center shadow-card">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 4</span>
+                <p className="text-xs font-bold text-ink">Compare Evidence Against Claims</p>
+                <p className="text-[10px] text-ink-muted">Strict snippet reasoning with compound-claim coverage checks</p>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                <div className="rounded-[var(--radius-sm)] border border-reliable/30 bg-reliable-soft p-2">
-                  <span className="text-[10px] font-bold text-reliable uppercase">SUPPORTED</span>
-                  <p className="text-[10px] font-mono text-reliable mt-0.5">Score = 1.0</p>
-                  <p className="text-[9px] text-ink-muted mt-0.5">Evidence confirms fact</p>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 text-center text-xs">
+                <div className="rounded-[var(--radius-sm)] border border-reliable/30 bg-reliable-soft p-1.5">
+                  <span className="text-[9px] font-bold text-reliable uppercase block">SUPPORTED</span>
+                  <p className="text-[9px] font-mono text-reliable mt-0.5">+1.0 score</p>
                 </div>
-                <div className="rounded-[var(--radius-sm)] border border-hallucinated/30 bg-hallucinated-soft p-2">
-                  <span className="text-[10px] font-bold text-hallucinated uppercase">CONTRADICTED</span>
-                  <p className="text-[10px] font-mono text-hallucinated mt-0.5">Score = 0.0</p>
-                  <p className="text-[9px] text-ink-muted mt-0.5">Evidence refutes fact</p>
+                <div className="rounded-[var(--radius-sm)] border border-hallucinated/30 bg-hallucinated-soft p-1.5">
+                  <span className="text-[9px] font-bold text-hallucinated uppercase block">CONTRADICTED</span>
+                  <p className="text-[9px] font-mono text-hallucinated mt-0.5">0.0 score</p>
                 </div>
-                <div className="rounded-[var(--radius-sm)] border border-uncertain/30 bg-uncertain-soft p-2">
-                  <span className="text-[10px] font-bold text-uncertain uppercase">INSUFFICIENT</span>
-                  <p className="text-[10px] font-mono text-uncertain mt-0.5">Score = 0.5</p>
-                  <p className="text-[9px] text-ink-muted mt-0.5">Inconclusive evidence</p>
+                <div className="rounded-[var(--radius-sm)] border border-uncertain/30 bg-uncertain-soft p-1.5">
+                  <span className="text-[9px] font-bold text-uncertain uppercase block">INSUFFICIENT</span>
+                  <p className="text-[9px] font-mono text-uncertain mt-0.5">+0.5 score</p>
+                </div>
+                <div className="rounded-[var(--radius-sm)] border border-line bg-surface-muted p-1.5">
+                  <span className="text-[9px] font-bold text-ink-secondary uppercase block">NOT ASSESSED</span>
+                  <p className="text-[9px] text-ink-muted mt-0.5">Excluded from score</p>
                 </div>
               </div>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
 
-            {/* Step 9: Final Score & Presentation */}
-            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 9</span>
-              <p className="text-xs font-semibold text-ink">Consistency Score &amp; Source Citations</p>
+            {/* Step 5: Presentation & Consistency Score */}
+            <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2.5 text-center">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-accent">Step 5</span>
+              <p className="text-xs font-semibold text-ink">Present Assessments &amp; Consistency Score</p>
               <p className="text-[10px] text-ink-muted">Displays score, categorical verdict, and inspectable citations</p>
             </div>
           </div>
@@ -308,9 +274,10 @@ export function WebAnalysisPage() {
               and geographical qualifiers.
             </p>
             <p>
-              <strong className="text-ink">Two-Pass Fallback Search:</strong> If Pass 1 returns zero hits or unusable
-              snippets, the system executes an automated Pass 2 using alternative query reformulations or broader
-              domain sets within the configured search budget.
+              <strong className="text-ink">Multi-Pass Retrieval &amp; Ranked Merging:</strong> Pass 1 executes targeted
+              searches with authoritative domain routing. If initial results yield zero hits, unusable snippets, or fail
+              topical relevance, an automated Pass 2 executes with query reformulations or broader search parameters.
+              Hits are merged, deduplicated, and ranked by composite priority.
             </p>
           </div>
         </div>
@@ -328,25 +295,36 @@ export function WebAnalysisPage() {
         <div className="panel p-5 sm:p-6 space-y-4">
           <p className="text-sm leading-relaxed text-ink-secondary">
             Not all search results carry equal evidential weight. VeriFact inspects retrieved URLs and
-            categorizes sources into prioritized quality tiers:
+            categorizes sources into six prioritized quality tiers:
           </p>
 
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {sourceQualityTiers.map((item) => (
-              <div key={item.tier} className="rounded-[var(--radius-sm)] border border-line bg-canvas/70 p-3 space-y-1.5">
+              <div
+                key={item.tier}
+                className="rounded-[var(--radius-sm)] border border-line/80 bg-surface/80 p-3.5 space-y-2 transition-colors hover:border-line-strong"
+              >
                 <span className={`inline-block rounded px-2 py-0.5 text-[10px] font-semibold border ${item.badgeClass}`}>
                   {item.tier}
                 </span>
-                <p className="text-[11px] leading-4 text-ink-secondary">{item.description}</p>
+                <p className="text-[11px] leading-relaxed text-ink-secondary">{item.description}</p>
               </div>
             ))}
           </div>
 
-          <p className="text-[11px] text-ink-muted leading-relaxed border-t border-line/60 pt-3">
-            <strong className="text-ink">Domain Strategy Routing:</strong> The pipeline identifies question types
-            (e.g., Medical, Legal, Historical, Geographical) and attaches specialized authority domain filters
-            (e.g., routing Indian governance queries through official <code>.gov.in</code> portals).
-          </p>
+          <div className="space-y-1.5 text-[11px] text-ink-muted leading-relaxed border-t border-line/60 pt-3">
+            <p>
+              <strong className="text-ink">Composite Priority Ranking:</strong> Sources are prioritized by tier rank
+              (Tier 1 Primary &amp; Official &lt; Tier 2 Academic &lt; &hellip; &lt; Tier 6 Low Priority) merged with topical
+              relevance scores. Low-priority content farms, marketing aggregators, and unverified blogs are deprioritized
+              when authoritative sources are available.
+            </p>
+            <p>
+              <strong className="text-ink">Domain Strategy Routing:</strong> The pipeline identifies question types
+              (e.g., Medical, Legal, Historical, Geographical) and attaches specialized authority domain filters
+              (e.g., routing Indian governance queries through official <code>.gov.in</code> portals).
+            </p>
+          </div>
         </div>
       </section>
 
@@ -355,81 +333,107 @@ export function WebAnalysisPage() {
         <div>
           <h2 className="text-base font-semibold text-ink">Evidence Verification Rules</h2>
           <p className="mt-1 text-xs text-ink-muted">
-            Strict snippet-only reasoning rules governing claim verdicts.
+            Strict snippet-only reasoning rules governing claim assessments and verdicts.
           </p>
         </div>
 
         <div className="panel p-5 sm:p-6 space-y-5">
           <p className="text-sm leading-relaxed text-ink-secondary">
-            VeriFact sends retrieved snippets and claims to the verifier LLM with strict instructions prohibiting
-            outside assumptions. Claims receive one of three mutually exclusive verdicts:
+            VeriFact sends retrieved snippets and claims to the verifier with strict instructions prohibiting
+            unsupported assumptions. Claims receive one of four distinct outcomes:
           </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-stretch">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-stretch">
             {/* SUPPORTED */}
-            <div className="panel p-4 flex flex-col justify-between border-l-4 border-l-reliable space-y-2">
+            <div className="panel p-3.5 flex flex-col justify-between border-l-4 border-l-reliable space-y-2">
               <div>
-                <div className="flex items-center gap-1.5 mb-1.5 text-reliable font-bold text-xs uppercase tracking-wide">
+                <div className="flex items-center gap-1.5 mb-1 text-reliable font-bold text-xs uppercase tracking-wide">
                   <CheckCircle2 className="h-4 w-4" />
                   SUPPORTED
                 </div>
-                <p className="text-xs text-ink-secondary leading-5">
-                  Reliable evidence directly establishes the claim or supports it through a direct, unambiguous inference.
-                  Valid paraphrases qualify; word-for-word textual equality is not required.
+                <p className="text-[11px] text-ink-secondary leading-4">
+                  Reliable evidence directly establishes the claim or confirms it through unambiguous inference.
+                  Valid paraphrases qualify.
                 </p>
               </div>
-              <div className="rounded bg-reliable-soft p-1.5 text-[11px] font-semibold text-reliable text-center">
+              <div className="rounded bg-reliable-soft p-1 text-[10px] font-semibold text-reliable text-center">
                 Contribution: +1.0
               </div>
             </div>
 
             {/* CONTRADICTED */}
-            <div className="panel p-4 flex flex-col justify-between border-l-4 border-l-hallucinated space-y-2">
+            <div className="panel p-3.5 flex flex-col justify-between border-l-4 border-l-hallucinated space-y-2">
               <div>
-                <div className="flex items-center gap-1.5 mb-1.5 text-hallucinated font-bold text-xs uppercase tracking-wide">
+                <div className="flex items-center gap-1.5 mb-1 text-hallucinated font-bold text-xs uppercase tracking-wide">
                   <XCircle className="h-4 w-4" />
                   CONTRADICTED
                 </div>
-                <p className="text-xs text-ink-secondary leading-5">
+                <p className="text-[11px] text-ink-secondary leading-4">
                   Reliable evidence directly conflicts with the claim. The source explicitly asserts an incompatible
-                  fact regarding the entity, date, place, or outcome.
+                  fact.
                 </p>
               </div>
-              <div className="rounded bg-hallucinated-soft p-1.5 text-[11px] font-semibold text-hallucinated text-center">
+              <div className="rounded bg-hallucinated-soft p-1 text-[10px] font-semibold text-hallucinated text-center">
                 Contribution: 0.0
               </div>
             </div>
 
             {/* INSUFFICIENT_EVIDENCE */}
-            <div className="panel p-4 flex flex-col justify-between border-l-4 border-l-uncertain space-y-2">
+            <div className="panel p-3.5 flex flex-col justify-between border-l-4 border-l-uncertain space-y-2">
               <div>
-                <div className="flex items-center gap-1.5 mb-1.5 text-uncertain font-bold text-xs uppercase tracking-wide">
+                <div className="flex items-center gap-1.5 mb-1 text-uncertain font-bold text-xs uppercase tracking-wide">
                   <HelpCircle className="h-4 w-4" />
-                  INSUFFICIENT_EVIDENCE
+                  INSUFFICIENT
                 </div>
-                <p className="text-xs text-ink-secondary leading-5">
-                  Available evidence is missing, partial, vague, or fails to establish all assertions in a compound
-                  claim. Omission in a snippet is never treated as contradiction.
+                <p className="text-[11px] text-ink-secondary leading-4">
+                  Available evidence is missing, partial, vague, or fails to establish all assertions in a compound claim.
                 </p>
               </div>
-              <div className="rounded bg-uncertain-soft p-1.5 text-[11px] font-semibold text-uncertain text-center">
+              <div className="rounded bg-uncertain-soft p-1 text-[10px] font-semibold text-uncertain text-center">
                 Contribution: +0.5
+              </div>
+            </div>
+
+            {/* NOT_ASSESSED_NO_RELEVANT_SOURCE */}
+            <div className="panel p-3.5 flex flex-col justify-between border-l-4 border-l-line space-y-2">
+              <div>
+                <div className="flex items-center gap-1.5 mb-1 text-ink-secondary font-bold text-xs uppercase tracking-wide">
+                  <ShieldCheck className="h-4 w-4 text-ink-muted" />
+                  NOT ASSESSED
+                </div>
+                <p className="text-[11px] text-ink-secondary leading-4">
+                  No retrieved source passed the topical relevance gate (threshold &ge; 0.20). Excluded from score calculation.
+                </p>
+              </div>
+              <div className="rounded bg-surface-muted p-1 text-[10px] font-semibold text-ink-muted text-center">
+                Excluded from Score
               </div>
             </div>
           </div>
 
-          {/* Compound-Claim Rule Box */}
-          <div className="rounded-[var(--radius-sm)] border border-line bg-surface-muted p-3.5 text-xs text-ink-secondary leading-relaxed space-y-1.5">
+          {/* Critical Clarifications Box */}
+          <div className="rounded-[var(--radius-sm)] border border-line bg-surface-muted p-3.5 text-xs text-ink-secondary leading-relaxed space-y-2">
             <div className="flex items-center gap-1.5 font-semibold text-ink">
               <ShieldCheck className="h-4 w-4 text-accent" />
-              Compound-Claim Verification Guard
+              Essential Fact-Checking Principles in VeriFact
             </div>
-            <p>
-              If a claim contains multiple dependent clauses (e.g., &ldquo;Event X occurred in year Y AND was led by
-              person Z&rdquo;), the backend requires evidence for <em>all</em> components. If sources confirm only
-              part of the claim while omitting the rest, the verdict is explicitly kept as{' '}
-              <strong className="text-ink">INSUFFICIENT_EVIDENCE</strong> to prevent overconfident claims of support.
-            </p>
+            <ul className="list-disc pl-4 space-y-1 text-[11px]">
+              <li>
+                <strong className="text-ink">Compound-Claim Coverage Guard:</strong> If a claim contains multiple assertions
+                (e.g., &ldquo;Event X happened in year Y AND was led by person Z&rdquo;), all parts must be verified by evidence.
+                If evidence only confirms part of the claim while omitting others, the verdict defaults to{' '}
+                <code>INSUFFICIENT_EVIDENCE</code> to prevent overconfident claims of support.
+              </li>
+              <li>
+                <strong className="text-ink">Insufficient Evidence is Not Contradiction:</strong> A web source omitting a fact
+                does not make that fact false. <code>CONTRADICTED</code> is strictly reserved for explicit factual clashes.
+              </li>
+              <li>
+                <strong className="text-ink">Lack of Relevant Sources is Not Falsity:</strong> If no relevant source is found
+                online addressing a claim, it is marked as <code>NOT_ASSESSED_NO_RELEVANT_SOURCE</code> rather than assumed to
+                be true or false, and is excluded from the consistency score.
+              </li>
+            </ul>
           </div>
         </div>
       </section>
@@ -444,17 +448,44 @@ export function WebAnalysisPage() {
         </div>
 
         <div className="panel p-5 sm:p-6 space-y-5">
-          {/* Formula */}
-          <div className="rounded-[var(--radius-sm)] border border-line bg-canvas p-4 text-center space-y-2">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">
-              Web Evidence Consistency Score Formula
-            </p>
-            <div className="font-mono text-sm sm:text-base font-bold text-ink">
-              Consistency Score = &frac1N; &sum;<sub>k=1</sub><sup>N</sup> Contribution(Claim<sub>k</sub>)
+          {/* Formula Display Box */}
+          <div className="rounded-[var(--radius-sm)] border border-line bg-canvas/70 p-4 sm:p-5 space-y-4">
+            <div className="text-center space-y-2">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">
+                Web Evidence Consistency Score
+              </p>
+              <div className="inline-flex items-center justify-center rounded-[var(--radius-sm)] border border-line bg-surface px-4 py-2.5 shadow-xs">
+                <span className="text-xs sm:text-sm font-semibold text-ink">
+                  Consistency Score = Average contribution of all assessed claims
+                </span>
+              </div>
             </div>
-            <p className="text-xs text-ink-secondary max-w-lg mx-auto">
-              Where <code>SUPPORTED = 1.0</code>, <code>INSUFFICIENT_EVIDENCE = 0.5</code>, and{' '}
-              <code>CONTRADICTED = 0.0</code>. If no claims are extractable, the score is <code>None</code>.
+
+            {/* Contribution Values Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+              <div className="rounded border border-reliable/25 bg-reliable-soft/60 p-2.5 text-center space-y-0.5">
+                <span className="text-[11px] font-semibold text-reliable block">Supported claim</span>
+                <span className="text-xs font-mono font-bold text-reliable">1.0</span>
+              </div>
+              <div className="rounded border border-uncertain/25 bg-uncertain-soft/60 p-2.5 text-center space-y-0.5">
+                <span className="text-[11px] font-semibold text-uncertain block">Insufficient evidence</span>
+                <span className="text-xs font-mono font-bold text-uncertain">0.5</span>
+              </div>
+              <div className="rounded border border-hallucinated/25 bg-hallucinated-soft/60 p-2.5 text-center space-y-0.5">
+                <span className="text-[11px] font-semibold text-hallucinated block">Contradicted claim</span>
+                <span className="text-xs font-mono font-bold text-hallucinated">0.0</span>
+              </div>
+              <div className="rounded border border-line bg-surface-muted/70 p-2.5 text-center space-y-0.5">
+                <span className="text-[11px] font-semibold text-ink-secondary block">Not assessed (no source)</span>
+                <span className="text-[10px] text-ink-muted font-medium block">Excluded from calculation</span>
+              </div>
+            </div>
+
+            <p className="text-xs leading-relaxed text-ink-secondary border-t border-line/60 pt-3">
+              The consistency score is calculated as the average of the contributions from claims that were actually
+              assessed. Claims for which no relevant source was found online are marked as not assessed and are
+              excluded from both the numerator and the denominator. If there are no eligible assessed claims, no score
+              is produced (<code className="text-[11px]">None</code>).
             </p>
           </div>
 
@@ -501,12 +532,17 @@ export function WebAnalysisPage() {
                     <td className="py-2 font-mono text-[11px]">Supported = 0, Contradicted = 0</td>
                     <td className="py-2">Not enough external evidence to fully verify</td>
                   </tr>
+                  <tr>
+                    <td className="py-2 font-semibold text-ink-muted">NO_CLAIMS</td>
+                    <td className="py-2 font-mono text-[11px]">Score is None and 0 assessed claims</td>
+                    <td className="py-2">No eligible assessed claims to score</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          <div className="rounded-[var(--radius-sm)] border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-ink-secondary leading-relaxed">
+          <div className="rounded-[var(--radius-sm)] border border-uncertain/30 bg-uncertain-soft/40 p-3.5 text-xs text-ink-secondary leading-relaxed">
             <strong className="text-ink font-semibold">Scientific Interpretation Caution:</strong> The Web Evidence
             Consistency Score is an empirical metric of online evidentiary corroboration,{' '}
             <strong className="text-ink">not a calibrated mathematical probability of factual truth</strong>. An answer
@@ -608,12 +644,12 @@ export function WebAnalysisPage() {
                   </div>
                   <div className="rounded border border-line/70 bg-surface-muted/60 p-1.5 text-[10px] text-ink-secondary space-y-0.5">
                     <span className="font-semibold text-ink block">1. Mutation Generation</span>
-                    Gemma generates synonyms &amp; antonyms
+                    Gemma generates synonyms, antonyms &amp; negations
                   </div>
                   <ArrowDown className="mx-auto h-3 w-3 text-ink-muted" />
                   <div className="rounded border border-accent/30 bg-accent-soft/40 p-1.5 text-[10px] text-ink font-medium space-y-0.5">
                     <span className="font-bold text-accent block">2. Multi-Model Mutation Verifier</span>
-                    Phi-4 Reasoning, GLM, Qwen &amp; OpenRouter score variants
+                    Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B &amp; Liquid LFM-2.5
                   </div>
                   <ArrowDown className="mx-auto h-3 w-3 text-ink-muted" />
                   <div className="mt-auto rounded bg-surface p-1.5 border border-line text-[10px] font-bold text-ink">
@@ -645,9 +681,9 @@ export function WebAnalysisPage() {
                 </div>
 
                 {/* Branch 3: Web Evidence Pipeline */}
-                <div className="flex flex-col space-y-2 rounded-[var(--radius-sm)] border border-emerald-500/30 bg-emerald-500/5 p-3 text-center">
+                <div className="flex flex-col space-y-2 rounded-[var(--radius-sm)] border border-reliable/30 bg-reliable-soft/20 p-3 text-center">
                   <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-ink">
-                    <Globe className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <Globe className="h-3.5 w-3.5 text-reliable" />
                     Web Evidence Pipeline
                   </div>
                   <div className="rounded border border-line/70 bg-surface-muted/60 p-1.5 text-[10px] text-ink-secondary space-y-0.5">
@@ -655,9 +691,9 @@ export function WebAnalysisPage() {
                     Isolates up to 3 atomic factual claims
                   </div>
                   <ArrowDown className="mx-auto h-3 w-3 text-ink-muted" />
-                  <div className="rounded border border-emerald-500/30 bg-emerald-500/10 p-1.5 text-[10px] text-emerald-800 dark:text-emerald-300 font-medium space-y-0.5">
-                    <span className="font-bold block">2. Tavily Search &amp; Tiering</span>
-                    Retrieval + domain authority ranking
+                  <div className="rounded border border-reliable/30 bg-reliable-soft/40 p-1.5 text-[10px] text-ink font-medium space-y-0.5">
+                    <span className="font-bold text-reliable block">2. Tavily Search &amp; Tiering</span>
+                    Multi-pass retrieval + 6-tier ranking
                   </div>
                   <ArrowDown className="mx-auto h-3 w-3 text-ink-muted" />
                   <div className="mt-auto rounded bg-surface p-1.5 border border-line text-[10px] font-bold text-ink">
@@ -700,15 +736,15 @@ export function WebAnalysisPage() {
             <ol className="list-decimal pl-4 space-y-2">
               <li>
                 <strong className="text-ink">MetaQA Pipeline (<code>_continue_metaqa_analysis</code>):</strong> Gemma generates
-                synonym and antonym mutations (<code>mutation.py</code>). Rather than acting as a separate outside silo, the{' '}
+                synonym, antonym, and negation mutations (<code>mutation.py</code>). Rather than acting as a separate outside silo, the{' '}
                 <strong className="text-ink">multi-model verifier pool acts directly as the mutation verifier stage</strong> inside
-                MetaQA (<code>metaqa/multi_verifier.py::verify_all_mutations_multi_model</code>). All non-Gemma models evaluate
-                each mutation concurrently, and their discrete verdicts (YES=0/1, NO=1/0, NOT SURE=0.5) determine the MetaQA
-                Inconsistency Score.
+                MetaQA (<code>metaqa/multi_verifier.py::verify_all_mutations_multi_model</code>). All independent models
+                (Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B, Liquid LFM-2.5) evaluate each mutation concurrently, and their
+                discrete verdicts (YES=0/1, NO=1/0, NOT SURE=0.5) determine the MetaQA Inconsistency Score.
               </li>
               <li>
                 <strong className="text-ink">Direct-Answer Multi-Model Review (<code>_continue_independent_verdicts</code>):</strong>{' '}
-                Concurrently, all non-Gemma models evaluate Gemma’s complete answer directly (<code>independent_verifiers.py</code>).
+                Concurrently, all independent models evaluate Gemma’s complete answer directly (<code>independent_verifiers.py</code>).
                 This process receives the user question, Gemma’s generated answer, extracted key claims, mutation context, and
                 retrieved web snippets as inputs, outputting structured verdicts (<code>Correct</code>, <code>Incorrect</code>,{' '}
                 <code>Uncertain</code>), concise reasoning, and identified contradictory statements.
@@ -716,8 +752,8 @@ export function WebAnalysisPage() {
               <li>
                 <strong className="text-ink">Web Evidence Pipeline (<code>_continue_web_evidence</code>):</strong> Operates as an
                 independent external grounding pipeline (<code>web_evidence/pipeline.py</code>). It decomposes Gemma&apos;s answer
-                into testable claims, executes keyword queries via Tavily with 2-pass fallback, tiers sources by authority,
-                and scores claim support without altering MetaQA scores.
+                into testable claims, executes keyword queries via Tavily with multi-pass fallback, tiers sources across 6 authority
+                levels, filters off-topic sources (threshold &ge; 0.20), and scores claim support without altering MetaQA scores.
               </li>
             </ol>
             <p className="text-[11px] text-ink-muted border-t border-line/60 pt-2">
@@ -747,6 +783,11 @@ export function WebAnalysisPage() {
               when information is missing, reserving <code>CONTRADICTED</code> exclusively for explicit factual clashes.
             </li>
             <li>
+              <strong className="text-ink">Lack of Relevant Sources is Not Falsity:</strong> When no relevant web sources
+              are found online addressing a claim, the claim is marked <code>NOT_ASSESSED_NO_RELEVANT_SOURCE</code> and
+              excluded from the consistency score. Absence of online documentation must not be conflated with evidence of falsehood.
+            </li>
+            <li>
               <strong className="text-ink">Search Engine Coverage &amp; Freshness:</strong> Search engines can return
               outdated, partial, or SEO-manipulated content. Even authoritative domains can host legacy information that
               has since been superseded.
@@ -758,8 +799,9 @@ export function WebAnalysisPage() {
             </li>
             <li>
               <strong className="text-ink">Multi-Model Peer Review Distinction:</strong> The independent verifier models
-              (Phi-4 Reasoning, GLM, Qwen, OpenRouter) conduct cross-model review of Gemma&apos;s answer. Their peer agreement
-              does not substitute for external factual documentation and does not alter the Web Evidence score.
+              (Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B, and Liquid LFM-2.5) conduct cross-model review of Gemma&apos;s answer.
+              Their peer agreement demonstrates architectural consensus, but does not substitute for external factual documentation
+              and does not alter the Web Evidence score.
             </li>
           </ul>
         </div>

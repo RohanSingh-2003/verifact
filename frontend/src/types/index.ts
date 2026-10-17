@@ -369,12 +369,15 @@ export interface AppSettings {
   effectiveVerifierModel: string
   geminiVerifierModel: string
   geminiVerifierReady: boolean
+  phiVerifierModel?: string
+  phiVerifierReady?: boolean
   tavilySearchDepth: string
   webMaxClaims: number
   webMaxSearches: number
   webResultsPerClaim: number
   webEvidenceEnabled: boolean
   webEvidenceReady: boolean
+  models?: AnswerModelOption[]
 }
 
 export interface SystemHealth {

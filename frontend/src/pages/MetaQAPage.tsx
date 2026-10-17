@@ -17,17 +17,17 @@ const metaqaComparisonRows: ComparisonRow[] = [
   {
     dimension: 'Mutation Generation',
     research: 'Prompted the evaluated model with few-shot demonstration examples',
-    implementation: 'Gemma 4:26B extracts core factual claims and generates synonym and antonym mutations via strict JSON schemas',
+    implementation: 'Gemma 4:26B extracts core factual claims and generates applicable synonym, antonym, and negation mutations via strict JSON schemas',
   },
   {
     dimension: 'Mutation Types',
     research: 'Synonym mutations (lexical substitution, active/passive inversion) and Antonym mutations (direct negation)',
-    implementation: 'Synonym and Antonym mutations with bounded sentence lengths (5–35 words), defaulting to 3 synonyms and 3 antonyms',
+    implementation: 'Meaning-preserving synonym mutations and meaning-contradicting antonym/negation mutations, bounded to 5–35 words (default 3 synonyms and 3 antonyms)',
   },
   {
     dimension: 'Mutation Verifier',
     research: 'Self-verification: the evaluated target LLM verified its own mutated statements',
-    implementation: 'Cross-model verification: independent models (default Microsoft Phi-4 Reasoning, or multi-verifier models) evaluate statements against the candidate answer',
+    implementation: 'Cross-model verification: independent models (Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B, and Liquid LFM-2.5) evaluate statements against the candidate answer',
   },
   {
     dimension: 'Verifier Blindness',
@@ -47,7 +47,7 @@ const metaqaComparisonRows: ComparisonRow[] = [
   {
     dimension: 'Multi-Model Cross-Verification',
     research: 'Not evaluated (focused on single-model self-consistency)',
-    implementation: 'Complementary feature: all other configured models (Phi-4 Reasoning, GLM-4.7, Qwen-2.5, OpenRouter) independently evaluate Gemma’s answer without altering MetaQA scores',
+    implementation: 'Complementary feature: independent models (Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B, Liquid LFM-2.5) independently evaluate Gemma’s answer without altering MetaQA scores',
   },
   {
     dimension: 'External Evidence',
@@ -95,19 +95,17 @@ export function MetaQAPage() {
       <section className="panel p-5 sm:p-6 space-y-3">
         <h2 className="text-sm font-semibold tracking-tight text-ink">What is MetaQA?</h2>
         <p className="text-sm leading-7 text-ink-secondary">
-          MetaQA is a <strong>zero-resource, reference-free</strong> methodology for detecting
-          fact-conflicting hallucinations in Large Language Model (LLM) responses. Traditional fact-checking
-          requires querying external knowledge bases or search engines. In contrast, MetaQA solves the
-          classic software engineering <em>test oracle problem</em>—where the true ground truth is unknown
-          in advance—by inspecting whether the model remains logically and semantically consistent under
-          controlled transformations called <strong>metamorphic relations</strong>.
+          MetaQA tests whether an AI-generated answer remains consistent when relevant changes are made to it.
+          This helps identify possible internal inconsistencies, but <strong>consistency alone does not guarantee
+          that the answer is factually correct</strong>—an AI model can consistently repeat an incorrect claim.
         </p>
         <p className="text-sm leading-7 text-ink-secondary border-t border-line/60 pt-3">
-          In VeriFact, MetaQA forms the primary metamorphic detection pillar. If a model generates an answer
-          grounded in solid parametric knowledge, its assertions should remain invariant when rephrased
-          (synonym mutations) and strictly reject direct contradictions (antonym mutations). When a model
-          hallucinates, its internal grounding is fragile, causing it to accept contradictory variants or
-          reject semantically equivalent statements.
+          Traditional fact-checking requires querying external databases or search engines. MetaQA provides a
+          <strong>zero-resource, reference-free</strong> detection methodology that addresses the software engineering{' '}
+          <em>test oracle problem</em>—where external ground truth is unknown in advance. By generating controlled
+          perturbations called <strong>metamorphic relations</strong> (including synonym variations, antonyms, and
+          explicit negations), VeriFact verifies whether the model’s stated assertions remain invariant under rephrasing
+          and strictly reject contradictory variants.
         </p>
       </section>
 
@@ -144,7 +142,7 @@ export function MetaQAPage() {
             <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-surface-muted px-3.5 py-2 text-center">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 3</span>
               <p className="text-xs font-semibold text-ink">Claim Extraction &amp; Mutation Generation</p>
-              <p className="text-[10px] text-ink-muted">Gemma produces structured synonym &amp; antonym mutations</p>
+              <p className="text-[10px] text-ink-muted">Gemma extracts claims and generates synonym, antonym &amp; negation mutations</p>
             </div>
 
             {/* Metamorphic Split */}
@@ -172,7 +170,7 @@ export function MetaQAPage() {
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="w-full rounded border border-line bg-surface py-1 px-1.5 text-[10px] font-medium text-ink">
                     Multi-Model Verifiers
-                    <span className="block text-[9px] text-ink-muted font-normal">Phi-4, GLM, Qwen, OpenRouter</span>
+                    <span className="block text-[9px] text-ink-muted font-normal">Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B, Liquid LFM-2.5</span>
                   </div>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="rounded bg-reliable-soft px-2 py-0.5 text-[10px] font-bold text-reliable">
@@ -184,7 +182,7 @@ export function MetaQAPage() {
                 {/* Antonym Branch */}
                 <div className="flex flex-col items-center space-y-2 rounded-[var(--radius-sm)] border border-hallucinated/30 bg-canvas/70 p-3 text-center">
                   <span className="rounded bg-hallucinated-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-hallucinated">
-                    Antonym Mutations
+                    Antonym &amp; Negation
                   </span>
                   <p className="text-[11px] leading-tight text-ink-secondary">
                     Contradicts factual meaning
@@ -192,7 +190,7 @@ export function MetaQAPage() {
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="w-full rounded border border-line bg-surface py-1 px-1.5 text-[10px] font-medium text-ink">
                     Multi-Model Verifiers
-                    <span className="block text-[9px] text-ink-muted font-normal">Phi-4, GLM, Qwen, OpenRouter</span>
+                    <span className="block text-[9px] text-ink-muted font-normal">Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B, Liquid LFM-2.5</span>
                   </div>
                   <ArrowDown className="h-3 w-3 text-ink-muted" />
                   <div className="rounded bg-reliable-soft px-2 py-0.5 text-[10px] font-bold text-reliable">
@@ -221,7 +219,7 @@ export function MetaQAPage() {
             <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-surface px-4 py-2.5 text-center shadow-card">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 4</span>
               <p className="text-xs font-bold text-ink">MetaQA Inconsistency Score</p>
-              <p className="text-[10px] font-mono text-ink-secondary mt-0.5">S = (∑ SynScore + ∑ AntScore) / (N + M)</p>
+              <p className="text-[10px] font-medium text-ink-secondary mt-0.5">S = (Mean SynScore + Mean AntScore) / 2</p>
             </div>
 
             <ArrowDown className="my-1.5 h-4 w-4 text-ink-muted shrink-0" aria-hidden="true" />
@@ -248,7 +246,7 @@ export function MetaQAPage() {
             {/* Step 6: Presentation */}
             <div className="w-full max-w-xs rounded-[var(--radius-sm)] border border-line bg-canvas px-3.5 py-2 text-center">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-ink-muted">Step 6</span>
-              <p className="text-xs font-semibold text-ink">Results &amp; Complementary Signals</p>
+              <p className="text-xs font-semibold text-ink">Results &amp; Verification Findings</p>
               <p className="text-[10px] text-ink-muted">Gemma answer, MetaQA score, independent model verdicts &amp; web evidence</p>
             </div>
           </div>
@@ -278,8 +276,9 @@ export function MetaQAPage() {
               badgeVariant="synonym"
               description={
                 <>
-                  Transforms the wording while maintaining the factual proposition (e.g., lexical substitution
-                  or syntactic rephrasing). If the model truly knows the fact, it must agree with this variation.
+                  Transforms the wording while maintaining the factual proposition (e.g., lexical substitution,
+                  active/passive voice inversion, or syntactic rephrasing). If the model holds solid parametric knowledge,
+                  it must agree with this variation.
                 </>
               }
               original="Alexander Fleming discovered penicillin in 1928."
@@ -290,12 +289,12 @@ export function MetaQAPage() {
 
             <MutationCard
               badge="A"
-              title="Antonym Mutations (Meaning-Contradicting)"
+              title="Antonym & Negation Mutations (Meaning-Contradicting)"
               badgeVariant="antonym"
               description={
                 <>
-                  Inverts or contradicts the core factual proposition through explicit negation or antonymous
-                  attributes. A consistent model must recognize that the statement conflicts with its answer.
+                  Inverts or contradicts the core factual proposition through explicit negation or contrasting
+                  factual attributes. A consistent model must recognize that this statement conflicts with its answer.
                 </>
               }
               original="Alexander Fleming discovered penicillin in 1928."
@@ -375,17 +374,57 @@ export function MetaQAPage() {
           </div>
 
           {/* Mathematical Formula Box */}
-          <div className="rounded-[var(--radius-sm)] border border-line bg-canvas p-4 text-center space-y-2">
-            <p className="text-xs font-semibold text-ink-muted uppercase tracking-wider">
-              Mathematical Score Formula (Eq. 5 from Yang et al.)
-            </p>
-            <div className="font-mono text-sm sm:text-base font-bold text-ink">
-              S<sub>MetaQA</sub> = &frac12; &times; &Biggl( &frac1N; &sum;<sub>i=1</sub><sup>N</sup> SynScore(S<sub>i</sub>) + &frac1M; &sum;<sub>j=1</sub><sup>M</sup> AntScore(A<sub>j</sub>) &Biggr)
+          <div className="rounded-[var(--radius-sm)] border border-line bg-canvas/70 p-4 sm:p-5 space-y-4">
+            <div className="text-center space-y-2.5">
+              <p className="text-[11px] font-semibold text-ink-muted uppercase tracking-wider">
+                Mathematical Score Formula (Equation 5, Yang et al.)
+              </p>
+              <div className="inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-2 rounded-[var(--radius-sm)] border border-line bg-surface px-4 py-3 shadow-xs text-xs sm:text-sm font-medium text-ink">
+                <span className="font-semibold text-ink">S<sub>MetaQA</sub></span>
+                <span className="text-ink-muted">=</span>
+                <span className="inline-flex flex-col items-center justify-center text-[10px] sm:text-xs leading-none">
+                  <span className="border-b border-line-strong px-1 pb-0.5">1</span>
+                  <span className="px-1 pt-0.5">2</span>
+                </span>
+                <span className="text-ink-muted">&times;</span>
+                <span className="text-base sm:text-lg text-ink-muted font-light">[</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex flex-col items-center justify-center text-[10px] sm:text-xs leading-none">
+                    <span className="border-b border-line-strong px-1 pb-0.5">1</span>
+                    <span className="px-1 pt-0.5">N</span>
+                  </span>
+                  <span>&sum;<sub>i=1</sub><sup>N</sup> SynScore(S<sub>i</sub>)</span>
+                </span>
+                <span className="text-ink-muted">+</span>
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="inline-flex flex-col items-center justify-center text-[10px] sm:text-xs leading-none">
+                    <span className="border-b border-line-strong px-1 pb-0.5">1</span>
+                    <span className="px-1 pt-0.5">M</span>
+                  </span>
+                  <span>&sum;<sub>j=1</sub><sup>M</sup> AntScore(A<sub>j</sub>)</span>
+                </span>
+                <span className="text-base sm:text-lg text-ink-muted font-light">]</span>
+              </div>
             </div>
-            <p className="text-xs text-ink-secondary max-w-lg mx-auto">
-              When the number of synonym mutations (<em>N</em>) equals antonym mutations (<em>M</em>) (the default is 3 each),
-              this simplifies to the arithmetic mean across all mutation penalty contributions, bounded strictly between <code>0.0</code> and <code>1.0</code>.
-            </p>
+
+            <div className="border-t border-line/60 pt-3 space-y-2 text-xs text-ink-secondary leading-relaxed">
+              <p className="font-medium text-ink">How to understand this formula:</p>
+              <ul className="list-disc pl-4 space-y-1.5 text-[11px]">
+                <li>
+                  <strong className="text-ink">Synonym mutations</strong> measure whether meaning-preserving changes produce inconsistent responses (expected verdict: <code>YES</code>, penalty: 0.0).
+                </li>
+                <li>
+                  <strong className="text-ink">Antonym and negation mutations</strong> test consistency under meaning-changing variations (expected verdict: <code>NO</code>, penalty: 0.0).
+                </li>
+                <li>
+                  <strong className="text-ink">The final score</strong> combines the contributions from both mutation groups and remains bounded between <code>0.0</code> and <code>1.0</code>.
+                </li>
+              </ul>
+              <p className="text-[11px] text-ink-muted pt-1">
+                When the number of synonym mutations (<em>N</em>) equals antonym mutations (<em>M</em>) (the default is 3 each),
+                this formula simplifies to the simple arithmetic average of all mutation penalties.
+              </p>
+            </div>
           </div>
 
           {/* Classification Threshold Rules */}
@@ -439,8 +478,8 @@ export function MetaQAPage() {
               </div>
               <h3 className="mt-1.5 text-xs font-bold text-ink">Metamorphic Mutation Testing</h3>
               <p className="mt-2 text-xs text-ink-secondary leading-5">
-                Gemma 4:26B generates synonym and antonym mutations from extracted claims. The{' '}
-                <strong className="text-ink">multi-model verifier pool</strong> (Phi-4 Reasoning, GLM, Qwen, OpenRouter)
+                Gemma 4:26B extracts factual claims and generates synonym, antonym, and negation mutations. The{' '}
+                <strong className="text-ink">multi-model verifier pool</strong> (Phi-4 Reasoning, GLM-4.7-Flash, Qwen-2.5-32B, and Liquid LFM-2.5)
                 acts as the mutation verifier stage, evaluating every variant to compute the MetaQA Inconsistency Score.
               </p>
             </div>
@@ -457,7 +496,7 @@ export function MetaQAPage() {
               </div>
               <h3 className="mt-1.5 text-xs font-bold text-ink">Independent Peer Evaluation</h3>
               <p className="mt-2 text-xs text-ink-secondary leading-5">
-                In parallel, the same non-Gemma models evaluate Gemma’s original answer directly, receiving the
+                In parallel, the same independent models evaluate Gemma’s original answer directly, receiving the
                 user question, candidate answer, extracted claims, mutation context, and external web snippets to flag
                 disagreements and contradictory statements.
               </p>
@@ -475,7 +514,7 @@ export function MetaQAPage() {
               </div>
               <h3 className="mt-1.5 text-xs font-bold text-ink">External Grounding Retrieval</h3>
               <p className="mt-2 text-xs text-ink-secondary leading-5">
-                An independent pipeline that extracts factual claims, executes concurrent Tavily searches with fallback,
+                An independent pipeline that extracts factual claims, executes concurrent Tavily searches with multi-pass fallback,
                 tiers sources by authority, and verifies claims strictly against retrieved snippets.
               </p>
             </div>
@@ -493,7 +532,7 @@ export function MetaQAPage() {
           <ol className="list-decimal pl-4 space-y-1 text-ink-secondary">
             <li>
               <strong>Inside the MetaQA Pipeline:</strong> They act as the mutation-verification stage in{' '}
-              <code>verify_all_mutations_multi_model</code>, scoring every synonym and antonym statement to determine the
+              <code>verify_all_mutations_multi_model</code>, scoring every synonym, antonym, and negation statement to determine the
               MetaQA Inconsistency Score without knowledge of the expected verdict.
             </li>
             <li>
@@ -534,9 +573,10 @@ export function MetaQAPage() {
         <div className="panel p-5 sm:p-6 space-y-4 text-xs leading-relaxed text-ink-secondary">
           <ul className="list-disc pl-4 space-y-2.5">
             <li>
-              <strong className="text-ink">Internal Consistency vs. Real-World Truth:</strong> Metamorphic testing
-              evaluates internal semantic invariance. A model that stubbornly believes a widespread factual misconception
-              may answer consistently across mutations while remaining factually incorrect in reality.
+              <strong className="text-ink">Consistency Does Not Prove Factual Correctness:</strong> Metamorphic testing
+              evaluates internal semantic invariance. An AI model that firmly holds a widespread factual misconception
+              or incorrect belief can answer consistently across variations and negations while remaining factually
+              wrong in reality.
             </li>
             <li>
               <strong className="text-ink">Model Agreement is Not Proof of Truth:</strong> When independent verifier
@@ -549,7 +589,7 @@ export function MetaQAPage() {
               an antonym generator creates ambiguous phrasing, the verifier’s score can be impacted.
             </li>
             <li>
-              <strong className="text-ink">Non-Calibrated Probability Signal:</strong> The MetaQA Inconsistency Score is
+              <strong className="text-ink">Non-Calibrated Heuristic Metric:</strong> The MetaQA Inconsistency Score is
               a deterministic, method-specific heuristic metric measuring metamorphic stability, not a calibrated Bayesian
               probability that the statement is true.
             </li>

@@ -96,17 +96,17 @@ export function IndependentVerdictsCard({
               Multi-Model Verification
             </h3>
             {hasDisagreement ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-uncertain-soft px-2 py-0.5 text-[10px] font-bold text-uncertain">
                 <AlertTriangle className="h-3 w-3" />
                 Disagreement
               </span>
             ) : verdictCounts.correct > 0 && verdictCounts.incorrect === 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-reliable-soft px-2 py-0.5 text-[10px] font-bold text-reliable">
                 <CheckCircle2 className="h-3 w-3" />
                 Agreement
               </span>
             ) : verdictCounts.incorrect > 0 && verdictCounts.correct === 0 ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 dark:bg-red-950/60 dark:text-red-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-hallucinated-soft px-2 py-0.5 text-[10px] font-bold text-hallucinated">
                 <ShieldAlert className="h-3 w-3" />
                 Consensus Incorrect
               </span>
@@ -137,12 +137,12 @@ export function IndependentVerdictsCard({
 
       {/* Disagreement Warning Callout */}
       {hasDisagreement ? (
-        <div className="mt-3.5 rounded-lg border border-amber-300 dark:border-amber-900/60 bg-amber-50/80 dark:bg-amber-950/30 p-3 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-          <div className="flex items-center gap-1.5 font-semibold text-xs text-amber-800 dark:text-amber-300">
-            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+        <div className="mt-3.5 rounded-lg border border-uncertain/30 bg-uncertain-soft/50 p-3 text-xs text-ink space-y-1">
+          <div className="flex items-center gap-1.5 font-semibold text-xs text-uncertain">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-uncertain" />
             <span>Conflicting Model Assessments Detected</span>
           </div>
-          <p className="text-[12px] leading-relaxed">
+          <p className="text-[12px] leading-relaxed text-ink-secondary">
             The verification models disagreed on this answer ({verdictCounts.correct} evaluated as Correct vs{' '}
             {verdictCounts.incorrect} as Incorrect). Majority agreement is not treated as proof of correctness. Review the conflicting assessments below.
           </p>
@@ -159,12 +159,12 @@ export function IndependentVerdictsCard({
 
       {/* Contradictory claims list if any were extracted */}
       {summary?.contradictoryClaims && summary.contradictoryClaims.length > 0 ? (
-        <div className="mt-3 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/60 dark:bg-red-950/20 p-3 text-xs space-y-1.5">
-          <div className="flex items-center gap-1.5 font-semibold text-xs text-red-700 dark:text-red-300">
+        <div className="mt-3 rounded-lg border border-hallucinated/30 bg-hallucinated-soft/40 p-3 text-xs space-y-1.5">
+          <div className="flex items-center gap-1.5 font-semibold text-xs text-hallucinated">
             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
             <span>Statements Flagged as Contradictory / Unsupported:</span>
           </div>
-          <ul className="list-disc pl-5 space-y-1 text-red-800 dark:text-red-300 text-[11px]">
+          <ul className="list-disc pl-5 space-y-1 text-ink-secondary text-[11px]">
             {summary.contradictoryClaims.map((claim, idx) => (
               <li key={idx} className="leading-relaxed">
                 {claim}
@@ -288,12 +288,12 @@ export function IndependentVerdictsCard({
                       ) : null}
 
                       {isFailed ? (
-                        <div className="rounded-md border border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/30 p-2.5 text-xs text-red-700 dark:text-red-300 space-y-1">
-                          <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider">
+                        <div className="rounded-md border border-hallucinated/30 bg-hallucinated-soft/40 p-2.5 text-xs text-ink space-y-1">
+                          <div className="flex items-center gap-1 font-bold text-[10px] uppercase tracking-wider text-hallucinated">
                             <AlertCircle className="h-3.5 w-3.5 shrink-0" />
                             <span>Error Explanation</span>
                           </div>
-                          <p className="leading-relaxed font-mono text-[11px]">
+                          <p className="leading-relaxed font-mono text-[11px] text-ink-secondary">
                             {item.error || 'Verification request failed.'}
                           </p>
                         </div>
@@ -316,10 +316,10 @@ export function IndependentVerdictsCard({
 
                       {item.contradictoryClaims && item.contradictoryClaims.length > 0 ? (
                         <div className="space-y-1 pt-1">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 block">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-uncertain block">
                             Contradictory / Unsupported Claims:
                           </span>
-                          <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-amber-800 dark:text-amber-300">
+                          <ul className="list-disc pl-4 space-y-0.5 text-[11px] text-ink-secondary">
                             {item.contradictoryClaims.map((claim, cIdx) => (
                               <li key={cIdx}>{claim}</li>
                             ))}
