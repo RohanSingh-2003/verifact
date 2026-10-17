@@ -46,7 +46,7 @@ curl -X POST http://127.0.0.1:8000/api/evaluations/run \
     "threshold": 0.5,
     "name": "Live Evaluation Run",
     "generator_model": "gemma4:26b",
-    "verifier_model": "gemini-3.8-flash"
+    "verifier_model": "microsoft/phi-4-reasoning:free"
   }'
 ```
 

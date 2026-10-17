@@ -102,12 +102,12 @@ VeriFact is built with a decoupled architecture separating the presentation laye
 └──────────────┬──────────────────┬───────────────────┬──────────────────┘
                │                  │                   │
                ▼                  ▼                   ▼
-    ┌────────────────────┐ ┌───────────────┐ ┌───────────────────┐
-    │ Multi-Cloud LLMs   │ │ Google Gemini │ │ Tavily Search API │
-    │ - Ollama Cloud     │ │ API           │ │ - Basic search    │
-    │ - Cloudflare AI    │ │ - Flash 3.8   │ │ - Domain filter   │
-    │ - Groq / Qwen      │ │   Verifier    │ │ - Snip retrieval  │
-    │ - OpenRouter       │ └───────────────┘ └───────────────────┘
+    ┌────────────────────┐ ┌───────────────────────┐ ┌───────────────────┐
+    │ Multi-Cloud LLMs   │ │ OpenRouter (Phi-4)    │ │ Tavily Search API │
+    │ - Ollama Cloud     │ │ - Microsoft Phi-4     │ │ - Basic search    │
+    │ - Cloudflare AI    │ │   Reasoning Verifier  │ │ - Domain filter   │
+    │ - Groq / Qwen      │ │ - Liquid LFM-2.5      │ │ - Snip retrieval  │
+    │ - OpenRouter       │ └───────────────────────┘ └───────────────────┘
     └────────────────────┘
 ```
 
@@ -148,7 +148,7 @@ MetaQA evaluates internal semantic stability by applying metamorphic testing pri
 
 - **Multi-Model Mutation Verification Stage**:
   - The model that generated the base answer (Gemma) is **strictly excluded** from verifying mutations.
-  - The **multi-model verifier pool** (`Gemini 3.8 Flash`, `GLM-4.7-Flash`, `Qwen-2.5-32B`, `Liquid/OpenRouter`) acts directly as the **mutation verifier stage inside the MetaQA pipeline** (`metaqa/multi_verifier.py::verify_all_mutations_multi_model`).
+  - The **multi-model verifier pool** (`Phi-4 Reasoning` [Microsoft via OpenRouter], `GLM-4.7-Flash` [Cloudflare], `Qwen-2.5-32B` [Alibaba / Groq], and `Liquid LFM-2.5` [Liquid AI via OpenRouter]) acts directly as the **mutation verifier stage inside the MetaQA pipeline** (`metaqa/multi_verifier.py::verify_all_mutations_multi_model`). Google Gemini (`gemini-3.8-flash`) remains available as an optional/legacy client adapter.
   - Every individual mutation is evaluated concurrently across all available non-Gemma verifier models.
 - **Metamorphic Mutation Generation**:
   - Core factual claims are parsed from Gemma's answer using strict JSON schemas.
@@ -202,34 +202,54 @@ Concurrently with MetaQA, all configured non-Gemma models independently evaluate
 
 ### D. Web Evidence Grounding
 
-The Web Evidence pipeline provides external factual grounding by querying real-world documents in real time.
+The Web Evidence pipeline provides external factual grounding by querying real-world documents in real time and verifying claim propositions strictly against retrieved textual evidence.
 
 - **Claim Extraction**:
   - Independent factual claims are parsed from the candidate answer while stripping salutations, rhetorical questions, opinions, and markdown styling.
-  - Budgeted by `WEB_MAX_CLAIMS=3` to ensure low latency and respect search quotas.
+  - Budgeted by `WEB_MAX_CLAIMS=3` (or up to configured limits) to ensure low latency and respect search quotas.
 - **Question-Type Classification & Domain Strategies**:
   - A rule-based classifier categorizes questions into domains (e.g., General Facts, Science & Space, Government & Policy, Current Events, Statistics, Technology, Medicine, Academic Research).
   - Routes queries to authoritative high-credibility domains (e.g., `.gov`, `.edu`, Britannica, WHO, NASA, PubMed, Reuters). If preferred domains yield empty results, search automatically broadens.
-- **Tavily Search API**:
-  - Executes targeted search queries per claim using Tavily Basic Search.
-  - Constrained by `WEB_MAX_SEARCHES=3` and `WEB_RESULTS_PER_CLAIM=2`.
-- **Claim-Relevant Evidence Extraction**:
-  - Raw snippets frequently contain HTML navigation bars, markdown headers, and Wikipedia citations (`[1]`).
-  - VeriFact preprocesses snippets and extracts the concise 1–2 sentences directly addressing the claim (`evidenceSummary`), displaying them alongside source title, URL, and verifier reasoning.
-- **Claim Verdicts & Scoring**:
-  - Claims receive one of three strict verdicts:
-    - **`SUPPORTED`**: External evidence explicitly affirms the claim.
+- **Authority-Aware Multi-Pass Search Strategy**:
+  - **Pass 1**: Government-first and authoritative domains tailored to the specific claim and detected jurisdiction.
+  - **Pass 2 (Supplementary Fallback)**: Targeted alternative query or secondary/broader web retrieval triggered if Pass 1 yields no hits, irrelevant hits, or partial coverage for compound claims.
+  - **Pass 3**: Combines official and supplementary sources, filtered by topical relevance and sorted by composite priority.
+- **Source Quality Tiers**:
+  - VeriFact classifies retrieved sources across six structured quality tiers:
+    1. **Tier 1 (Primary & Official)**: Official government portals (`.gov`, `.gov.uk`, `.gov.in`, `go.jp`), constitutional bodies, and primary scientific agencies (`nasa.gov`, `who.int`).
+    2. **Tier 2 (Academic & Research)**: Accredited universities (`.edu`, `.ac.uk`), peer-reviewed journals, and preprint servers (`arxiv.org`, `nature.com`, `pubmed`).
+    3. **Tier 3 (Reputable News & Fact Check)**: Established international wire services and verified fact-checkers (`reuters.com`, `apnews.com`, `bbc.com`, `snopes.com`).
+    4. **Tier 4 (Reference & Encyclopedias)**: Curated encyclopedic references (`britannica.com`, `wikipedia.org`).
+    5. **Tier 5 (General Web)**: Standard web pages and general domain publications.
+    6. **Tier 6 (Low Priority)**: Personal blogs, SEO content farms, and promotional aggregators.
+  - **Composite Ranking Priority**: Ranks sources by balancing topical relevance ($65\%$), source authority tier weight ($25\%$), and jurisdictional alignment bonus ($15\%$).
+- **Strict Evidence Relevance Evaluation & Filtering**:
+  - To prevent authoritative but off-topic documents from passing verification, each source undergoes topical relevance evaluation (`relevance.py`) against extracted claim entity anchors and core conceptual terms (`min_threshold=0.20`).
+  - Sources failing the topical relevance threshold are filtered out before reaching LLM verification, and source relevance rationales are displayed in the UI.
+- **Compound-Claim Coverage Verification**:
+  - Compound assertions (e.g., claims joining multiple factual propositions) are decomposed into constituent components (`evaluate_compound_components_coverage`).
+  - A claim cannot be marked `SUPPORTED` unless all constituent factual components are affirmed by retrieved evidence.
+- **Claim Verdicts & Strict Eligibility Gate**:
+  - Claims receive one of four strict verdicts:
+    - **`SUPPORTED`**: External evidence explicitly affirms all components of the claim.
     - **`CONTRADICTED`**: External evidence directly conflicts with the claim.
     - **`INSUFFICIENT_EVIDENCE`**: Retrieved snippets lack sufficient detail to confirm or refute.
+    - **`NOT_ASSESSED_NO_RELEVANT_SOURCE`**: No topically relevant source was retrieved for this claim; the claim is excluded from score aggregation.
   - **Invariance Principle**: Insufficient evidence is **never** treated as a hallucination. Unverified niche claims remain `INSUFFICIENT_EVIDENCE`.
-  - **Web Evidence Consistency Score**:
-    $$\text{Web Consistency Score} = \frac{1}{N} \sum_{i=1}^N c_i \quad \text{where } c_i \in \{1.0 \text{ (Supported)}, 0.5 \text{ (Insufficient)}, 0.0 \text{ (Contradicted)}\}$$
+- **Deterministic Web Evidence Consistency Score**:
+  - Calculated as the arithmetic mean of contributions from eligible assessed claims:
+    $$\text{Web Consistency Score} = \frac{1}{|A|} \sum_{c \in A} \text{contribution}(c)$$
+    where $A = \{c \in \text{Claims} \mid \text{verdict}(c) \in \{\text{SUPPORTED}, \text{INSUFFICIENT\_EVIDENCE}, \text{CONTRADICTED}\}\}$
+    and contributions are: `SUPPORTED` $= 1.0$, `INSUFFICIENT_EVIDENCE` $= 0.5$, `CONTRADICTED` $= 0.0$.
+  - Unassessed claims (`NOT_ASSESSED_NO_RELEVANT_SOURCE`) are strictly excluded from both the numerator and the denominator. If no claims are eligible for assessment, the score is `None`.
+- **Categorical Web Consistency Verdicts**:
+  - Evaluated based on claim distribution: `STRONGLY_SUPPORTED` ($\ge 0.85$, zero contradictions), `MOSTLY_SUPPORTED`, `PARTIALLY_SUPPORTED` (supported claims present with insufficient evidence), `MIXED` (both supported and contradicted claims present), `CONTRADICTIONS_FOUND`, `INSUFFICIENT` (no supported claims), and `NO_CLAIMS`.
 - **Strict Separation from MetaQA**:
   - Web Evidence is an external retrieval audit. Its consistency score is maintained as an independent metric and is **never** merged into or averaged with the MetaQA metamorphic score.
 
 ---
 
-### D. Performance Evaluation & Benchmarks
+### E. Performance Evaluation & Benchmarks
 
 VeriFact includes a dedicated evaluation module for measuring hallucination detection accuracy against gold-standard reference datasets.
 
@@ -273,20 +293,23 @@ To assist human evaluators without corrupting the underlying research data, Veri
    $$\text{Web Risk} = 1.0 - \text{Web Consistency Score}$$
    $$\text{Combined Hallucination Risk} = 0.5 \times \text{MetaQA Score} + 0.5 \times \text{Web Risk}$$
    - **Heuristic Disclaimer**: Combined Hallucination Risk is an application-level engineering heuristic combining internal stability and external evidence consistency. It is **not** a calibrated statistical probability.
+3. **History View Synchronization**:
+   - The interactive History table (`/history`) displays the synchronized Combined Risk Score gauge and executive verdict badge alongside compact subtext breaking down `MetaQA <score> • Web <score>%`.
 
 ---
 
 ## Supported Cloud Models & Providers
 
-VeriFact supports five cloud-hosted models across official providers:
+VeriFact supports multi-cloud execution across official provider APIs:
 
-| Model ID | Display Name | Cloud Provider | Official Base URL / API | API Key Variable |
-| :--- | :--- | :--- | :--- | :--- |
-| **`gemma`** *(Default)* | Gemma 4:26B | Ollama Cloud | `https://ollama.com/api` | `OLLAMA_API_KEY` |
-| **`glm`** | GLM-4.7-Flash | Cloudflare Workers AI | `https://api.cloudflare.com/client/v4` | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
-| **`qwen`** | Qwen-2.5-32B | Alibaba / Groq | `https://api.groq.com/openai/v1` | `GROQ_API_KEY` |
-| **`openrouter`** | OpenRouter (Liquid) | OpenRouter | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY` |
-| **`gemini`** | Gemini Flash 3.8 | Google | Google Gemini API (`gemini-3.8-flash`) | `GEMINI_API_KEY` |
+| Model ID | Display Name | Cloud Provider | Family Subtitle | Role & Capabilities | Environment Variables |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **`gemma`** *(Default)* | Gemma 4:26B | Ollama Cloud | Ollama Cloud | **Fixed Generator & Mutator** | `OLLAMA_API_KEY`, `OLLAMA_CLOUD_BASE_URL` |
+| **`phi`** | Phi-4 Reasoning | OpenRouter | Microsoft | **Independent Verifier** | `OPENROUTER_API_KEY`, `PHI_MODEL` |
+| **`glm`** | GLM-4.7-Flash | Cloudflare Workers AI | Cloudflare Workers AI | **Independent Verifier** | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` |
+| **`qwen`** | Qwen-2.5-32B | Alibaba / Groq | Alibaba / Groq | **Independent Verifier** | `GROQ_API_KEY`, `GROQ_BASE_URL` |
+| **`openrouter`** | OpenRouter (Liquid) | OpenRouter | Liquid (Liquid AI) | **Independent Verifier** | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` |
+| **`gemini`** *(Optional)* | Gemini Flash 3.8 | Google | Google | Optional Legacy Verifier | `GEMINI_API_KEY` |
 
 ---
 
@@ -352,32 +375,43 @@ DATABASE_URL=sqlite:///./data/verifact.db
 # Execution Mode: "live" (Cloud APIs) or "mock" (offline test fixtures)
 LLM_MODE=live
 
-# 1. Gemma 4:26B via Ollama Cloud (Default Generator)
-OLLAMA_API_KEY=your_ollama_cloud_api_key_here
+# 1. Gemma 4:26B via Ollama Cloud (Fixed Generator)
 OLLAMA_CLOUD_BASE_URL=https://ollama.com/api
+OLLAMA_API_KEY=your_ollama_cloud_api_key_here
 OLLAMA_CLOUD_MODEL=gemma4:26b
 
-# 2. Google Gemini API (Primary Cross-Model Verifier)
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_VERIFIER_MODEL=gemini-3.8-flash
-GEMINI_VERIFY_CONCURRENCY=3
-
-# 3. Optional Additional Cloud Providers
+# 2. Cloudflare Workers AI — GLM-4.7-Flash
 CLOUDFLARE_API_TOKEN=your_cloudflare_token_here
 CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
-GROQ_API_KEY=your_groq_api_key_here
-OPENROUTER_API_KEY=your_openrouter_api_key_here
+CLOUDFLARE_BASE_URL=https://api.cloudflare.com/client/v4
+CLOUDFLARE_MODEL=@cf/zai-org/glm-4.7-flash
 
-# 4. Web Evidence Grounding (Tavily Search API)
+# 3. Alibaba / Groq — Qwen-2.5-32B
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=qwen-2.5-32b
+
+# 4. OpenRouter API — Liquid LFM-2.5 & Microsoft Phi-4 Reasoning
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=liquid/lfm-2.5-2.6b:free
+PHI_MODEL=microsoft/phi-4-reasoning:free
+
+# 5. Optional Legacy Google Gemini Verifier
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_VERIFIER_MODEL=gemini-3.8-flash
+
+# 6. Web Evidence Grounding (Tavily Search API)
 TAVILY_API_KEY=your_tavily_api_key_here
 TAVILY_BASE_URL=https://api.tavily.com
 TAVILY_SEARCH_DEPTH=basic
+TAVILY_TIMEOUT_SECONDS=30
 WEB_EVIDENCE_ENABLED=true
 WEB_MAX_CLAIMS=3
 WEB_MAX_SEARCHES=3
 WEB_RESULTS_PER_CLAIM=2
 
-# 5. MetaQA Detection Parameters
+# 7. MetaQA Detection Parameters
 SYNONYM_COUNT=3
 ANTONYM_COUNT=3
 THRESHOLD=0.5
@@ -414,7 +448,7 @@ Open your browser at **[http://localhost:5173](http://localhost:5173)**.
 All automated unit tests run against deterministic mock fixtures and do **not** call external APIs or require live credits:
 
 ```bash
-# 1. Run Backend Pytest Suite (458 test items collected at time of audit)
+# 1. Run Backend Pytest Suite (491 passed tests collected at time of audit)
 cd backend
 pytest
 
@@ -487,7 +521,7 @@ verifact/
 │   │   └── main.py                         # Application factory & CORS middleware
 │   ├── data/
 │   │   └── datasets/                       # Curated evaluation datasets (pilot.json)
-│   ├── tests/                              # Automated test suite (458 items at audit time)
+│   ├── tests/                              # Automated test suite (491 passed tests at audit time)
 │   ├── requirements.txt                    # Python dependencies
 │   └── README.md                           # Backend developer guide
 ├── frontend/                               # React 19 + TypeScript + Vite UI
@@ -557,7 +591,7 @@ BRANCH 1: MetaQA Pipeline      BRANCH 2: Direct-Answer Review  BRANCH 3: Web Evi
 - Gemma generates paired         concurrently evaluate         - Classify question domain
   Synonym & Antonym mutations    Gemma's full answer text      - Map authoritative domains
 - Multi-Model Verifier Pool    - Context: question, answer,    - Query Tavily Search API
-  (Gemini, GLM, Qwen, Liquid)    claims, mutants, web snippets - Clean snippets (1-2 sent.)
+  (Phi-4, GLM, Qwen, Liquid)    claims, mutants, web snippets - Clean snippets (1-2 sent.)
   verifies each mutation       - Returns: Correct / Incorrect / - Verify claims vs. snippets
 - Penalty scoring (0.0/0.5/1.0)  Uncertain + rationales        - Compute Web Consistency
 - MetaQA Score (0.0 to 1.0)    - Synthesizes peer consensus      Score (0.0 to 1.0)

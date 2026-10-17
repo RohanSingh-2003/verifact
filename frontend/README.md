@@ -88,7 +88,8 @@ This setup ensures zero CORS friction during development and allows frontend API
 ### 2. Fixed Gemma Generator & Independent Peer Review
 - **Dedicated Answer Generation**: Candidate answers are generated exclusively by **Gemma 4:26B** (Ollama Cloud). The model-selection dropdown has been removed from the user interface to ensure a standardized benchmark baseline.
 - **Independent Multi-Model Review Card (`IndependentVerdictsCard`)**:
-  - Peer models (**Gemini 3.8 Flash**, **GLM-4.7-Flash**, **Qwen-2.5-32B**, and **Liquid/OpenRouter**) concurrently evaluate Gemma's complete answer text with full context (question, answer, claims, mutations, and web snippets).
+  - Peer models (**Phi-4 Reasoning** [Microsoft via OpenRouter], **GLM-4.7-Flash** [Cloudflare], **Qwen-2.5-32B** [Alibaba / Groq], and **Liquid LFM-2.5** [Liquid (Liquid AI) via OpenRouter]) concurrently evaluate Gemma's complete answer text with full context (question, answer, claims, mutations, and web snippets). Google Gemini remains supported as an optional legacy client.
+  - **Provider Subtitles**: Displays verified provider families ('Microsoft' for Phi-4 Reasoning, 'Liquid (Liquid AI)' for OpenRouter Liquid).
   - **Consensus Badge**: Displays `Consensus: Correct`, `Disagreement Detected`, `Consensus: Incorrect`, `Uncertain Consensus`, or `No Reviews Available`.
   - **Agreement Metric**: Shows `X/Y agreed` across all responding peer models.
   - **Peer Reasoning Accordions**: Expandable details displaying each verifier's confidence score and qualitative explanation.
@@ -105,7 +106,10 @@ This setup ensures zero CORS friction during development and allows frontend API
 
 ### 4. Web Evidence Source Cards
 - **Claim-Level Panels**: Lists each factual claim extracted from the answer.
+- **Source Quality Tiers**: Badges every source with its authoritative quality tier (`Official / Primary`, `Government / Official`, `Academic`, `Reputable News`, `Reference`, `General Web`, or `Low priority`).
+- **Strict Evidence Relevance & Rationales**: Surfaces topical relevance scores and explanatory rationales explaining why sources directly address the claim propositions.
 - **Clean Evidence Cards**: Surfaces preprocessed 1–2 sentence evidence summaries (`evidenceSummary`) stripped of navigation noise, markdown clutter, and bracket citations.
+- **Strict Eligibility Gate & Unassessed Status**: Claims without relevant sources are clearly labeled `Not assessed (no relevant source)` and visibly marked as excluded from consistency score aggregation.
 - **Metadata**: Shows source domain tag, page title, verifier reasoning, and direct clickable external URLs.
 - **Contradicted Claims Drawer**: Dedicated highlight section when contradictions are detected.
 
@@ -117,10 +121,10 @@ This setup ensures zero CORS friction during development and allows frontend API
   - **Transparent Disclaimer**: Clear explanation that the combined score is an application-level heuristic.
 
 ### 6. History, Guides, & Settings
-- **History (`/history`)**: Filterable, paginated audit log of previous runs stored in the local SQLite database. Inspect questions, answers, scores, and full verification traces.
+- **History (`/history`)**: Filterable, paginated audit log of previous runs stored in the local SQLite database. Displays synchronized Combined Risk Score gauges, overall verdict badges, and subtext breakdowns (`MetaQA <score> • Web <score>%`). Inspect previous questions, answers, scores, and full verification traces.
 - **MetaQA Guide (`/metaqa`)**: Visual educational guide explaining metamorphic testing, synonym/antonym perturbations, the scoring contribution matrix, and thresholds.
 - **Web Analysis Guide (`/web-analysis`)**: Educational guide explaining question-type routing, authoritative domain categorization, and evidence consistency scoring.
-- **Settings (`/settings`)**: Theme switcher (Light, Dark, System), read-only display of configured backend AI providers, and About VeriFact citations.
+- **Settings (`/settings`)**: Theme switcher (Light, Dark, System), read-only display of configured backend AI providers with updated family subtitles, and About VeriFact citations.
 
 ---
 

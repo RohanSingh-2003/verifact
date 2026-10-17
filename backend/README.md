@@ -34,7 +34,7 @@ FastAPI service powering VeriFact's explainable hallucination detection system. 
   3. **Web Evidence Grounding** (external Tavily search retrieval + claim-level fact-checking)
   None of the background verification branches block each other.
 - **100% Cloud-Based Model Inference**: All inference runs through official cloud provider APIs (Ollama Cloud, Cloudflare Workers AI, Groq, OpenRouter, Google Gemini). **No local Ollama daemon or local GPU inference is used.**
-- **Deterministic Offline Mock Mode**: Setting `LLM_MODE=mock` replaces all external LLM and search calls with deterministic fixtures, enabling the automated test suite (458 test items collected at time of audit) to run in seconds without network access or live API credits.
+- **Deterministic Offline Mock Mode**: Setting `LLM_MODE=mock` replaces all external LLM and search calls with deterministic fixtures, enabling the automated test suite (491 passed tests collected at time of audit) to run in seconds without network access or live API credits.
 
 ---
 
@@ -49,10 +49,11 @@ FastAPI service powering VeriFact's explainable hallucination detection system. 
   - **Reasoning Suppression (`think: false`)**: Gemma reasoning models are configured with `think: false` to eliminate hidden reasoning chain overhead and deliver clean, deterministic answers within `LLM_ANSWER_MAX_TOKENS=350`.
 - **Verifier Pool Models**:
   - The model registry in [`app/llm/registry.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/llm/registry.py) defines the remaining cloud-hosted models as independent verifiers:
-    1. `gemini`: Gemini Flash 3.8 via Google Gemini API (`GEMINI_API_KEY`)
+    1. `phi`: Phi-4 Reasoning via OpenRouter (`OPENROUTER_API_KEY`, `PHI_MODEL=microsoft/phi-4-reasoning:free`), provider subtitle: "Microsoft"
     2. `glm`: GLM-4.7-Flash via Cloudflare Workers AI (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`)
     3. `qwen`: Qwen-2.5-32B via Alibaba / Groq (`GROQ_API_KEY`)
-    4. `openrouter`: Liquid LFM-2.5 via OpenRouter (`OPENROUTER_API_KEY`)
+    4. `openrouter`: Liquid LFM-2.5 via OpenRouter (`OPENROUTER_API_KEY`, `OPENROUTER_MODEL=liquid/lfm-2.5-2.6b:free`), provider subtitle: "Liquid (Liquid AI)"
+    5. *(Optional / Legacy)*: `gemini`: Gemini Flash 3.8 via Google Gemini API (`GEMINI_API_KEY`)
 - **Immediate Return Flow**:
   - Answer generation records latency (`answer_ms`) and persists the initial run with status `answer_ready`.
   - The answer text is returned immediately to the frontend, allowing users to inspect the response while verification proceeds in the background.
@@ -66,7 +67,7 @@ Implemented in [`backend/app/metaqa/`](file:///c:/Users/Rohan/Desktop/mini-proje
 - **Generator–Verifier Exclusion Guarantee**:
   - The model that generated the candidate answer (Gemma) is **strictly excluded** from its own verifier pool:
     $$\text{Verifier Pool} = \text{AllConfiguredModels} \setminus \{\text{Gemma 4:26B}\}$$
-  - Other configured models (`gemini`, `glm`, `qwen`, `openrouter`) act as independent cross-model verifiers.
+  - Other configured models (`phi`, `glm`, `qwen`, `openrouter`) act as independent cross-model verifiers.
 - **Metamorphic Mutations**:
   - Rather than rewriting the entire answer, atomic factual claims are parsed from the answer.
   - Generates paired mutations in a single, token-capped request (`LLM_MUTATION_MAX_TOKENS=300`):
@@ -129,21 +130,35 @@ Implemented in [`backend/app/services/independent_verifiers.py`](file:///c:/User
 
 Implemented in [`backend/app/web_evidence/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_evidence/) and [`backend/app/web_search/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/web_search/).
 
-- **Claim Extraction**: Extracts independent testable claims from the candidate answer while stripping greetings, styling, and opinions (`WEB_MAX_CLAIMS=3`).
+- **Claim Extraction**: Extracts independent testable claims from the candidate answer while stripping greetings, styling, and opinions (`WEB_MAX_CLAIMS=3`, configurable up to 20).
 - **Domain Classification & Targeted Routing**:
   - A rule-based classifier categorizes the question (e.g., General Facts, Science, Government, Current Events, Statistics, Medicine, Academic Research).
   - Guides search queries toward authoritative domains (e.g., `.gov`, `.edu`, Britannica, WHO, NASA). If preferred domains yield empty results, search automatically broadens.
-- **Tavily Search API**:
-  - Dispatches targeted search queries per claim using Tavily Basic Search.
-  - Budgeted by `WEB_MAX_SEARCHES=3` and `WEB_RESULTS_PER_CLAIM=2`.
-- **Claim-Relevant Evidence Extraction**:
-  - Automatically cleans navigation bars, boilerplate markdown, and citation brackets (`[1]`).
-  - Extracts the 1–2 sentences directly relevant to the claim (`evidenceSummary`) and returns source domain, title, URL, and verifier rationale.
-- **Claim Verdicts & Consistency Score**:
-  - Verdicts: **`SUPPORTED`**, **`CONTRADICTED`**, or **`INSUFFICIENT_EVIDENCE`**.
-  - **Invariance**: Insufficient evidence is **never** treated as a hallucination.
-  - **Web Consistency Score**: Average claim contribution (`SUPPORTED` = 1.0, `INSUFFICIENT_EVIDENCE` = 0.5, `CONTRADICTED` = 0.0).
-  - **Strict Metric Separation**: Web Evidence is an external retrieval audit; its score is kept strictly independent and is never merged into the MetaQA score.
+- **Authority-Aware Multi-Pass Search Strategy**:
+  - **Pass 1**: Targets jurisdiction-matched and authoritative domain lists.
+  - **Pass 2 (Supplementary Fallback)**: Dispatches alternative query formulations or broader searches if Pass 1 yields no hits, irrelevant hits, or partial compound-claim coverage.
+  - **Pass 3**: Merges and ranks sources by composite priority.
+- **Source Quality Tiers**:
+  - Six structured source tiers: Tier 1 (Primary & Official), Tier 2 (Academic & Research), Tier 3 (Reputable News & Fact Check), Tier 4 (Reference & Encyclopedias), Tier 5 (General Web), and Tier 6 (Low Priority).
+  - Prioritizes sources using a composite formula: $65\%$ topical relevance $+ 25\%$ authority tier weight $+ 15\%$ jurisdiction bonus.
+- **Strict Evidence Relevance Evaluation & Filtering**:
+  - Evaluates retrieved sources against extracted entity anchors and concept tokens (`relevance.py`, `min_threshold=0.20`).
+  - Irrelevant or off-topic pages are filtered out prior to LLM verification.
+- **Compound-Claim Coverage Verification**:
+  - Compound assertions are decomposed into distinct factual components (`evaluate_compound_components_coverage`).
+  - A claim cannot be marked `SUPPORTED` unless retrieved evidence covers all components.
+- **Claim Verdicts & Strict Eligibility Gate**:
+  - Verdicts:
+    - **`SUPPORTED`**: External evidence explicitly affirms all components of the claim.
+    - **`CONTRADICTED`**: External evidence directly conflicts with the claim.
+    - **`INSUFFICIENT_EVIDENCE`**: Retrieved snippets lack sufficient detail to confirm or refute.
+    - **`NOT_ASSESSED_NO_RELEVANT_SOURCE`**: No topically relevant source was found; the claim is excluded from score aggregation.
+  - **Invariance**: Insufficient evidence is **never** treated as a hallucination. Unverified niche claims remain `INSUFFICIENT_EVIDENCE`.
+- **Deterministic Web Evidence Consistency Score**:
+  - Mean contribution across eligible assessed claims (`SUPPORTED` = 1.0, `INSUFFICIENT_EVIDENCE` = 0.5, `CONTRADICTED` = 0.0). Unassessed claims are excluded from both numerator and denominator; returns `None` if no eligible claims exist.
+- **Categorical Web Consistency Verdicts**:
+  - `STRONGLY_SUPPORTED` ($\ge 0.85$, zero contradictions), `MOSTLY_SUPPORTED`, `PARTIALLY_SUPPORTED`, `MIXED`, `CONTRADICTIONS_FOUND`, `INSUFFICIENT`, and `NO_CLAIMS`.
+- **Strict Metric Separation**: Web Evidence is an external retrieval audit; its score is kept strictly independent and is never merged into the MetaQA score.
 
 ---
 
@@ -182,6 +197,8 @@ The application-level synthesis layer in [`backend/app/services/verification_sum
   $$\text{Web Risk} = 1.0 - \text{Web Consistency Score}$$
   $$\text{Combined Risk} = 0.5 \times \text{MetaQA Score} + 0.5 \times \text{Web Risk}$$
 - **Heuristic Notice**: This combined value is an application-level engineering heuristic, not a mathematically calibrated probability of truth.
+- **History View Synchronization**:
+  - The Combined Risk score and overall verdict are persisted to SQLite and rendered directly in the History table, synchronized with Detect page representations.
 
 ---
 
@@ -230,27 +247,38 @@ OLLAMA_CLOUD_BASE_URL=https://ollama.com/api
 OLLAMA_API_KEY=your_ollama_cloud_api_key_here
 OLLAMA_CLOUD_MODEL=gemma4:26b
 
-# 2. Google Gemini (Gemini Flash 3.8 — Primary Cross-Model Verifier)
-GEMINI_API_KEY=your_gemini_api_key_here
-GEMINI_VERIFIER_MODEL=gemini-3.8-flash
-GEMINI_VERIFY_CONCURRENCY=3
-
-# 3. Optional Additional Cloud Providers (Verifier Pool & Peer Review)
+# 2. Cloudflare Workers AI — GLM-4.7-Flash
 CLOUDFLARE_API_TOKEN=your_cloudflare_token_here
 CLOUDFLARE_ACCOUNT_ID=your_cloudflare_account_id_here
-GROQ_API_KEY=your_groq_api_key_here
-OPENROUTER_API_KEY=your_openrouter_api_key_here
+CLOUDFLARE_BASE_URL=https://api.cloudflare.com/client/v4
+CLOUDFLARE_MODEL=@cf/zai-org/glm-4.7-flash
 
-# 4. Web Evidence Verification (Tavily Search API)
+# 3. Alibaba / Groq — Qwen-2.5-32B
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+GROQ_MODEL=qwen-2.5-32b
+
+# 4. OpenRouter API — Liquid LFM-2.5 & Microsoft Phi-4 Reasoning
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_MODEL=liquid/lfm-2.5-2.6b:free
+PHI_MODEL=microsoft/phi-4-reasoning:free
+
+# 5. Optional Legacy Google Gemini Verifier
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_VERIFIER_MODEL=gemini-3.8-flash
+
+# 6. Web Evidence Verification (Tavily Search API)
 TAVILY_API_KEY=your_tavily_api_key_here
 TAVILY_BASE_URL=https://api.tavily.com
 TAVILY_SEARCH_DEPTH=basic
+TAVILY_TIMEOUT_SECONDS=30
 WEB_EVIDENCE_ENABLED=true
 WEB_MAX_CLAIMS=3
 WEB_MAX_SEARCHES=3
 WEB_RESULTS_PER_CLAIM=2
 
-# 5. MetaQA Parameters
+# 7. MetaQA Parameters
 SYNONYM_COUNT=3
 ANTONYM_COUNT=3
 THRESHOLD=0.5
@@ -276,7 +304,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 
 ## Running Automated Tests
 
-The backend includes a comprehensive automated test suite (458 test items collected at the time of the audit) covering all pipelines, scoring functions, mutation edge cases, independent peer verifiers, error handlers, and summary fusion rules:
+The backend includes a comprehensive automated test suite (491 passed tests collected at the time of the audit) covering all pipelines, scoring functions, mutation edge cases, independent peer verifiers, error handlers, and summary fusion rules:
 
 ```bash
 # Run the complete test suite
