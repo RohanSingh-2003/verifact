@@ -49,3 +49,5 @@ experiments/results/*/
 !experiments/raw/58baff20-fb86-4f43-b20e-895a086ceb6b/
 !experiments/processed/58baff20-fb86-4f43-b20e-895a086ceb6b/
 !experiments/results/58baff20-fb86-4f43-b20e-895a086ceb6b/
+data/raw/
+backend/data/raw/

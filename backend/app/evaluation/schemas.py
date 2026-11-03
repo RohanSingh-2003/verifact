@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 
 
 from enum import Enum
@@ -79,10 +81,16 @@ class DatasetExample(BaseModel):
     context: str | list[str] | None = None
 
     supporting_evidence: list[str] = Field(default_factory=list)
+    dataset: str = "pilot"
+    question_type: str = "curated"
+    snapshot_date: str | None = None
+    ground_truth_source: GroundTruthSource | str = GroundTruthSource.UNVALIDATED
+    split: str = "test"
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 
-    @field_validator("id", "question", "reference_answer", "category", "source")
+    @field_validator("id", "question", "reference_answer", "category", "source", "dataset", "split")
 
     @classmethod
 

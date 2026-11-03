@@ -76,9 +76,22 @@ def test_missing_ground_truth_in_formal_mode_remains_unvalidated_without_guessin
     assert decision.is_review is True
 
 
-def test_needs_review_takes_highest_precedence_over_adjudicated_label() -> None:
-    example = _example(needs_review=True, ground_truth_label="Reliable")
+def test_definitive_adjudicated_label_overrides_stale_needs_review_flag() -> None:
+    example = _example(needs_review=True, ground_truth_label="Hallucinated")
     decision = resolve_ground_truth("Canberra", example, adjudicated_label="Reliable")
-    assert decision.is_review is True
-    assert decision.label is None
-    assert decision.source is GroundTruthSource.NEEDS_REVIEW
+    assert decision.is_review is False
+    assert decision.label is Classification.RELIABLE
+    assert decision.source is GroundTruthSource.ADJUDICATED
+
+
+def test_ambiguous_adjudication_or_unadjudicated_retains_needs_review() -> None:
+    example = _example(needs_review=True)
+    d1 = resolve_ground_truth("Canberra", example)
+    assert d1.is_review is True
+    assert d1.label is None
+    assert d1.source is GroundTruthSource.NEEDS_REVIEW
+
+    d2 = resolve_ground_truth("Canberra", example, adjudicated_label="Needs Review")
+    assert d2.is_review is True
+    assert d2.label is None
+    assert d2.source is GroundTruthSource.NEEDS_REVIEW

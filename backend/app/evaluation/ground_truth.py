@@ -182,44 +182,32 @@ def resolve_ground_truth(
 
 ) -> GroundTruthDecision:
 
-    # 1. Explicit needs_review flag
-
-    if example.needs_review:
-
-        return GroundTruthDecision(
-
-            label=None,
-
-            source=GroundTruthSource.NEEDS_REVIEW,
-
-            notes="Dataset flagged this example for manual review.",
-
-        )
-
-
-
-    # 2. Human-adjudicated label
-
+    # 1. Definitive human-adjudicated label takes precedence over stale needs_review flag
     if adjudicated_label is not None:
-
-        label_val = (
-
-            adjudicated_label
-
+        raw_adj = (
+            adjudicated_label.value
             if isinstance(adjudicated_label, Classification)
-
-            else Classification(str(adjudicated_label).capitalize())
-
+            else str(adjudicated_label).strip().capitalize()
+        )
+        if raw_adj in {Classification.RELIABLE.value, Classification.HALLUCINATED.value}:
+            return GroundTruthDecision(
+                label=Classification(raw_adj),
+                source=GroundTruthSource.ADJUDICATED,
+                notes="Definitive human-adjudicated ground truth label.",
+            )
+        # If adjudication explicitly marks it as unresolvable / needs review
+        return GroundTruthDecision(
+            label=None,
+            source=GroundTruthSource.NEEDS_REVIEW,
+            notes="Human adjudication flagged this example as requiring review / unresolvable.",
         )
 
+    # 2. Explicit needs_review flag
+    if example.needs_review:
         return GroundTruthDecision(
-
-            label=label_val,
-
-            source=GroundTruthSource.ADJUDICATED,
-
-            notes="Human-adjudicated ground truth label.",
-
+            label=None,
+            source=GroundTruthSource.NEEDS_REVIEW,
+            notes="Dataset flagged this example for manual review.",
         )
 
 

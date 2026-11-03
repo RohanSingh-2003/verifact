@@ -97,10 +97,27 @@ def default_dataset_path(name: str) -> Path:
     return resolve_dataset_path(name)
 
 
-def load_dataset(name_or_path: str | Path) -> DatasetBundle:
-    """Load a dataset bundle, restricting file access strictly to DATASETS_DIR."""
+def load_dataset(name_or_path: str | Path, *, split: str | None = None) -> DatasetBundle:
+    """Load a dataset bundle, restricting file access strictly to DATASETS_DIR.
+    
+    If split is specified ('dev' or 'test'), returns only examples belonging to that split.
+    """
     resolved_path = resolve_dataset_path(name_or_path)
-    return _load_path(resolved_path)
+    bundle = _load_path(resolved_path)
+    if split:
+        split_lower = split.strip().lower()
+        filtered = [ex for ex in bundle.examples if getattr(ex, "split", "").lower() == split_lower]
+        if not filtered:
+            raise DatasetError(f"No examples found for split '{split}' in dataset '{bundle.name}'.")
+        return DatasetBundle(
+            name=bundle.name,
+            version=bundle.version,
+            description=bundle.description,
+            license=bundle.license,
+            source=bundle.source,
+            examples=filtered,
+        )
+    return bundle
 
 
 def _load_path(path: Path) -> DatasetBundle:
@@ -220,11 +237,15 @@ def build_manifest(bundle: DatasetBundle) -> dict:
         "items": [
             {
                 "question_id": item.id,
+                "dataset": getattr(item, "dataset", "pilot"),
                 "category": item.category,
+                "question_type": getattr(item, "question_type", "curated"),
                 "reference_answer": item.reference_answer,
                 "aliases": item.aliases,
                 "needs_review": item.needs_review,
                 "source": item.source,
+                "split": getattr(item, "split", "test"),
+                "ground_truth_label": item.ground_truth_label.value if item.ground_truth_label else None,
             }
             for item in bundle.examples
         ],
