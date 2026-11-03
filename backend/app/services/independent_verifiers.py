@@ -151,9 +151,8 @@ async def evaluate_single_verifier(
 
     client: Any = None
     try:
-        if isinstance(test_llm, MockLLMClient):
-            client = test_llm
-            payload = await client.complete_json(
+        if test_llm is not None:
+            payload = await test_llm.complete_json(
                 model=mdef.default_model_name,
                 system_prompt=INDEPENDENT_VERIFIER_SYSTEM,
                 user_prompt=user_prompt,
@@ -310,7 +309,7 @@ async def evaluate_single_verifier(
             status="failed",
         )
     finally:
-        if client is not None and not isinstance(client, MockLLMClient):
+        if client is not None and client is not test_llm and not isinstance(client, MockLLMClient):
             close = getattr(client, "aclose", None)
             if close is not None:
                 try:
@@ -404,8 +403,9 @@ async def evaluate_all_independent_verifiers(
 
 def build_multi_model_summary(
     verdicts: list[IndependentVerifierVerdict],
+    min_quorum: int = 2,
 ) -> MultiModelVerificationSummary:
-    """Aggregate individual verification results into an overall summary."""
+    """Aggregate individual verification results into an overall summary with minimum quorum check."""
     total_verifiers = len(verdicts)
     correct_count = 0
     incorrect_count = 0
@@ -423,6 +423,8 @@ def build_multi_model_summary(
             incorrect_count += 1
         elif norm in ("UNCERTAIN", "NOT SURE", "NOT_SURE"):
             uncertain_count += 1
+        else:
+            failed_count += 1
 
         for c in v.contradictory_claims:
             if c and c not in all_contradictory:
@@ -430,6 +432,7 @@ def build_multi_model_summary(
 
     completed_verifiers = correct_count + incorrect_count + uncertain_count
 
+    # 1. Zero completed
     if completed_verifiers == 0:
         if failed_count == total_verifiers and total_verifiers > 0:
             agreement_state = "FAILED"
@@ -440,6 +443,7 @@ def build_multi_model_summary(
         return MultiModelVerificationSummary(
             total_verifiers=total_verifiers,
             completed_verifiers=completed_verifiers,
+            required_quorum=min_quorum,
             correct_count=correct_count,
             incorrect_count=incorrect_count,
             uncertain_count=uncertain_count,
@@ -450,6 +454,30 @@ def build_multi_model_summary(
             contradictory_claims=all_contradictory,
         )
 
+    # 2. Below minimum quorum
+    if completed_verifiers < min_quorum:
+        agreement_state = "INSUFFICIENT_QUORUM"
+        summary_text = (
+            f"Insufficient quorum: only {completed_verifiers} verifier(s) completed successfully "
+            f"({min_quorum} required for consensus)."
+        )
+        if failed_count > 0:
+            summary_text += f" ({failed_count} verifier(s) unavailable or failed)."
+        return MultiModelVerificationSummary(
+            total_verifiers=total_verifiers,
+            completed_verifiers=completed_verifiers,
+            required_quorum=min_quorum,
+            correct_count=correct_count,
+            incorrect_count=incorrect_count,
+            uncertain_count=uncertain_count,
+            failed_count=failed_count,
+            agreement_state=agreement_state,
+            summary_text=summary_text,
+            disagreements_detected=False,
+            contradictory_claims=all_contradictory,
+        )
+
+    # 3. Quorum met (completed_verifiers >= min_quorum)
     disagreements = correct_count > 0 and incorrect_count > 0
 
     if disagreements:
@@ -460,22 +488,45 @@ def build_multi_model_summary(
             f"Conflicting assessments highlight potential factual ambiguity or hallucinations."
         )
     elif incorrect_count > 0 and correct_count == 0:
-        agreement_state = "AGREEMENT"
-        summary_text = (
-            f"Consensus among decisive models: {incorrect_count} verifier(s) evaluated Gemma's answer as Incorrect"
-            + (f" ({uncertain_count} Uncertain)" if uncertain_count > 0 else "")
-            + ". Contradictory statements or hallucinations were flagged."
-        )
-    elif correct_count > 0 and incorrect_count == 0 and uncertain_count == 0:
-        agreement_state = "AGREEMENT"
-        summary_text = (
-            f"Consensus: All {correct_count} responding independent models evaluated Gemma's answer as Correct."
-        )
-    elif correct_count > 0 and incorrect_count == 0 and uncertain_count > 0:
-        agreement_state = "UNCERTAIN"
-        summary_text = (
-            f"Partial agreement: {correct_count} model(s) evaluated as Correct, while {uncertain_count} model(s) were Uncertain."
-        )
+        if completed_verifiers == 2 and uncertain_count > 0:
+            agreement_state = "UNCERTAIN"
+            summary_text = (
+                f"Partial evaluation: {incorrect_count} model evaluated as Incorrect, "
+                f"while {uncertain_count} model was Uncertain. Insufficient consensus."
+            )
+        elif incorrect_count < min_quorum:
+            agreement_state = "UNCERTAIN"
+            summary_text = (
+                f"Uncertainty: only {incorrect_count} model evaluated as Incorrect "
+                f"while {uncertain_count} model(s) were Uncertain."
+            )
+        else:
+            agreement_state = "AGREEMENT"
+            summary_text = (
+                f"Consensus among decisive models: {incorrect_count} verifier(s) evaluated Gemma's answer as Incorrect"
+                + (f" ({uncertain_count} Uncertain)" if uncertain_count > 0 else "")
+                + ". Contradictory statements or hallucinations were flagged."
+            )
+    elif correct_count > 0 and incorrect_count == 0:
+        if completed_verifiers == 2 and uncertain_count > 0:
+            agreement_state = "UNCERTAIN"
+            summary_text = (
+                f"Partial evaluation: {correct_count} model evaluated as Correct, "
+                f"while {uncertain_count} model was Uncertain. Insufficient consensus."
+            )
+        elif correct_count < min_quorum:
+            agreement_state = "UNCERTAIN"
+            summary_text = (
+                f"Uncertainty: only {correct_count} model evaluated as Correct "
+                f"while {uncertain_count} model(s) were Uncertain."
+            )
+        else:
+            agreement_state = "AGREEMENT"
+            summary_text = (
+                f"Consensus: All {correct_count} decisive independent models evaluated Gemma's answer as Correct"
+                + (f" ({uncertain_count} Uncertain)" if uncertain_count > 0 else "")
+                + "."
+            )
     else:
         agreement_state = "UNCERTAIN"
         summary_text = (
@@ -488,6 +539,7 @@ def build_multi_model_summary(
     return MultiModelVerificationSummary(
         total_verifiers=total_verifiers,
         completed_verifiers=completed_verifiers,
+        required_quorum=min_quorum,
         correct_count=correct_count,
         incorrect_count=incorrect_count,
         uncertain_count=uncertain_count,

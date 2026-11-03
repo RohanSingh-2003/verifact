@@ -59,3 +59,26 @@ def test_manual_label_overrides_matching() -> None:
     decision = resolve_ground_truth("Canberra", example)
     assert decision.label is Classification.HALLUCINATED
     assert decision.source is GroundTruthSource.MANUAL
+
+
+def test_adjudicated_label_takes_precedence_over_dataset_label_and_matching() -> None:
+    example = _example(ground_truth_label="Hallucinated")
+    decision = resolve_ground_truth("Canberra", example, adjudicated_label="Reliable", mode="formal")
+    assert decision.label is Classification.RELIABLE
+    assert decision.source is GroundTruthSource.ADJUDICATED
+
+
+def test_missing_ground_truth_in_formal_mode_remains_unvalidated_without_guessing() -> None:
+    example = _example(ground_truth_label=None)
+    decision = resolve_ground_truth("Canberra", example, mode="formal")
+    assert decision.label is None
+    assert decision.source is GroundTruthSource.UNVALIDATED
+    assert decision.is_review is True
+
+
+def test_needs_review_takes_highest_precedence_over_adjudicated_label() -> None:
+    example = _example(needs_review=True, ground_truth_label="Reliable")
+    decision = resolve_ground_truth("Canberra", example, adjudicated_label="Reliable")
+    assert decision.is_review is True
+    assert decision.label is None
+    assert decision.source is GroundTruthSource.NEEDS_REVIEW

@@ -77,6 +77,7 @@ class IndependentVerifierVerdict(BaseModel):
 class MultiModelVerificationSummary(BaseModel):
     total_verifiers: int = 0
     completed_verifiers: int = 0
+    required_quorum: int = 2
     correct_count: int = 0
     incorrect_count: int = 0
     uncertain_count: int = 0

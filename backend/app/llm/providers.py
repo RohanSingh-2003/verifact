@@ -17,8 +17,10 @@ from app.llm.base import (
     LLMEmptyResponseError,
     LLMError,
     LLMMalformedResponseError,
+    LLMModelNotFoundError,
     LLMRateLimitError,
     LLMTimeoutError,
+    LLMUnavailableError,
 )
 from app.llm.client import parse_json_object
 from app.llm.prompts import ANSWER_SYSTEM, ANSWER_USER
@@ -876,6 +878,19 @@ class MockModelClient(ModelClient):
         max_tokens: int | None = None,
         temperature: float = 0.0,
     ) -> dict[str, Any]:
+        p_lower = (user_prompt + " " + system_prompt).lower()
+        if "statement to judge:" in p_lower or "statement to evaluate:" in p_lower or "metaqa" in p_lower:
+            verdict = "YES"
+            if getattr(self, "scenario", "") == "hallucinated":
+                verdict = "NO"
+            elif getattr(self, "scenario", "") == "uncertain":
+                verdict = "NOT SURE"
+            return {
+                "verdict": verdict,
+                "rationale": f"Verified by {self.display_name}.",
+                "model_id": self.model_id,
+            }
+
         verdict = "Correct"
         if getattr(self, "scenario", "") == "hallucinated":
             verdict = "Incorrect"
@@ -887,15 +902,155 @@ class MockModelClient(ModelClient):
             "rationale": f"Verified by {self.display_name}.",
             "contradictory_claims": [] if verdict == "Correct" else ["Potentially unsupported claim."],
             "confidence": 0.95 if verdict == "Correct" else 0.5,
+            "model_id": self.model_id,
+            "display_name": self.display_name,
         }
 
 
 class ModelClientLLMAdapter(LLMClient):
-    """Adapts any cloud ModelClient to the LLMClient interface for MetaQA & Web Evidence."""
+    """Adapts cloud ModelClient instances to the LLMClient interface with model routing."""
 
-    def __init__(self, inner: Any) -> None:
+    def __init__(
+        self,
+        inner: Any | None = None,
+        *,
+        settings: Any | None = None,
+        clients: dict[str, Any] | None = None,
+    ) -> None:
         self._inner = inner
-        self.model_name = getattr(inner, "model_name", "")
+        self.model_name = getattr(inner, "model_name", "") or getattr(inner, "model_id", "")
+        self._settings = settings
+        self._clients: dict[str, Any] = dict(clients) if clients is not None else {}
+        if inner is not None:
+            inner_id = getattr(inner, "model_id", None)
+            if inner_id:
+                self._clients[str(inner_id)] = inner
+            inner_name = getattr(inner, "model_name", None)
+            if inner_name:
+                self._clients[str(inner_name)] = inner
+
+    def _get_client_for_model(self, model: str | None) -> Any:
+        """Resolve and return the appropriate ModelClient for the requested model."""
+        from app.llm.base import LLMModelNotFoundError, LLMUnavailableError
+        from app.llm.registry import (
+            DEFAULT_MODEL_ID,
+            MODEL_REGISTRY,
+            get_model_client,
+            is_model_configured,
+            resolve_model_id,
+        )
+
+        # 1. Exact match in registered/injected clients
+        if model and model in self._clients:
+            return self._clients[model]
+
+        # 2. If model not provided, use inner if available
+        if not model or not model.strip():
+            if self._inner is not None:
+                return self._inner
+            raise LLMModelNotFoundError("No model specified.")
+
+        # 3. Resolve canonical model ID
+        canonical_id = resolve_model_id(model)
+        if not canonical_id or canonical_id not in MODEL_REGISTRY:
+            if self._inner is not None:
+                inner_id = getattr(self._inner, "model_id", None)
+                inner_name = getattr(self._inner, "model_name", None)
+                if not inner_id and not inner_name:
+                    return self._inner
+            raise LLMModelNotFoundError(f"Requested model '{model}' is not registered or supported.")
+
+        # 4. Check if canonical_id is in self._clients
+        if canonical_id in self._clients:
+            return self._clients[canonical_id]
+
+        # 5. Check if inner matches canonical_id
+        if self._inner is not None:
+            inner_id = getattr(self._inner, "model_id", None)
+            inner_name = getattr(self._inner, "model_name", None)
+            if inner_id and resolve_model_id(str(inner_id)) == canonical_id:
+                self._clients[canonical_id] = self._inner
+                return self._inner
+            if inner_name and resolve_model_id(str(inner_name)) == canonical_id:
+                self._clients[canonical_id] = self._inner
+                return self._inner
+            if not inner_id and not inner_name and self._settings is None:
+                return self._inner
+
+        # 6. Retrieve settings and check if configured
+        settings = self._settings
+        if settings is None:
+            from app.config import get_settings
+            settings = get_settings()
+
+        if not is_model_configured(canonical_id, settings):
+            raise LLMUnavailableError(
+                f"Provider for model '{canonical_id}' is not configured (missing credentials in backend environment)."
+            )
+
+        client = get_model_client(canonical_id, settings)
+        self._clients[canonical_id] = client
+        return client
+
+    async def _dispatch_text(
+        self,
+        client: Any,
+        *,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int | None = None,
+    ) -> str:
+        if isinstance(client, ModelClient):
+            return await client.complete_text(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens,
+            )
+        import inspect
+        sig = inspect.signature(client.complete_text)
+        if "model" in sig.parameters:
+            return await client.complete_text(
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens,
+            )
+        return await client.complete_text(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=max_tokens,
+        )
+
+    async def _dispatch_json(
+        self,
+        client: Any,
+        *,
+        model: str,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int | None = None,
+    ) -> dict[str, Any]:
+        if isinstance(client, ModelClient):
+            return await client.complete_json(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens,
+            )
+        import inspect
+        sig = inspect.signature(client.complete_json)
+        if "model" in sig.parameters:
+            return await client.complete_json(
+                model=model,
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                max_tokens=max_tokens,
+            )
+        return await client.complete_json(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            max_tokens=max_tokens,
+        )
 
     async def complete_text(
         self,
@@ -905,7 +1060,10 @@ class ModelClientLLMAdapter(LLMClient):
         user_prompt: str,
         max_tokens: int | None = None,
     ) -> str:
-        return await self._inner.complete_text(
+        client = self._get_client_for_model(model)
+        return await self._dispatch_text(
+            client,
+            model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=max_tokens,
@@ -919,14 +1077,30 @@ class ModelClientLLMAdapter(LLMClient):
         user_prompt: str,
         max_tokens: int | None = None,
     ) -> dict[str, Any]:
-        return await self._inner.complete_json(
+        client = self._get_client_for_model(model)
+        return await self._dispatch_json(
+            client,
+            model=model,
             system_prompt=system_prompt,
             user_prompt=user_prompt,
             max_tokens=max_tokens,
         )
 
     async def aclose(self) -> None:
-        close = getattr(self._inner, "aclose", None)
-        if close is not None:
-            await close()
+        seen = set()
+        to_close = []
+        if self._inner is not None:
+            to_close.append(self._inner)
+            seen.add(id(self._inner))
+        for c in self._clients.values():
+            if id(c) not in seen:
+                to_close.append(c)
+                seen.add(id(c))
+        for c in to_close:
+            close = getattr(c, "aclose", None)
+            if close is not None and callable(close):
+                try:
+                    await close()
+                except Exception:
+                    logger.debug("Failed to close client in adapter")
 

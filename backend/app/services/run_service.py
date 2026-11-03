@@ -751,7 +751,10 @@ def to_detect_response(run: Run) -> DetectResponse:
         for v in get_verifier_pool(ans_model_id, app_settings)
     ]
     ai_verdicts_info = load_independent_verdicts(run, ans_model_id, app_settings)
-    multi_summary_info = build_multi_model_summary(ai_verdicts_info)
+    multi_summary_info = build_multi_model_summary(
+        ai_verdicts_info,
+        min_quorum=getattr(app_settings, "min_completed_verifiers", 2),
+    )
 
     return DetectResponse(
         run_id=run.id,

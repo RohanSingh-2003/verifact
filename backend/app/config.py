@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -75,6 +75,24 @@ class Settings(BaseSettings):
     generator_model: str = "gemma4:26b"
     verifier_model: str = "microsoft/phi-4-reasoning:free"
     mutation_model: str = ""
+
+    # Multi-Model Verification Quorum
+    min_completed_verifiers: int = Field(default=2, ge=1, le=10)
+
+    # Ground Truth Research Judge (via OpenRouter OpenAI-compatible API — never in detection pool)
+    ground_truth_judge_enabled: bool = False
+    ground_truth_judge_model: str = ""
+    ground_truth_judge_timeout_seconds: float = Field(default=30.0, ge=5.0, le=120.0)
+    gemini_judge_model: str = ""
+    gemini_judge_timeout_seconds: float | None = None
+
+    @model_validator(mode="after")
+    def _sync_judge_settings(self) -> "Settings":
+        if not self.ground_truth_judge_model and self.gemini_judge_model:
+            self.ground_truth_judge_model = self.gemini_judge_model
+        if self.gemini_judge_timeout_seconds is not None:
+            self.ground_truth_judge_timeout_seconds = self.gemini_judge_timeout_seconds
+        return self
 
     synonym_count: int = Field(default=5, ge=1, le=20)
     antonym_count: int = Field(default=5, ge=1, le=20)

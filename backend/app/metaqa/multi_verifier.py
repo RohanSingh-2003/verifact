@@ -82,7 +82,7 @@ async def evaluate_mutation_for_model(
 
     client: Any = None
     try:
-        if isinstance(test_llm, MockLLMClient):
+        if test_llm is not None:
             payload = await test_llm.complete_json(
                 model=mdef.default_model_name,
                 system_prompt=VERIFY_SYSTEM,
@@ -205,7 +205,7 @@ async def evaluate_mutation_for_model(
             contribution=None,
         )
     finally:
-        if client is not None and not isinstance(client, MockLLMClient):
+        if client is not None and client is not test_llm and not isinstance(client, MockLLMClient):
             close = getattr(client, "aclose", None)
             if close is not None:
                 try:

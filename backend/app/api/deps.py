@@ -22,7 +22,7 @@ def get_llm_client() -> LLMClient:
             },
         )
     client = get_model_client(DEFAULT_MODEL_ID, settings)
-    return ModelClientLLMAdapter(client)
+    return ModelClientLLMAdapter(client, settings=settings)
 
 
 @lru_cache

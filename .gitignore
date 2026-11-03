@@ -25,8 +25,11 @@ __pycache__/
 
 # Secrets and local data
 .env
+.env.*
+*.env
 *.db
 backend/data/*.db
+data/*.db
 
 # Editor
 .vscode/*

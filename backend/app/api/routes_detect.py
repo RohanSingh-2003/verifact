@@ -62,13 +62,14 @@ def _new_verifier_for_pool(
         return client, settings.gemini_verifier_model
 
     # If Gemini is the answer model, or not configured, pick another configured candidate
-    for candidate_id in ("gemma", "glm", "qwen", "openrouter"):
-        if candidate_id == selected_answer_model:
+    # Gemma is the answer generator and is never used as an independent verifier
+    for candidate_id in ("phi", "glm", "qwen", "openrouter"):
+        if candidate_id == selected_answer_model or candidate_id == "gemma":
             continue
         if is_model_configured(candidate_id, settings):
             model_client = get_model_client(candidate_id, settings)
             mdef = MODEL_REGISTRY[candidate_id]
-            return ModelClientLLMAdapter(model_client), mdef.default_model_name
+            return ModelClientLLMAdapter(model_client, settings=settings), mdef.default_model_name
 
     return None, ""
 
@@ -113,11 +114,11 @@ async def _continue_metaqa_analysis(
     else:
         from app.llm.registry import get_model_client
         model_client = get_model_client(selected_answer_model, settings)
-        llm = ModelClientLLMAdapter(model_client)
+        llm = ModelClientLLMAdapter(model_client, settings=settings)
         owns_client = True
 
     from app.llm.registry import MODEL_REGISTRY, is_model_configured
-    verifier_model_ids = [m for m in MODEL_REGISTRY if m != selected_answer_model]
+    verifier_model_ids = [m for m in MODEL_REGISTRY if m != selected_answer_model and m != "gemma"]
 
     if settings.llm_mode == "live" and not any(is_model_configured(m, settings) for m in verifier_model_ids):
         db = SessionLocal()
@@ -277,7 +278,7 @@ async def _continue_web_evidence(
     else:
         from app.llm.registry import get_model_client
         model_client = get_model_client(selected_answer_model, settings)
-        llm = ModelClientLLMAdapter(model_client)
+        llm = ModelClientLLMAdapter(model_client, settings=settings)
         owns_client = True
 
     def on_stage(stage: str) -> None:

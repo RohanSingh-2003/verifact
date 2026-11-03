@@ -51,7 +51,7 @@ MODEL_REGISTRY: dict[str, AnswerModelDefinition] = {
         display_name="Qwen",
         provider="groq",
         provider_display="Alibaba / Groq",
-        default_model_name="qwen-2.5-32b",
+        default_model_name="qwen/qwen3.8-27b",
         env_key_name="GROQ_API_KEY",
     ),
     "openrouter": AnswerModelDefinition(
@@ -67,7 +67,7 @@ MODEL_REGISTRY: dict[str, AnswerModelDefinition] = {
         display_name="Phi-4 Reasoning",
         provider="openrouter",
         provider_display="Microsoft",
-        default_model_name="microsoft/phi-4-reasoning:free",
+        default_model_name="microsoft/phi-4",
         env_key_name="OPENROUTER_API_KEY",
     ),
 }

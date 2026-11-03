@@ -133,7 +133,12 @@ class CloudflareClient(ModelClient):
             ],
         }
         if max_tokens is not None:
-            payload["max_tokens"] = max_tokens
+            # Reasoning models like GLM-4.7-Flash consume tokens on internal reasoning traces.
+            # Enforce a minimum safety floor so reasoning does not starve completion content.
+            if ("glm" in self.model_name.lower() or "flash" in self.model_name.lower()) and max_tokens < 600:
+                payload["max_tokens"] = 600
+            else:
+                payload["max_tokens"] = max_tokens
         if temperature is not None:
             payload["temperature"] = temperature
 
