@@ -112,7 +112,7 @@ def select_stratified_sample(
     per_stratum_base = max(1, sample_size // num_strata)
 
     remaining_pool: list[dict[str, Any]] = []
-    for key, group in strata.items():
+    for group in strata.values():
         shuffled = list(group)
         rng.shuffle(shuffled)
         take = min(len(shuffled), per_stratum_base)

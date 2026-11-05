@@ -16,9 +16,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from app.config import get_settings
-from app.llm.base import LLMModelNotFoundError, LLMUnavailableError
+from app.llm.base import LLMUnavailableError
 from app.llm.providers import ModelClientLLMAdapter
-from app.llm.registry import MODEL_REGISTRY, is_model_configured, resolve_model_id
+from app.llm.registry import MODEL_REGISTRY, is_model_configured
 
 
 async def main() -> int:
@@ -54,7 +54,7 @@ async def main() -> int:
         except LLMUnavailableError as exc:
             print(f"  [UNAVAILABLE] {exc}")
             all_ok = False
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - CLI smoke test prints all errors
             print(f"  [ERROR] {exc}")
             all_ok = False
 

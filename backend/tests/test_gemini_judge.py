@@ -8,19 +8,15 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import Settings
 from app.database.db import SessionLocal, init_db
 from app.database.models import EvaluationResult, EvaluationRun, HumanAnnotation
 from app.evaluation.agreement import (
     compute_cohens_kappa,
     compute_judge_human_agreement,
-    select_stratified_sample,
 )
 from app.evaluation.evaluator import run_evaluation
 from app.evaluation.gemini_judge import (
-    GEMINI_JUDGE_SYSTEM,
     GeminiJudgeClient,
-    GeminiJudgeVerdict,
 )
 from app.evaluation.ground_truth import resolve_ground_truth
 from app.evaluation.schemas import DatasetExample, GroundTruthSource
@@ -32,7 +28,7 @@ from app.llm.base import (
     LLMTimeoutError,
 )
 from app.llm.mock import MockLLMClient
-from app.llm.registry import MODEL_REGISTRY, get_verifier_pool, validate_answer_model
+from app.llm.registry import get_verifier_pool, validate_answer_model
 from app.metaqa.scoring import Classification
 from app.services.verification_summary import (
     MetaqaSignal,

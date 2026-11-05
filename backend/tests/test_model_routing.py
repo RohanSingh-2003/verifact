@@ -1,20 +1,16 @@
 from __future__ import annotations
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from app.config import Settings
-from app.llm.base import LLMClient, LLMModelNotFoundError, LLMUnavailableError
+from app.llm.base import LLMModelNotFoundError, LLMUnavailableError
 from app.llm.providers import MockModelClient, ModelClient, ModelClientLLMAdapter
 from app.llm.registry import (
-    DEFAULT_MODEL_ID,
     MODEL_REGISTRY,
-    get_model_client,
     get_verifier_pool,
     resolve_model_id,
 )
-from app.services.independent_verifiers import evaluate_all_independent_verifiers, evaluate_single_verifier
+from app.services.independent_verifiers import evaluate_all_independent_verifiers
 
 
 class SpyModelClient(ModelClient):
@@ -272,7 +268,7 @@ def test_gemma_never_in_verifier_pool() -> None:
     # When Gemma generates the answer, it is completely excluded from verifier pool
     from app.api.routes_detect import _new_verifier_for_pool
     # Verify _new_verifier_for_pool never selects Gemma as a fallback verifier
-    client, model_name = _new_verifier_for_pool(settings, selected_answer_model="glm")
+    _client, model_name = _new_verifier_for_pool(settings, selected_answer_model="glm")
     assert "gemma" not in model_name.lower()
 
 

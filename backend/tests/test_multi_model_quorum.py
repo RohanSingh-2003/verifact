@@ -5,12 +5,9 @@ from pathlib import Path
 import pytest
 from sqlalchemy.orm import Session
 
-from app.config import Settings
 from app.database.db import SessionLocal, init_db
 from app.evaluation.evaluator import run_evaluation
-from app.llm.base import LLMClient
 from app.llm.mock import MockLLMClient
-from app.metaqa.scoring import Classification
 from app.schemas.detect import IndependentVerifierVerdict
 from app.services.independent_verifiers import build_multi_model_summary
 from tests.fakes import detector_settings

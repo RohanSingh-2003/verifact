@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.database.db import SessionLocal, init_db
-from app.database.models import HumanAnnotation
+
 from app.evaluation.dataset_loader import DATASETS_DIR, load_dataset
 from app.evaluation.ground_truth import resolve_ground_truth
 from app.evaluation.schemas import DatasetBundle, DatasetExample, GroundTruthSource
@@ -16,8 +16,6 @@ from app.metaqa.scoring import Classification
 from scripts.freeze_benchmark_dataset import enrich_and_freeze
 from scripts.prepare_benchmark_datasets import (
     RANDOM_SEED,
-    check_pilot_leakage,
-    extract_freshqa,
     extract_truthfulqa,
 )
 

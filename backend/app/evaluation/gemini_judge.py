@@ -176,8 +176,8 @@ class GeminiJudgeClient:
 
         # Build context sections
         aliases_sec = f"\nAcceptable Aliases: {', '.join(aliases)}" if aliases else ""
-        correct_sec = f"\nVerified Correct Variations:\n" + "\n".join(f"- {c}" for c in correct_answers) if correct_answers else ""
-        incorrect_sec = f"\nKnown Fact-Conflicting / Misconception Answers:\n" + "\n".join(f"- {w}" for w in incorrect_answers) if incorrect_answers else ""
+        correct_sec = "\nVerified Correct Variations:\n" + "\n".join(f"- {c}" for c in correct_answers) if correct_answers else ""
+        incorrect_sec = "\nKnown Fact-Conflicting / Misconception Answers:\n" + "\n".join(f"- {w}" for w in incorrect_answers) if incorrect_answers else ""
 
         evidence_lines: list[str] = []
         if isinstance(context, str) and context.strip():
@@ -188,7 +188,7 @@ class GeminiJudgeClient:
         if supporting_evidence:
             evidence_lines.extend(f"Evidence: {str(e).strip()[:400]}" for e in supporting_evidence[:4])
 
-        evidence_sec = f"\nSupporting Reference Evidence:\n" + "\n".join(evidence_lines) if evidence_lines else ""
+        evidence_sec = "\nSupporting Reference Evidence:\n" + "\n".join(evidence_lines) if evidence_lines else ""
 
         user_prompt = GEMINI_JUDGE_USER.format(
             question=question.strip(),

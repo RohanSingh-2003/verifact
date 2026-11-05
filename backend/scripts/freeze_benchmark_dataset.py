@@ -18,7 +18,7 @@ import json
 import logging
 import subprocess
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
@@ -50,7 +50,7 @@ def get_current_git_commit() -> str:
             check=True,
         )
         return res.stdout.strip()
-    except Exception:
+    except (subprocess.SubprocessError, OSError):
         return "unknown"
 
 
@@ -146,7 +146,7 @@ def enrich_and_freeze(
                     "reviewer1_label": ann.get("reviewer1_label"),
                     "reviewer2_label": ann.get("reviewer2_label"),
                     "disagreement": ann.get("disagreement", False),
-                    "frozen_at": datetime.now(timezone.utc).isoformat(),
+                    "frozen_at": datetime.now(UTC).isoformat(),
                 }
                 adjudicated_count += 1
             else:
@@ -175,7 +175,7 @@ def enrich_and_freeze(
     )
 
     git_hash = get_current_git_commit()
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(UTC).isoformat()
 
     frozen_dict = {
         "name": frozen_bundle.name,

@@ -3,7 +3,6 @@ from __future__ import annotations
 import csv
 import io
 import logging
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response

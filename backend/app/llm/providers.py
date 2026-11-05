@@ -931,9 +931,7 @@ class ModelClientLLMAdapter(LLMClient):
 
     def _get_client_for_model(self, model: str | None) -> Any:
         """Resolve and return the appropriate ModelClient for the requested model."""
-        from app.llm.base import LLMModelNotFoundError, LLMUnavailableError
         from app.llm.registry import (
-            DEFAULT_MODEL_ID,
             MODEL_REGISTRY,
             get_model_client,
             is_model_configured,
@@ -1101,6 +1099,6 @@ class ModelClientLLMAdapter(LLMClient):
             if close is not None and callable(close):
                 try:
                     await close()
-                except Exception:
+                except Exception:  # noqa: BLE001 - Prevent client close error from masking result
                     logger.debug("Failed to close client in adapter")
 

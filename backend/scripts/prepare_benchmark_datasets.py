@@ -18,13 +18,11 @@ import hashlib
 import io
 import json
 import logging
-import os
 import random
 import re
 import sys
 import urllib.request
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.evaluation.dataset_loader import DATASETS_DIR, load_dataset, write_manifest
+from app.evaluation.dataset_loader import DATASETS_DIR, write_manifest
 from app.evaluation.schemas import DatasetBundle, DatasetExample, GroundTruthSource
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -119,7 +117,6 @@ def extract_truthfulqa(
 
     assert sum(allocations.values()) == target_count, f"Allocation sum {sum(allocations.values())} != {target_count}"
 
-    rng = random.Random(seed)
     sampled_rows: list[dict[str, Any]] = []
 
     for cat in categories:
@@ -132,7 +129,6 @@ def extract_truthfulqa(
         selected = items[:k]
 
         # Stratified 80/20 Dev/Test split within category
-        num_test = max(1, round(k * 0.20)) if k >= 5 else (1 if k >= 3 else 0)
         # We will refine split totals globally after per-category assignment
         for i, row in enumerate(selected):
             sampled_rows.append({"row": row, "category": cat, "cat_split_idx": i, "cat_size": k})
@@ -229,7 +225,7 @@ def extract_freshqa(
     lines = raw_csv.splitlines()
     header_idx = -1
     for i, l in enumerate(lines[:10]):
-        if l.startswith("id,split") or l.startswith("id,"):
+        if l.startswith(("id,split", "id,")):
             header_idx = i
             break
     if header_idx == -1:
@@ -502,9 +498,9 @@ def main() -> int:
     print(f"  - TruthfulQA:    {len(tqa_examples)} (Dev: {sum(1 for e in tqa_examples if e['split'] == 'dev')}, Test: {sum(1 for e in tqa_examples if e['split'] == 'test')})")
     print(f"  - FreshQA:       {len(fqa_examples)} (Dev: {sum(1 for e in fqa_examples if e['split'] == 'dev')}, Test: {sum(1 for e in fqa_examples if e['split'] == 'test')})")
     print(f"Partitions:        Dev = {dev_count} (80.0%), Test = {test_count} (20.0%)")
-    print(f"Leakage Checks:    Passed (0 overlapping questions with retired sets)")
-    print(f"Duplicate IDs:     0 (Verified)")
-    print(f"Duplicate Qs:      0 (Verified)")
+    print("Leakage Checks:    Passed (0 overlapping questions with retired sets)")
+    print("Duplicate IDs:     0 (Verified)")
+    print("Duplicate Qs:      0 (Verified)")
     print(f"Random Seed:       {args.seed}")
     print(f"File Size:         {len(json_bytes):,} bytes")
     print(f"SHA-256 Checksum:  {sha256}")

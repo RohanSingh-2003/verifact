@@ -5,16 +5,9 @@ from pathlib import Path
 import pytest
 from sqlalchemy.orm import Session
 
-from app.config import Settings
 from app.database.db import SessionLocal, init_db
-from app.database.models import EvaluationMetric, EvaluationResult, EvaluationRun
 from app.evaluation.evaluator import run_evaluation
-from app.evaluation.metrics import ConfusionCounts, compute_metrics
-from app.evaluation.schemas import DatasetExample
-from app.llm.base import LLMClient
 from app.llm.mock import MockLLMClient
-from app.metaqa.detector import BaseAnswer, DetectionResult
-from app.metaqa.scoring import Classification, classify
 from app.services.verification_summary import (
     MetaqaSignal,
     OverallVerdict,
@@ -22,7 +15,6 @@ from app.services.verification_summary import (
     compute_overall_assessment,
 )
 from app.web_evidence.types import EvidenceVerdict, VerifiedClaim, WebEvidenceResult, WebEvidenceStatus
-from app.web_search.base import WebSource
 from app.web_search.mock import MockTavilyClient
 from tests.fakes import detector_settings
 

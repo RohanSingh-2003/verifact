@@ -28,8 +28,6 @@ from app.evaluation.metrics import (
 
     DEFAULT_THRESHOLDS,
 
-    ConfusionCounts,
-
     MetricSet,
 
     best_threshold_by_f1,
@@ -615,7 +613,7 @@ async def run_evaluation(
 
                             web_pred = None
 
-                    except Exception as exc:
+                    except Exception as exc:  # noqa: BLE001 - Defensive fallback: web evidence failure must not crash evaluation
 
                         logger.warning("Web evidence evaluation error for question %s: %s", example.id, exc)
 
@@ -787,7 +785,7 @@ async def run_evaluation(
 
                         )
 
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - Defensive fallback: verifier failure must not crash evaluation
 
                     logger.warning("Multi-model evaluation error for question %s: %s", example.id, exc)
 
@@ -797,11 +795,7 @@ async def run_evaluation(
 
             from app.services.verification_summary import (
 
-                MetaqaSignal,
-
                 OverallVerdict,
-
-                WebSignal,
 
                 compute_overall_assessment,
 
@@ -823,7 +817,7 @@ async def run_evaluation(
 
             web_sig = web_signal_from_evidence(web_result)
 
-            overall_verdict, _, _, _, combined_risk, web_risk = compute_overall_assessment(
+            overall_verdict, _, _, _, combined_risk, _web_risk = compute_overall_assessment(
 
                 metaqa_signal=metaqa_sig,
 
