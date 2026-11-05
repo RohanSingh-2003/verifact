@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Standardized benchmark dataset builder for VeriFact.
 
 Prepares the formal VeriFact benchmark by sampling and standardizing:

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Freeze benchmark dataset by deterministically enriching it with human annotations.
 
 This script implements deterministic, audit-compliant ground-truth enrichment:
