@@ -168,7 +168,7 @@ Implemented in [`backend/app/evaluation/`](file:///c:/Users/Rohan/Desktop/mini-p
 
 - **Datasets**:
   - Curated evaluation datasets in [`backend/data/datasets/`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/data/datasets/).
-  - Bundled dataset: `pilot.json` (40 hand-selected questions across 5 categories: `named_entity`, `location`, `date`, `numeric`, `general_fact`, 8 each) with `pilot.manifest.json`.
+  - Bundled dataset: `hallucination_benchmark_frozen.json` (550 standardized questions: 400 TruthfulQA, 150 FreshQA; 440 dev / 110 test split) with `hallucination_benchmark_frozen.manifest.json`. Note: The legacy 40-question `pilot.json` dataset was permanently retired in Task 3.1.1.
 - **Ground Truth & Review Handling**:
   - Answers are compared against gold-standard reference answers and acceptable aliases.
   - Ambiguous items are flagged `needs_review=True` (e.g., items `q032` and `q039`). They are retained in the database for auditing but excluded from automated Precision, Recall, and F1 calculations (leaving 38 labeled items).

@@ -79,7 +79,7 @@ class Experiment(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    dataset_ref: Mapped[str] = mapped_column(String(255), nullable=False, default="pilot")
+    dataset_ref: Mapped[str] = mapped_column(String(255), nullable=False, default="hallucination_benchmark_frozen")
     dataset_version: Mapped[str] = mapped_column(String(64), nullable=False, default="1.0")
     generator_models_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
     verifier_models_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")

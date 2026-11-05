@@ -42,7 +42,7 @@ VeriFact overcomes these limitations by combining **reference-free metamorphic p
 
 | Persona | Description | Core Needs |
 |---|---|---|
-| **AI Safety & NLP Researchers** | Academics and laboratory researchers evaluating metamorphic testing, consistency scoring, and hallucination metrics. | Deterministic scoring formulas (Yang et al. Eq. 5), immutable benchmark datasets (`pilot.json`), uncorrupted component metrics, and reproducibility. |
+| **AI Safety & NLP Researchers** | Academics and laboratory researchers evaluating metamorphic testing, consistency scoring, and hallucination metrics. | Deterministic scoring formulas (Yang et al. Eq. 5), immutable benchmark datasets (`hallucination_benchmark_frozen.json`), uncorrupted component metrics, and reproducibility. |
 | **Applied ML Engineers** | Developers integrating LLMs into high-stakes domains (healthcare, legal, finance, customer support). | Clear REST API contracts, graceful fallback handling, transparent execution latencies, and actionable verdicts rather than black-box confidence numbers. |
 | **Enterprise Fact-Checkers & Analysts** | Non-technical and technical domain experts auditing AI-generated summaries and claims. | Soothing, readable user interfaces; human-readable formula explanations; clear source citations with domain authority tiers; and inspectable model reasoning. |
 
@@ -134,7 +134,7 @@ VeriFact overcomes these limitations by combining **reference-free metamorphic p
 - All interactive controls must support keyboard navigation and descriptive ARIA roles.
 
 ### 6.4 Maintainability & Research Integrity
-- Protected research experiment outputs (`experiments/results/`) and evaluation benchmarks (`pilot.json`) are immutable.
+- Protected research experiment outputs (`experiments/results/`) and formal evaluation benchmarks (`hallucination_benchmark_frozen.json`) are immutable.
 - Evaluation formulas, metamorphic mutation operators, and classification thresholds must remain stable across updates.
 
 ---

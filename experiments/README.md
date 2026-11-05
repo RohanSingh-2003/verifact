@@ -52,7 +52,7 @@ The primary historical artifact preserved in this repository is:
 - **Run ID**: `58baff20-fb86-4f43-b20e-895a086ceb6b`
 - **Execution Mode**: **`mock` (DEMO / MOCK DATA)**
 - **Execution Timestamp**: Started `2026-09-04T11:25:23.102104+00:00`, completed in 0.61s.
-- **Dataset Evaluated**: `backend/data/datasets/pilot.json` (40 curated factual questions across 5 categories).
+- **Dataset Evaluated**: `backend/data/datasets/pilot.json` (40 curated factual questions across 5 categories; note that this legacy pilot dataset was permanently retired and removed in Task 3.1.1).
 - **Models Used**: Deterministic mock identifiers `model-a` and `model-b`.
 - **Review Exclusions**: 2 items (`q032`, `q039`) flagged with `needs_review: true` are excluded from automated metrics, evaluating across the remaining 38 labeled items.
 - **Audit Lock Specification**: Formally recorded in [`docs/final_results_lock.md`](../docs/final_results_lock.md).
@@ -129,4 +129,4 @@ This pattern is a deterministic calibration characteristic of the mock test fixt
 
 - [`docs/final_results_lock.md`](../docs/final_results_lock.md): Full audit lock of the frozen 40-question mock run.
 - [`analysis/output/`](../analysis/output/): Standalone copy of the locked mock study tables and charts.
-- [`backend/data/datasets/README.md`](../backend/data/datasets/README.md): Documentation of the 40-question curated `pilot.json` benchmark dataset.
+- [`backend/data/datasets/README.md`](../backend/data/datasets/README.md): Documentation of the formal 550-question benchmark dataset (`hallucination_benchmark_frozen.json`).

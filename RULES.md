@@ -25,7 +25,7 @@ The following rules are non-negotiable. Violations jeopardize project security, 
 ### 1.3 Research Artifact & Benchmark Protection
 1. **Protected Frozen Experiments**: Treat all files in `experiments/`—specifically the frozen mock run directory `experiments/results/58baff20-fb86-4f43-b20e-895a086ceb6b/` and configuration `experiments/config/final_experiment.yaml`—as immutable research artifacts. Never overwrite or delete them.
 2. **Protected Analysis Outputs**: Never delete or overwrite generated charts, figures, and CSV tables in `analysis/output/`.
-3. **Protected Benchmark Datasets**: Do not alter evaluation datasets (`backend/data/datasets/pilot.json` and `pilot.manifest.json`).
+3. **Protected Benchmark Datasets**: Do not alter formal evaluation datasets (`backend/data/datasets/hallucination_benchmark.json`, `hallucination_benchmark.manifest.json`, `hallucination_benchmark_frozen.json`, and `hallucination_benchmark_frozen.manifest.json`). Note: the legacy 40-question `pilot.json` dataset was permanently retired in Task 3.1.1.
 4. **Protected Documentation Locks**: Preserve research audit documentation in `docs/final_results_lock.md`.
 
 ---
@@ -87,7 +87,7 @@ The following rules are non-negotiable. Violations jeopardize project security, 
 |---|---|---|
 | **API Keys & Secrets** | Masked inspection, placeholder `.env.example` templates. | Printing keys, staging `.env`, committing credentials. |
 | **Git Operations** | Atomic commits, clear commit messages, forward pushes. | `git push --force`, `git reset --hard`, rewriting past commits. |
-| **Research Datasets** | Read-only inspection, benchmarking against `pilot.json`. | Editing `pilot.json`, altering frozen experiment UUIDs. |
+| **Research Datasets** | Read-only inspection, benchmarking against formal 550-question datasets. | Editing frozen benchmark datasets, altering frozen experiment UUIDs. |
 | **Methodology** | Deterministic Eq. 5 scoring, threshold $\theta = 0.50$, metric separation. | Blending web scores into MetaQA, relaxing thresholds to pass tests. |
 | **Verifier Pool** | Cross-model review (Phi-4, GLM, Qwen, Liquid), handling failures. | Allowing Gemma 4:26B to verify itself; treating failed calls as `NO`. |
 | **Web Evidence** | 6-tier authority ranking, excluding unassessed claims. | Conflating missing evidence with proof of falsehood. |

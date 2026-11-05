@@ -176,18 +176,27 @@ def resolve_ground_truth(
 
     *,
 
-    mode: Literal["formal", "legacy"] = "legacy",
+    mode: Literal["formal", "legacy"] = "formal",
 
     adjudicated_label: Classification | str | None = None,
 
 ) -> GroundTruthDecision:
 
-    # 1. Definitive human-adjudicated label takes precedence over stale needs_review flag
-    if adjudicated_label is not None:
+    # 1. Definitive human adjudication takes precedence over stale needs_review flag.
+    # Check either explicitly passed adjudicated_label OR example's existing adjudication provenance.
+    effective_adj = adjudicated_label
+    if (
+        effective_adj is None
+        and str(getattr(example, "ground_truth_source", "")).lower() in ("adjudicated", "groundtruthsource.adjudicated")
+        and example.ground_truth_label is not None
+    ):
+        effective_adj = example.ground_truth_label
+
+    if effective_adj is not None:
         raw_adj = (
-            adjudicated_label.value
-            if isinstance(adjudicated_label, Classification)
-            else str(adjudicated_label).strip().capitalize()
+            effective_adj.value
+            if isinstance(effective_adj, Classification)
+            else str(effective_adj).strip().capitalize()
         )
         if raw_adj in {Classification.RELIABLE.value, Classification.HALLUCINATED.value}:
             return GroundTruthDecision(
@@ -195,14 +204,14 @@ def resolve_ground_truth(
                 source=GroundTruthSource.ADJUDICATED,
                 notes="Definitive human-adjudicated ground truth label.",
             )
-        # If adjudication explicitly marks it as unresolvable / needs review
+        # If adjudication explicitly marks it as unresolvable / ambiguous / needs review
         return GroundTruthDecision(
             label=None,
             source=GroundTruthSource.NEEDS_REVIEW,
             notes="Human adjudication flagged this example as requiring review / unresolvable.",
         )
 
-    # 2. Explicit needs_review flag
+    # 2. Explicit needs_review flag (when not definitively adjudicated)
     if example.needs_review:
         return GroundTruthDecision(
             label=None,
@@ -210,20 +219,24 @@ def resolve_ground_truth(
             notes="Dataset flagged this example for manual review.",
         )
 
-
-
     # 3. Explicit validated dataset ground truth label
-
     if example.ground_truth_label is not None:
+        src_raw = str(example.ground_truth_source).lower() if example.ground_truth_source is not None else ""
+        if "adjudicated" in src_raw:
+            assigned_source = GroundTruthSource.ADJUDICATED
+        elif "validated" in src_raw and "unvalidated" not in src_raw:
+            assigned_source = GroundTruthSource.VALIDATED
+        elif example.ground_truth_source in (GroundTruthSource.UNVALIDATED, None, "unvalidated"):
+            assigned_source = GroundTruthSource.MANUAL
+        elif isinstance(example.ground_truth_source, GroundTruthSource):
+            assigned_source = example.ground_truth_source
+        else:
+            assigned_source = GroundTruthSource.MANUAL
 
         return GroundTruthDecision(
-
             label=example.ground_truth_label,
-
-            source=GroundTruthSource.MANUAL,
-
+            source=assigned_source,
             notes="Using validated label of generated-answer correctness.",
-
         )
 
 
@@ -270,7 +283,7 @@ def resolve_ground_truth(
 
         matched=matched,
 
-        notes="Fallback normalized reference match (legacy pilot mode); not validated for formal benchmark claims.",
+        notes="Fallback normalized reference match (deprecated development mode); not validated for formal benchmark claims.",
 
     )
 

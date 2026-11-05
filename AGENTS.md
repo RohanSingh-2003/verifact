@@ -25,7 +25,7 @@ This document establishes operational rules, security constraints, and safety gu
 ## 3. Protection of Research Artifacts & Benchmarks
 1. **Protected Frozen Experiments**: Treat all files in `experiments/`—specifically frozen mock run `experiments/results/58baff20-fb86-4f43-b20e-895a086ceb6b/` and configuration `experiments/config/final_experiment.yaml`—as immutable research artifacts. Never overwrite, edit, or delete them without explicit approval.
 2. **Protected Analysis Outputs**: Do not overwrite or delete generated charts, figures, and CSV tables in `analysis/output/`.
-3. **Protected Benchmark Datasets**: Do not alter evaluation datasets (`backend/data/datasets/pilot.json` and `pilot.manifest.json`).
+3. **Protected Benchmark Datasets**: Do not alter formal evaluation datasets (`backend/data/datasets/hallucination_benchmark.json`, `hallucination_benchmark.manifest.json`, `hallucination_benchmark_frozen.json`, and `hallucination_benchmark_frozen.manifest.json`). Note: the legacy 40-question `pilot.json` dataset was permanently retired in Task 3.1.1.
 4. **Documentation Locks**: Preserve research audit documentation in `docs/final_results_lock.md` and related evaluation specifications.
 
 ---

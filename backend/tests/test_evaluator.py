@@ -108,3 +108,136 @@ def test_eval_llm_does_not_receive_reference_answers() -> None:
     assert isinstance(client, MockLLMClient)
     assert "Canberra" not in client.answers_by_question.values()
     assert client.answers_by_question[examples[0].question] == "Sydney is the capital of Australia."
+
+
+import pytest
+import json
+from app.evaluation.evaluator import EvaluationConfigError
+from app.database.db import SessionLocal, init_db
+
+
+@pytest.mark.asyncio
+async def test_formal_benchmark_rejects_split_all_to_prevent_threshold_contamination() -> None:
+    """Formal benchmark evaluation strictly prohibits split='all' to prevent test-set threshold contamination."""
+    init_db()
+    db = SessionLocal()
+    try:
+        with pytest.raises(EvaluationConfigError, match="split='all' is disallowed"):
+            await run_evaluation(
+                llm=MockLLMClient(),
+                db=db,
+                settings=detector_settings(),
+                dataset="hallucination_benchmark_frozen",
+                split="all",
+            )
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_formal_benchmark_threshold_optimization_only_on_dev_split() -> None:
+    """Threshold optimization and tuning is permitted strictly on the development split."""
+    init_db()
+    db = SessionLocal()
+    try:
+        run = await run_evaluation(
+            llm=MockLLMClient(),
+            db=db,
+            settings=detector_settings(),
+            dataset="hallucination_benchmark_frozen",
+            split="dev",
+            max_questions=4,
+            threshold=0.5,
+            evaluate_web_evidence=False,
+            evaluate_multi_model=False,
+            persist_traces=False,
+        )
+        assert run.status == "completed"
+        cfg = json.loads(run.config_json)
+        assert cfg["split"] == "dev"
+        assert cfg["threshold_optimization"] == "optimized_on_dev"
+        assert cfg["threshold_frozen_from_dev"] is False
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_formal_benchmark_test_split_freezes_threshold_disabling_optimization() -> None:
+    """Test evaluation strictly freezes threshold and cannot optimize or change it."""
+    init_db()
+    db = SessionLocal()
+    try:
+        run = await run_evaluation(
+            llm=MockLLMClient(),
+            db=db,
+            settings=detector_settings(),
+            dataset="hallucination_benchmark_frozen",
+            split="test",
+            max_questions=4,
+            threshold=0.5,
+            evaluate_web_evidence=False,
+            evaluate_multi_model=False,
+            persist_traces=False,
+        )
+        assert run.status == "completed"
+        cfg = json.loads(run.config_json)
+        assert cfg["split"] == "test"
+        assert cfg["threshold_optimization"] == "frozen_from_dev"
+        assert cfg["threshold_frozen_from_dev"] is True
+        assert cfg["best_threshold_by_f1"] == 0.5
+        assert run.threshold == 0.5
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_formal_benchmark_test_split_uses_supplied_frozen_threshold() -> None:
+    """Test evaluation uses explicitly supplied threshold frozen from development calibration."""
+    init_db()
+    db = SessionLocal()
+    try:
+        run = await run_evaluation(
+            llm=MockLLMClient(),
+            db=db,
+            settings=detector_settings(),
+            dataset="hallucination_benchmark_frozen",
+            split="test",
+            max_questions=4,
+            threshold=0.65,
+            evaluate_web_evidence=False,
+            evaluate_multi_model=False,
+            persist_traces=False,
+        )
+        assert run.status == "completed"
+        cfg = json.loads(run.config_json)
+        assert cfg["threshold_optimization"] == "frozen_from_dev"
+        assert cfg["best_threshold_by_f1"] == 0.65
+        assert run.threshold == 0.65
+    finally:
+        db.close()
+
+
+@pytest.mark.asyncio
+async def test_formal_benchmark_defaults_to_frozen_test_split() -> None:
+    """Formal benchmark evaluation defaults to the frozen test split when split is omitted."""
+    init_db()
+    db = SessionLocal()
+    try:
+        run = await run_evaluation(
+            llm=MockLLMClient(),
+            db=db,
+            settings=detector_settings(),
+            dataset="hallucination_benchmark_frozen",
+            split=None,
+            max_questions=2,
+            evaluate_web_evidence=False,
+            evaluate_multi_model=False,
+            persist_traces=False,
+        )
+        assert run.status == "completed"
+        cfg = json.loads(run.config_json)
+        assert cfg["split"] == "test"
+        assert cfg["threshold_optimization"] == "frozen_from_dev"
+        assert cfg["threshold_frozen_from_dev"] is True
+    finally:
+        db.close()

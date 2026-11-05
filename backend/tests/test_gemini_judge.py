@@ -428,12 +428,12 @@ def test_formal_evaluation_requires_validated_labels_no_substring_matching() -> 
     assert formal_val_dec.source in (GroundTruthSource.VALIDATED, GroundTruthSource.MANUAL)
 
 
-# ── 13. Legacy Pilot Compatibility ────────────────────────────────────────────
+# ── 13. Legacy Fallback Compatibility ─────────────────────────────────────────
 
-def test_legacy_pilot_compatibility() -> None:
-    """Legacy pilot mode preserves fallback normalized reference matching."""
+def test_legacy_fallback_compatibility() -> None:
+    """Legacy mode preserves fallback normalized reference matching for standalone examples."""
     ex_correct = DatasetExample(
-        id="q_pilot_1",
+        id="q_legacy_1",
         question="What is the capital of France?",
         reference_answer="Paris",
         aliases=["City of Paris"],
@@ -443,7 +443,7 @@ def test_legacy_pilot_compatibility() -> None:
     assert dec.source in (GroundTruthSource.LEGACY_INFERRED, GroundTruthSource.REFERENCE_MATCH)
 
     ex_incorrect = DatasetExample(
-        id="q_pilot_2",
+        id="q_legacy_2",
         question="What is the capital of Australia?",
         reference_answer="Canberra",
     )
@@ -561,8 +561,9 @@ def test_existing_metaqa_web_quorum_combined_scoring_unchanged() -> None:
 # ── 17. Evaluation Run with Gemini Judge Telemetry Persistence ────────────────
 
 @pytest.mark.asyncio
-async def test_evaluation_run_with_gemini_judge_records_telemetry(eval_db: Session) -> None:
-    """Evaluation run executes Gemini judge and records structured telemetry in results."""
+async def test_evaluation_run_with_gemini_judge_records_telemetry(eval_db: Session, tmp_path, monkeypatch) -> None:
+    """Legacy evaluation run executes Gemini judge and records structured telemetry in results when requested."""
+    monkeypatch.setattr("app.evaluation.dataset_loader.DATASETS_DIR", tmp_path)
     class MockJudgeLLM(BaseMockJudgeLLM):
         async def complete_json(self, **kwargs):
             return {
@@ -575,6 +576,19 @@ async def test_evaluation_run_with_gemini_judge_records_telemetry(eval_db: Sessi
                 "confidence": 0.95,
             }
 
+    mini_path = tmp_path / "mock_judge_eval.json"
+    mini_path.write_text(
+        json.dumps({
+            "name": "mock_judge_eval",
+            "version": "1.0",
+            "examples": [
+                {"id": "q1", "question": "What is 2+2?", "reference_answer": "4", "category": "math"},
+                {"id": "q2", "question": "What is the capital of France?", "reference_answer": "Paris", "category": "geo"},
+            ]
+        }),
+        encoding="utf-8"
+    )
+
     judge = GeminiJudgeClient(model="google/gemini-2.5-pro", test_llm=MockJudgeLLM())
     run = await run_evaluation(
         llm=MockLLMClient(),
@@ -584,8 +598,8 @@ async def test_evaluation_run_with_gemini_judge_records_telemetry(eval_db: Sessi
             openrouter_api_key="sk-or-test-key",
             ground_truth_judge_model="google/gemini-2.5-pro",
         ),
-        dataset="pilot",
-        max_questions=3,
+        dataset=str(mini_path),
+        max_questions=2,
         evaluate_judge=True,
         judge_client=judge,
         benchmark_mode="legacy",
@@ -593,14 +607,49 @@ async def test_evaluation_run_with_gemini_judge_records_telemetry(eval_db: Sessi
         evaluate_multi_model=False,
     )
 
-    assert run.total_examples == 3
+    assert run.total_examples == 2
     judge_results = [r for r in run.results if r.judge_label is not None]
-    assert len(judge_results) == 3
+    assert len(judge_results) == 2
     assert judge_results[0].judge_label == "RELIABLE"
     assert judge_results[0].judge_confidence == 0.95
     details = json.loads(judge_results[0].component_details_json)
     assert details.get("gemini_judge") is not None
     assert details["gemini_judge"]["status"] == "completed"
+
+
+@pytest.mark.asyncio
+async def test_formal_benchmark_strictly_disables_gemini_judge(eval_db: Session) -> None:
+    """Formal benchmark evaluation strictly disables Gemini judge execution and telemetry."""
+    class FailIfCalledJudgeLLM(BaseMockJudgeLLM):
+        async def complete_json(self, **kwargs):
+            raise AssertionError("Gemini judge must NEVER be called during formal benchmark evaluation!")
+
+    judge = GeminiJudgeClient(model="google/gemini-2.5-pro", test_llm=FailIfCalledJudgeLLM())
+    run = await run_evaluation(
+        llm=MockLLMClient(),
+        db=eval_db,
+        settings=detector_settings(
+            llm_mode="mock",
+            openrouter_api_key="sk-or-test-key",
+            ground_truth_judge_model="google/gemini-2.5-pro",
+            ground_truth_judge_enabled=True,
+        ),
+        dataset="hallucination_benchmark_frozen",
+        split="test",
+        max_questions=3,
+        evaluate_judge=True,  # Even when explicitly requested, formal benchmark must disallow judge
+        judge_client=judge,
+        evaluate_web_evidence=False,
+        evaluate_multi_model=False,
+    )
+
+    assert run.total_examples == 3
+    for r in run.results:
+        assert r.judge_status == "disabled_in_formal_eval"
+        assert r.judge_label is None
+        assert r.judge_confidence is None
+        details = json.loads(r.component_details_json)
+        assert details.get("gemini_judge") is None
 
 
 # ── 18. Human Annotation REST Endpoints ────────────────────────────────────────

@@ -13,6 +13,7 @@ import os
 import re
 
 DATASETS_DIR = (Path(__file__).resolve().parents[2] / "data" / "datasets").resolve()
+DEFAULT_BENCHMARK_DATASET = "hallucination_benchmark_frozen"
 
 TRUTHFULQA_HINT = (
     "TruthfulQA is not bundled with VeriFact. Place a curated JSON or CSV file at "
@@ -35,6 +36,11 @@ def _resolve_dataset_path(name_or_path: str | Path, base_dir: Path | None = None
         raise DatasetError("Dataset name cannot be empty.")
 
     name_lower = cleaned.lower()
+    if name_lower in {"pilot", "pilot.json"}:
+        raise DatasetError(
+            "The legacy 40-question pilot dataset has been permanently removed. "
+            "The sole authorized formal benchmark is 'hallucination_benchmark_frozen'."
+        )
     if name_lower in {"truthfulqa", "truthful_qa"}:
         for suffix in (".json", ".csv"):
             candidate = (base / f"truthfulqa{suffix}").resolve()
@@ -237,7 +243,7 @@ def build_manifest(bundle: DatasetBundle) -> dict:
         "items": [
             {
                 "question_id": item.id,
-                "dataset": getattr(item, "dataset", "pilot"),
+                "dataset": getattr(item, "dataset", "truthfulqa"),
                 "category": item.category,
                 "question_type": getattr(item, "question_type", "curated"),
                 "reference_answer": item.reference_answer,

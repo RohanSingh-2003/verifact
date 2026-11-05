@@ -5,7 +5,8 @@ from pydantic import BaseModel, Field
 
 
 class EvaluationRunRequest(BaseModel):
-    dataset: str = Field(default="pilot", min_length=1, max_length=128)
+    dataset: str = Field(default="hallucination_benchmark_frozen", min_length=1, max_length=128)
+    split: Literal["dev", "test"] | None = Field(default=None)
     threshold: float = Field(default=0.5, ge=0.0, le=1.0)
     name: str | None = Field(default=None, max_length=255)
     max_questions: int | None = Field(default=None, ge=1, le=500)
@@ -15,7 +16,7 @@ class EvaluationRunRequest(BaseModel):
     evaluate_web_evidence: bool = True
     evaluate_multi_model: bool = True
     min_completed_verifiers: int | None = Field(default=None, ge=1, le=10)
-    benchmark_mode: Literal["formal", "legacy"] = "legacy"
+    benchmark_mode: Literal["formal", "legacy"] = "formal"
     evaluate_judge: bool = False
 
 

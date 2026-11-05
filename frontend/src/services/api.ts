@@ -142,7 +142,7 @@ export async function getRuns(): Promise<HistoryRun[]> {
 }
 
 export async function runEvaluation(
-  dataset = 'pilot',
+  dataset = 'hallucination_benchmark_frozen',
   threshold = 0.5,
   options?: { confirm_live_run?: boolean; max_questions?: number; generator_model?: string; verifier_model?: string },
 ): Promise<EvaluationDetail> {

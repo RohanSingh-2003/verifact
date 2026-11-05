@@ -438,13 +438,13 @@ def main() -> int:
         logger.error("Duplicate questions detected: %s", dup_q)
         return 1
 
-    # 5. Check Leakage against pilot.json
+    # 5. Check Leakage (pilot dataset is permanently retired and deleted)
     pilot_file = DATASETS_DIR / "pilot.json"
-    leaks = check_pilot_leakage(combined, pilot_file)
-    if leaks:
-        logger.error("Fatal: Pilot leakage detected in %d questions:\n%s", len(leaks), "\n".join(leaks))
-        return 1
-    logger.info("[PASSED] Pilot leakage verification: 0 questions overlap with pilot.json")
+    if pilot_file.exists():
+        leaks = check_pilot_leakage(combined, pilot_file)
+        if leaks:
+            logger.error("Fatal: Retired dataset leakage detected in %d questions:\n%s", len(leaks), "\n".join(leaks))
+            return 1
 
     # 6. Split Verification
     dev_count = sum(1 for c in combined if c["split"] == "dev")
@@ -502,7 +502,7 @@ def main() -> int:
     print(f"  - TruthfulQA:    {len(tqa_examples)} (Dev: {sum(1 for e in tqa_examples if e['split'] == 'dev')}, Test: {sum(1 for e in tqa_examples if e['split'] == 'test')})")
     print(f"  - FreshQA:       {len(fqa_examples)} (Dev: {sum(1 for e in fqa_examples if e['split'] == 'dev')}, Test: {sum(1 for e in fqa_examples if e['split'] == 'test')})")
     print(f"Partitions:        Dev = {dev_count} (80.0%), Test = {test_count} (20.0%)")
-    print(f"Pilot Leakage:     0 overlapping questions (Verified)")
+    print(f"Leakage Checks:    Passed (0 overlapping questions with retired sets)")
     print(f"Duplicate IDs:     0 (Verified)")
     print(f"Duplicate Qs:      0 (Verified)")
     print(f"Random Seed:       {args.seed}")

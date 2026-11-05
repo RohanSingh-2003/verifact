@@ -1,6 +1,6 @@
 """Single-question live smoke test for Model A and Model B.
 
-Does not run the 40-question pilot. Requires LLM_MODE=live and a real API key.
+Does not run the formal benchmark. Requires LLM_MODE=live and a real API key.
 """
 
 from __future__ import annotations

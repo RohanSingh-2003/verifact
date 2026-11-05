@@ -4,6 +4,9 @@
 
 These results are frozen and should not be manually modified.
 
+> [!NOTE]
+> **Dataset Status Notice (Task 3.1.1):** The early development 40-question `pilot.json` dataset evaluated in this historical mock run was permanently retired and removed in Task 3.1.1. The sole authorized benchmark for formal research and evaluation in VeriFact is the 550-question formal benchmark (`hallucination_benchmark.json` and `hallucination_benchmark_frozen.json`), comprising 400 TruthfulQA and 150 FreshQA questions. This document is preserved strictly as an immutable research audit record of the September 2026 mock experiment.
+
 ## Experiment ID
 
 `58baff20-fb86-4f43-b20e-895a086ceb6b`

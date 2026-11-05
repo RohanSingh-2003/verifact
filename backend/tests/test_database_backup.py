@@ -70,7 +70,7 @@ def _create_sample_db(db_path: Path) -> None:
 
         cursor.execute(
             "INSERT INTO experiments VALUES (?, ?, ?, ?, ?)",
-            ("exp-001", "Pilot Experiment", "1.0", 0.5, json.dumps({"trials": 3})),
+            ("exp-001", "Validation Experiment", "1.0", 0.5, json.dumps({"trials": 3})),
         )
         cursor.execute(
             "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -166,7 +166,7 @@ def test_preservation_of_representative_database_records(tmp_path: Path):
     try:
         cursor = conn.cursor()
         exp_row = cursor.execute("SELECT id, name, threshold FROM experiments").fetchone()
-        assert exp_row == ("exp-001", "Pilot Experiment", 0.5)
+        assert exp_row == ("exp-001", "Validation Experiment", 0.5)
 
         run_row = cursor.execute("SELECT id, question, status, llm_mode FROM runs").fetchone()
         assert run_row == ("run-101", "Is Paris the capital of France?", "completed", "mock")

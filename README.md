@@ -256,7 +256,7 @@ VeriFact includes a dedicated evaluation module for measuring hallucination dete
 - **Benchmark Module Architecture**:
   - Implemented in `backend/app/evaluation/` (`evaluator.py`, `dataset_loader.py`, `ground_truth.py`, `metrics.py`).
   - Supports dataset formats in JSON and CSV located in `backend/data/datasets/`.
-  - Bundled dataset: `pilot.json` (40 hand-selected factual questions across 5 categories: `named_entity`, `location`, `date`, `numeric`, `general_fact`, 8 items each) accompanied by `pilot.manifest.json`.
+  - Bundled dataset: `hallucination_benchmark_frozen.json` (550 standardized questions: 400 TruthfulQA, 150 FreshQA; 440 dev / 110 test split) accompanied by `hallucination_benchmark_frozen.manifest.json`. Note: The legacy 40-question `pilot.json` dataset was permanently retired in Task 3.1.1.
 - **Ground Truth & Review Handling**:
   - Evaluates candidate answers against dataset reference answers and acceptable aliases.
   - Ambiguous or subjective items are flagged as `needs_review=True` (e.g., items `q032` and `q039` in the pilot dataset).
@@ -520,7 +520,7 @@ verifact/
 │   │   ├── config.py                       # Pydantic BaseSettings (.env loading)
 │   │   └── main.py                         # Application factory & CORS middleware
 │   ├── data/
-│   │   └── datasets/                       # Curated evaluation datasets (pilot.json)
+│   │   └── datasets/                       # Formal 550-question benchmark datasets
 │   ├── tests/                              # Automated test suite (491 passed tests at audit time)
 │   ├── requirements.txt                    # Python dependencies
 │   └── README.md                           # Backend developer guide

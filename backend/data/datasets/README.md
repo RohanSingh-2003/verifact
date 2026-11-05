@@ -1,17 +1,22 @@
 # Evaluation Datasets & Ground-Truth Benchmarks
 
-This directory contains benchmark datasets and ground-truth specifications used by VeriFact's offline evaluation module (`backend/app/evaluation/`) to measure hallucination detection accuracy against curated reference facts.
+This directory contains the formal research benchmark datasets and ground-truth specifications used by VeriFact's offline evaluation module (`backend/app/evaluation/`) to measure hallucination detection accuracy against curated and standardized reference facts.
+
+> **Important Notice:** The legacy 40-question development dataset (`pilot.json` and `pilot.manifest.json`) has been **permanently retired and removed** as part of Task 3.1.1. The **550-question formal benchmark** described below is the **sole authorized evaluation dataset** for the VeriFact research framework and paper.
 
 ---
 
 ## Table of Contents
 
-- [Overview & Datasets](#overview--datasets)
-- [Pilot Dataset (`pilot.json`)](#pilot-dataset-pilotjson)
+- [Overview & Formal Benchmark](#overview--formal-benchmark)
+- [Benchmark Composition & Architecture](#benchmark-composition--architecture)
+  - [1. TruthfulQA-Enhanced (400 items)](#1-truthfulqa-enhanced-400-items)
+  - [2. FreshQA (150 items)](#2-freshqa-150-items)
+- [Dataset Splits & Stratification](#dataset-splits--stratification)
 - [Dataset Format Specifications](#dataset-format-specifications)
-  - [1. JSON Schema](#1-json-schema)
-  - [2. CSV Schema](#2-csv-schema)
-- [Ground-Truth Resolution & Review Policy](#ground-truth-resolution--review-policy)
+  - [1. JSON Benchmark Schema](#1-json-benchmark-schema)
+  - [2. Manifest Schema](#2-manifest-schema)
+- [Ground-Truth Resolution & Precedence Hierarchy](#ground-truth-resolution--precedence-hierarchy)
 - [Evaluation Workflow & Execution](#evaluation-workflow--execution)
 - [Persistence & Export](#persistence--export)
 - [Distinction: Offline Benchmarks vs. Live Detection](#distinction-offline-benchmarks-vs-live-detection)
@@ -19,122 +24,131 @@ This directory contains benchmark datasets and ground-truth specifications used 
 
 ---
 
-## Overview & Datasets
+## Overview & Formal Benchmark
 
-VeriFact's evaluation engine tests whether the MetaQA hallucination detector accurately identifies fact-conflicting statements when evaluated against gold-standard factual questions.
+VeriFact's evaluation engine measures whether the MetaQA hallucination detector accurately identifies fact-conflicting statements when evaluated against standardized gold-standard questions.
 
-Currently bundled files:
-- **`pilot.json`**: Primary evaluation dataset containing 40 curated factual questions.
-- **`pilot.manifest.json`**: Metadata manifest detailing versioning, category distribution, and licensing.
+Active dataset files in this directory:
+- **`hallucination_benchmark.json`**: Active formal benchmark containing 550 questions with adjudicated ground truth, enriched metadata, and stratified splits.
+- **`hallucination_benchmark.manifest.json`**: Manifest documenting dataset provenance, category distributions, splits, and checksums.
+- **`hallucination_benchmark_frozen.json`**: Cryptographically frozen, immutable version of the 550-question formal benchmark for research reproducibility.
+- **`hallucination_benchmark_frozen.manifest.json`**: Cryptographically frozen manifest with SHA-256 verification hash.
 
 ---
 
-## Pilot Dataset (`pilot.json`)
+## Benchmark Composition & Architecture
 
-- **Total Questions**: 40
-- **Version**: 1.0
-- **Source**: Hand-selected factual questions with verified answers (not TruthfulQA).
-- **Categories**: Balanced across 5 domains (8 questions each):
-  1. `named_entity`: Persons, organizations, notable works (e.g., *"Who wrote Hamlet?"*).
-  2. `location`: Capitals, geography, landmarks (e.g., *"What is the capital of Australia?"*).
-  3. `date`: Historical events and founding years (e.g., *"In what year was the United Nations founded?"*).
-  4. `numeric`: Quantities, heights, distances, chemical counts (e.g., *"How many elements are in the periodic table?"*).
-  5. `general_fact`: Physical and natural science facts (e.g., *"What is the speed of light in vacuum?"*).
+The formal benchmark combines static fact-conflicting misconceptions and dynamic temporal queries into a single unified 550-question benchmark:
+
+### 1. TruthfulQA-Enhanced (400 items)
+- **Source**: TruthfulQA (Lin et al., ACL 2022) with standardized corrections and fact-checking references.
+- **Target**: Evaluates model susceptibility to common human falsehoods, superstitions, logical fallacies, and misconceptions.
+- **Volume**: 400 curated questions across diverse categories (misconceptions, science, history, law, psychology, etc.).
+
+### 2. FreshQA (150 items)
+- **Source**: FreshQA (Vu et al., 2023) dynamic evaluation benchmark.
+- **Target**: Evaluates model awareness of dynamic, time-sensitive, and false-premise world knowledge.
+- **Volume**: 150 questions across 4 core temporal categories:
+  1. `fast-changing`: Frequently updating world facts (e.g., current officeholders, recent champions).
+  2. `slow-changing`: Facts that evolve over multi-year horizons (e.g., population milestones, infrastructure projects).
+  3. `never-changing`: Timeless historical and scientific ground-truth facts.
+  4. `false-premise`: Questions presupposing a false claim, requiring explicit premise refutation.
+
+---
+
+## Dataset Splits & Stratification
+
+- **Total Examples**: 550
+- **Random Seed**: 42 (fixed for strict reproducibility)
+- **Split Ratio**: 80% Development / 20% Test
+  - **Development Set (`split: "dev"`)**: 440 questions (320 TruthfulQA, 120 FreshQA). Used for prompt refinement, threshold calibration, and error analysis.
+  - **Test Set (`split: "test"`)**: 110 questions (80 TruthfulQA, 30 FreshQA). Held out exclusively for formal benchmark evaluation.
+- **Stratification**: Balanced across source categories where category counts permit.
 
 ---
 
 ## Dataset Format Specifications
 
-Datasets can be supplied in either **JSON** or **CSV** format.
+### 1. JSON Benchmark Schema
 
-### 1. JSON Schema
+Each item in `hallucination_benchmark.json` and `hallucination_benchmark_frozen.json` adheres to the following structure:
 
 ```json
 {
-  "name": "pilot",
-  "version": "1.0",
-  "description": "Hand-selected factual questions for pilot evaluation",
-  "examples": [
-    {
-      "id": "q001",
-      "question": "What is the capital of Australia?",
-      "reference_answer": "Canberra",
-      "aliases": ["Canberra, Australia", "City of Canberra"],
-      "ground_truth_label": null,
-      "category": "location",
-      "source": "curated",
-      "needs_review": false,
-      "mock_base_answer": "The capital of Australia is Canberra.",
-      "mock_scenario": "reliable"
-    }
-  ]
+  "id": "tqa_001",
+  "question": "What is the capital of Australia?",
+  "reference_answer": "Canberra",
+  "aliases": ["Canberra, Australia", "City of Canberra"],
+  "ground_truth_label": "Reliable",
+  "ground_truth_source": "Adjudicated",
+  "ground_truth_reasoning": "Adjudicated unanimous agreement across gold reference and human consensus.",
+  "category": "location",
+  "source": "truthfulqa",
+  "split": "dev",
+  "temporal_category": "never-changing",
+  "needs_review": false
 }
 ```
 
-### 2. CSV Schema
+### 2. Manifest Schema
 
-| Column | Type | Required | Description |
-| :--- | :--- | :---: | :--- |
-| `id` | string | **Yes** | Unique identifier for the question example (e.g., `q001`). |
-| `question` | string | **Yes** | Factual question evaluated by the model. |
-| `reference_answer` | string | **Yes** | Gold-standard factual answer. |
-| `aliases` | string | No | Pipe-delimited list of accepted equivalent answers (`Canberra\|Canberra, ACT`). |
-| `ground_truth_label` | string | No | Evaluator label of answer correctness (`Reliable` or `Hallucinated`). |
-| `category` | string | No | Domain: `named_entity`, `location`, `date`, `numeric`, `general_fact`. |
-| `source` | string | No | Provenance tag (e.g., `curated`). |
-| `needs_review` | bool | No | Flags items requiring manual human review. |
-| `mock_base_answer` | string | No | Deterministic answer used exclusively when `LLM_MODE=mock`. |
-| `mock_scenario` | string | No | Deterministic scenario used exclusively when `LLM_MODE=mock`. |
+The companion manifest (`hallucination_benchmark_frozen.manifest.json`) defines verification parameters:
+- `name`: Dataset identifier (`hallucination_benchmark_frozen`).
+- `version`: Canonical release version (`1.0.0`).
+- `checksum`: SHA-256 integrity hash of the frozen JSON file.
+- `splits`: Breakdown of dev (440) and test (110) counts.
+- `sources`: Source-specific question counts and provenance URLs.
 
 ---
 
-## Ground-Truth Resolution & Review Policy
+## Ground-Truth Resolution & Precedence Hierarchy
 
-When evaluating candidate answers generated by an LLM:
+Ground-truth resolution follows a formal 4-tiered precedence hierarchy in [`backend/app/evaluation/ground_truth.py`](backend/app/evaluation/ground_truth.py):
 
-1. **Automated Matching**: The generated answer is compared against `reference_answer` and `aliases` using entity-overlap and substring heuristics in [`backend/app/evaluation/ground_truth.py`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/backend/app/evaluation/ground_truth.py).
-2. **Review Exclusion**:
-   - If an answer is inherently subjective, formatted ambiguously, or explicitly flagged with `needs_review: true`, the evaluation engine marks `outcome = "Needs Review"`.
-   - In `pilot.json`, questions **`q032`** and **`q039`** are designated as `needs_review`.
-   - **Academic Standard**: Items flagged as `needs_review` are saved in SQLite and displayed in evaluation traces, but are **strictly excluded** from automated Precision, Recall, and F1 calculations. For `pilot.json`, automated metrics evaluate across the remaining **38 labeled items**.
+1. **Review Flag (`needs_review: true`)**: If an item is flagged for human review or exhibits ambiguity, it is categorized as `NEEDS_REVIEW` and excluded from precision/recall calculations.
+2. **Adjudicated (`ADJUDICATED`)**: High-confidence labels synthesized from concordant multi-judge consensus and expert adjudication.
+3. **Manual Human Annotation (`MANUAL`)**: Gold-standard labels verified directly by domain expert annotators.
+4. **Validated Machine Label (`VALIDATED`)**: High-confidence LLM judge evaluations (e.g. Gemini 3.8 Flash) with structured rationales.
+5. **Unvalidated Fallback (`UNVALIDATED`)**: In formal evaluation mode, unadjudicated benchmark items without explicit labels are rejected rather than falling back to naive reference string matching.
 
 ---
 
 ## Evaluation Workflow & Execution
 
-Offline evaluations can be triggered via the REST API:
+Formal evaluations are initiated via the REST API or programmatic runners:
 
 ```bash
-# Example API call to run offline evaluation on pilot dataset
+# Run formal evaluation on the frozen 550-question test split
 curl -X POST http://127.0.0.1:8000/api/evaluations/run \
   -H "Content-Type: application/json" \
   -d '{
-    "dataset": "pilot",
+    "dataset": "hallucination_benchmark_frozen",
+    "split": "test",
     "threshold": 0.5,
-    "name": "Pilot Evaluation @ 0.50",
+    "name": "Formal Test Benchmark @ 0.50",
     "generator_model": "gemma4:26b",
     "verifier_model": "gemini-3.8-flash"
   }'
 ```
 
-During execution:
-1. The generator model answers each question.
-2. Ground truth is resolved against reference answers.
-3. The MetaQA engine generates synonym and antonym mutations.
-4. Independent verifiers score mutations and compute the MetaQA Hallucination Score ($H$).
-5. Predictions ($H \ge \theta \implies \text{Hallucinated}$) are compared with actual labels to populate the confusion matrix (TP, TN, FP, FN).
-6. A threshold sweep is performed across $\theta \in [0.10, 0.90]$ to measure sensitivity.
+Execution pipeline:
+1. Load dataset split via `load_dataset()`.
+2. Generator (Gemma 4:26B) produces candidate answers.
+3. Independent Gemini Research Judge evaluates candidate answers against reference facts.
+4. MetaQA generates synonym and antonym metamorphic mutations.
+5. Verifiers score mutations using Eq. 5 deterministic scoring matrix.
+6. Predictions ($H \ge \theta \implies \text{Hallucinated}$) populate the confusion matrix.
 
 ---
 
 ## Persistence & Export
 
-- **Database Tables**:
-  - `EvaluationRun`: Top-level run metadata, completion timestamps, configuration snapshot, category breakdowns.
-  - `EvaluationResult`: Row-level traces for every evaluated question, including generated text, actual label, predicted label, and MetaQA score.
-  - `EvaluationMetric`: Computed accuracy, precision, recall, F1, specificity, FPR, and FNR for the primary threshold and each sweep step.
+- **Database Models**:
+  - `EvaluationRun`: Run metadata, configuration snapshot, execution mode, and category performance.
+  - `EvaluationResult`: Question-level traces, candidate answers, ground-truth labels, predicted classifications, and MetaQA scores.
+  - `EvaluationMetric`: Accuracy, precision, recall, F1, specificity, FPR, FNR across thresholds.
 - **CSV Export**:
-  - Download full per-question results: `GET /api/evaluations/{id}/export`.
+  - Download complete item-level results: `GET /api/evaluations/{id}/export`.
 
 ---
 
@@ -143,8 +157,8 @@ During execution:
 | Aspect | Offline Evaluation Module | Live Detect Feature |
 | :--- | :--- | :--- |
 | **Objective** | Measure detector accuracy against known ground-truth labels. | Provide real-time explainable hallucination analysis for arbitrary user questions. |
-| **Input** | Static dataset files (`pilot.json`). | Ad-hoc user-submitted question. |
-| **Ground Truth** | Reference answers and aliases provided in dataset. | **Reference-free**: No ground-truth answer exists or is consulted. |
+| **Input** | Static formal benchmark (`hallucination_benchmark_frozen.json`). | Ad-hoc user-submitted question. |
+| **Ground Truth** | Curated reference answers, adjudicated labels, and source metadata. | **Reference-free**: No ground-truth answer exists or is consulted. |
 | **Verification** | MetaQA metamorphic testing over dataset answers. | **Three-branch**: MetaQA metamorphic testing + Direct-Answer Multi-Model Peer Review + real-time Tavily Web Evidence search. |
 | **Output** | Precision, Recall, F1, confusion matrix, threshold curves. | Candidate answer, mutation breakdowns, peer review consensus, web source cards, Overall VeriFact Assessment. |
 
@@ -153,8 +167,9 @@ During execution:
 ## Historical Benchmark Results & Run Status
 
 - **Locked Research Run**:
-  - Run ID: `58baff20-fb86-4f43-b20e-895a086ceb6b` (documented in [`docs/final_results_lock.md`](file:///c:/Users/Rohan/Desktop/mini-project/verifact/docs/final_results_lock.md)).
-  - **Status**: Executed in **`mock` mode (DEMO / MOCK DATA)** on 40 questions from `pilot.json` using synthetic client fixtures (`model-a`, `model-b`).
+  - Run ID: `58baff20-fb86-4f43-b20e-895a086ceb6b` (documented in [`docs/final_results_lock.md`](docs/final_results_lock.md)).
+  - **Status**: Executed in **`mock` mode (DEMO / MOCK DATA)** on 40 questions from the legacy pilot dataset using synthetic client fixtures (`model-a`, `model-b`).
+  - **Notice**: The legacy 40-question pilot dataset used in that initial mock run has been permanently retired and removed.
 - **Stopped / Unexecuted Live Experiment**:
   - Intended live 2×2 experiment configuration (`experiments/config/final_experiment.yaml` for `gpt-4o-mini` vs. `gpt-4o`) was **frozen as NOT EXECUTED** due to missing live API credentials.
-  - No live 2×2 benchmark was run. Mock results must **never** be cited as live multi-model research findings.
+  - Formal live research experiments will be executed exclusively on `hallucination_benchmark_frozen.json`.

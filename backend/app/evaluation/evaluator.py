@@ -172,7 +172,8 @@ async def run_evaluation(
 
     settings: Settings,
 
-    dataset: str = "pilot",
+    dataset: str = "hallucination_benchmark_frozen",
+    split: str | None = None,
 
     threshold: float | None = None,
 
@@ -208,7 +209,33 @@ async def run_evaluation(
 
     """Run an automated benchmark evaluation measuring all components against the same generated answer."""
 
-    bundle = load_dataset(dataset)
+    if dataset.strip().lower() in {"pilot", "pilot.json"}:
+        raise EvaluationConfigError(
+            "The legacy 40-question pilot dataset has been permanently removed. "
+            "Use the formal benchmark 'hallucination_benchmark_frozen'."
+        )
+    # Determine effective benchmark mode
+    effective_benchmark_mode = "formal" if "hallucination_benchmark" in dataset.lower() else benchmark_mode
+
+    # Enforce strict split rules and isolation for formal benchmark evaluation
+    if effective_benchmark_mode == "formal":
+        if split is None or not str(split).strip():
+            effective_split = "test"  # Formal evaluation defaults to the frozen test split
+        elif str(split).strip().lower() in {"all", "combined"}:
+            raise EvaluationConfigError(
+                "Formal benchmark evaluation requires strict split isolation ('dev' or 'test'). "
+                "split='all' is disallowed to prevent test-set threshold contamination."
+            )
+        elif str(split).strip().lower() not in {"dev", "test"}:
+            raise EvaluationConfigError(
+                f"Invalid split '{split}' for formal benchmark. Must be 'dev' or 'test'."
+            )
+        else:
+            effective_split = str(split).strip().lower()
+    else:
+        effective_split = split
+
+    bundle = load_dataset(dataset, split=effective_split)
 
     if not bundle.examples:
 
@@ -275,29 +302,30 @@ async def run_evaluation(
     eval_llm = InstrumentedLLMClient(llm_for_evaluation(llm, settings, examples))
 
     # Resolve judge client for independent ground truth evaluation
+    # Gemini is strictly removed from the formal research evaluation pipeline.
+    if effective_benchmark_mode == "formal":
+        run_judge = False
+        effective_judge = None
+        if evaluate_judge:
+            logger.info("Gemini judge is disabled in formal benchmark evaluation (human adjudication and gold labels are the sole ground truth).")
+    else:
+        # In non-formal legacy/debug runs, only run judge if explicitly requested (never automatically enabled)
+        run_judge = bool(evaluate_judge)
+        effective_judge = None
+        if run_judge:
+            from app.evaluation.gemini_judge import GeminiJudgeClient
 
-    run_judge = evaluate_judge if evaluate_judge is not None else getattr(settings, "ground_truth_judge_enabled", False)
-
-    effective_judge = None
-
-    if run_judge:
-
-        from app.evaluation.gemini_judge import GeminiJudgeClient
-
-        if judge_client is not None:
-
-            effective_judge = judge_client
-
-        else:
-
-            effective_judge = GeminiJudgeClient(
-                api_key=settings.openrouter_api_key,
-                model=getattr(settings, "ground_truth_judge_model", "") or getattr(settings, "gemini_judge_model", ""),
-                timeout_seconds=getattr(settings, "ground_truth_judge_timeout_seconds", getattr(settings, "gemini_judge_timeout_seconds", 30.0)),
-                base_url=getattr(settings, "openrouter_base_url", "https://openrouter.ai/api/v1"),
-                settings=settings,
-                test_llm=eval_llm if settings.llm_mode == "mock" else None,
-            )
+            if judge_client is not None:
+                effective_judge = judge_client
+            else:
+                effective_judge = GeminiJudgeClient(
+                    api_key=settings.openrouter_api_key,
+                    model=getattr(settings, "ground_truth_judge_model", "") or getattr(settings, "gemini_judge_model", ""),
+                    timeout_seconds=getattr(settings, "ground_truth_judge_timeout_seconds", getattr(settings, "gemini_judge_timeout_seconds", 30.0)),
+                    base_url=getattr(settings, "openrouter_base_url", "https://openrouter.ai/api/v1"),
+                    settings=settings,
+                    test_llm=eval_llm if settings.llm_mode == "mock" else None,
+                )
 
     # Resolve search client for web evidence
 
@@ -509,7 +537,7 @@ async def run_evaluation(
 
                 example,
 
-                mode=benchmark_mode,
+                mode=effective_benchmark_mode,
 
             )
 
@@ -1059,7 +1087,11 @@ async def run_evaluation(
 
                 judge_confidence=judge_verdict.confidence if judge_verdict else None,
 
-                judge_status=judge_verdict.status if judge_verdict else "not_run",
+                judge_status=(
+                    "disabled_in_formal_eval"
+                    if effective_benchmark_mode == "formal"
+                    else (judge_verdict.status if judge_verdict else "not_run")
+                ),
 
                 validation_status=(
 
@@ -1067,7 +1099,7 @@ async def run_evaluation(
 
                     else ("validated" if decision.source == GroundTruthSource.VALIDATED
 
-                    else ("preliminary_judge" if judge_verdict and judge_verdict.status == "completed"
+                    else ("manual" if decision.source == GroundTruthSource.MANUAL
 
                     else ("legacy_inferred" if decision.source == GroundTruthSource.LEGACY_INFERRED
 
@@ -1139,9 +1171,24 @@ async def run_evaluation(
 
         metaqa_primary = compute_metrics(confusion_counts(actuals_metaqa, predictions_metaqa)) if labeled else compute_metrics(confusion_counts([], []))
 
+        # Threshold optimization is allowed ONLY on the development split (split="dev").
+        # Test evaluation cannot optimize or change the threshold; it strictly uses chosen_threshold frozen from dev.
+        is_dev_split = (effective_split is not None and str(effective_split).strip().lower() == "dev")
+        can_optimize_threshold = is_dev_split
+
+        # Always compute the sensitivity curve over standard default thresholds for sensitivity analysis
         sweep = sweep_thresholds(actuals_metaqa, scores_metaqa) if labeled else [(val, metaqa_primary) for val in DEFAULT_THRESHOLDS]
 
-        best_threshold = best_threshold_by_f1(sweep)
+        if can_optimize_threshold:
+            # Development split: threshold optimization is permitted
+            best_threshold = best_threshold_by_f1(sweep)
+            threshold_opt_status = "optimized_on_dev"
+        else:
+            # Test split (and non-dev runs):
+            # Test evaluation cannot optimize or change the operating threshold.
+            # It strictly uses the threshold selected and frozen from development (chosen_threshold).
+            best_threshold = chosen_threshold
+            threshold_opt_status = "frozen_from_dev"
 
         # 2. Web Evidence Metrics
 
@@ -1249,13 +1296,19 @@ async def run_evaluation(
 
         component_metrics_summary["research_protocol"] = {
 
-            "benchmark_mode": benchmark_mode,
+            "benchmark_mode": effective_benchmark_mode,
 
-            "judge_evaluated": run_judge,
+            "split": effective_split,
+
+            "threshold_frozen_from_dev": not can_optimize_threshold,
+
+            "threshold_optimization": threshold_opt_status,
+
+            "judge_evaluated": False if effective_benchmark_mode == "formal" else run_judge,
 
             "validated_examples_count": sum(1 for item in scored_rows if item.get("ground_truth_source") in {"manual", "validated", "adjudicated"}),
 
-            "unreviewed_examples_count": sum(1 for item in scored_rows if item.get("ground_truth_source") in {"unvalidated", "legacy_inferred", "judge_preliminary"}),
+            "unreviewed_examples_count": sum(1 for item in scored_rows if item.get("ground_truth_source") in {"unvalidated", "legacy_inferred"}),
 
             "review_examples_count": sum(1 for item in scored_rows if item.get("ground_truth_source") == "needs_review"),
 
@@ -1263,11 +1316,17 @@ async def run_evaluation(
 
         config["best_threshold_by_f1"] = best_threshold
 
+        config["threshold_optimization"] = threshold_opt_status
+
+        config["threshold_frozen_from_dev"] = not can_optimize_threshold
+
+        config["split"] = effective_split
+
         config["call_stats"] = eval_llm.stats()
 
         config["component_metrics"] = component_metrics_summary
 
-        config["benchmark_mode"] = benchmark_mode
+        config["benchmark_mode"] = effective_benchmark_mode
 
         run.config_json = json.dumps(config)
 

@@ -81,7 +81,7 @@ class DatasetExample(BaseModel):
     context: str | list[str] | None = None
 
     supporting_evidence: list[str] = Field(default_factory=list)
-    dataset: str = "pilot"
+    dataset: str = "hallucination_benchmark"
     question_type: str = "curated"
     snapshot_date: str | None = None
     ground_truth_source: GroundTruthSource | str = GroundTruthSource.UNVALIDATED

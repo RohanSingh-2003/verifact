@@ -68,7 +68,7 @@ def _create_sample_db(db_path: Path, run_id: str = "run-101", question: str = "I
 
         cursor.execute(
             "INSERT INTO experiments VALUES (?, ?, ?, ?, ?)",
-            ("exp-001", "Pilot Experiment", "1.0", 0.5, json.dumps({"trials": 1})),
+            ("exp-001", "Validation Experiment", "1.0", 0.5, json.dumps({"trials": 1})),
         )
         cursor.execute(
             "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?, ?)",

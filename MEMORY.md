@@ -87,6 +87,6 @@ npm run build          # Compile TypeScript (tsc -b) & Vite bundle
 1. `experiments/results/58baff20-fb86-4f43-b20e-895a086ceb6b/` (Frozen baseline experiment).
 2. `experiments/config/final_experiment.yaml` (Locked experiment configuration).
 3. `analysis/output/` (Generated research charts and tables).
-4. `backend/data/datasets/pilot.json` and `pilot.manifest.json` (Immutable evaluation dataset).
+4. `backend/data/datasets/hallucination_benchmark.json` and `hallucination_benchmark_frozen.json` (Formal 550-question benchmark; pilot dataset retired in Task 3.1.1).
 5. `docs/final_results_lock.md` (Research audit record).
 6. Local credentials in `backend/.env` (Never commit or stage).

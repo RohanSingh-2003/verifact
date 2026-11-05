@@ -56,7 +56,7 @@ def test_detect_endpoint_rate_limit(rate_limit_client: TestClient) -> None:
 
 def test_evaluations_run_endpoint_rate_limit(rate_limit_client: TestClient) -> None:
     """POST /api/evaluations/run must enforce 5 req/min per client IP."""
-    payload = {"dataset_name": "pilot", "max_questions": 1}
+    payload = {"dataset_name": "hallucination_benchmark_frozen", "max_questions": 1}
 
     for i in range(5):
         resp = rate_limit_client.post("/api/evaluations/run", json=payload)
@@ -75,7 +75,7 @@ def test_evaluations_run_endpoint_rate_limit(rate_limit_client: TestClient) -> N
 def test_experiments_run_endpoint_rate_limit(rate_limit_client: TestClient) -> None:
     """POST /api/experiments/run must enforce 5 req/min per client IP."""
     payload = {
-        "dataset_name": "pilot",
+        "dataset_name": "hallucination_benchmark_frozen",
         "max_questions": 1,
         "generator_models": ["gemma4:26b"],
         "verifier_models": ["gemini-3.8-flash"],

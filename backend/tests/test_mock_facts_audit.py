@@ -167,11 +167,11 @@ async def test_06_deliberately_incorrect_answers_for_negative_testing() -> None:
         category="location",
         source="curated",
     )
-    gt_decision = resolve_ground_truth(DELIBERATE_HALLUCINATED_AUSTRALIA_ANSWER, dataset_example)
+    gt_decision = resolve_ground_truth(DELIBERATE_HALLUCINATED_AUSTRALIA_ANSWER, dataset_example, mode="legacy")
     assert gt_decision.label is Classification.HALLUCINATED
 
     # Verify ground-truth resolution correctly classifies Canberra as reliable
-    gt_correct = resolve_ground_truth("Canberra is the capital of Australia.", dataset_example)
+    gt_correct = resolve_ground_truth("Canberra is the capital of Australia.", dataset_example, mode="legacy")
     assert gt_correct.label is Classification.RELIABLE
 
 
@@ -235,7 +235,7 @@ async def test_08_live_provider_mode_does_not_use_mock_answers() -> None:
                 llm=MockLLMClient(),
                 db=db,
                 settings=live_settings,
-                dataset="pilot",
+                dataset="hallucination_benchmark_frozen",
             )
     finally:
         db.close()
@@ -261,7 +261,7 @@ async def test_09_mock_execution_cannot_contaminate_real_evaluations() -> None:
                 llm=MockLLMClient(),
                 db=db,
                 settings=live_settings,
-                dataset="pilot",
+                dataset="hallucination_benchmark_frozen",
                 generator_model="model-a",
                 verifier_model="model-b",
             )

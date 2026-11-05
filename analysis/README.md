@@ -7,7 +7,7 @@ This directory contains preserved research analysis artifacts from the historica
 ## Directory Overview
 
 - **`output/`**: An immutable historical archive containing tabular CSV files and visualization figures derived from the baseline mock research run (`58baff20-fb86-4f43-b20e-895a086ceb6b`). See [`analysis/output/README.md`](output/README.md) for details.
-- **Live Evaluation Exports**: For current benchmarking and evaluation over datasets (such as `pilot.json`), VeriFact uses the standalone evaluations API (`/api/evaluations/*`).
+- **Live Evaluation Exports**: For current benchmarking and evaluation over datasets (such as `hallucination_benchmark_frozen.json`), VeriFact uses the standalone evaluations API (`/api/evaluations/*`). Note: The legacy 40-question `pilot.json` dataset was permanently retired in Task 3.1.1.
 
 ---
 
