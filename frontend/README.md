@@ -1,48 +1,55 @@
 # VeriFact Frontend Application
 
-Modern single-page web interface for VeriFact built with **React 19**, **TypeScript**, **Vite**, and **Tailwind CSS**.
+> **Modern Reactive User Interface Built with React 19, TypeScript, Tailwind CSS v4, and Vite 8**
+
+The VeriFact frontend is a single-page application (SPA) providing an interactive, explainable hallucination analysis dashboard. It implements a non-blocking progressive disclosure workflow: candidate answers render within seconds, while background verification progress (MetaQA metamorphic mutations, independent peer reviews, and live web evidence retrieval) updates in real time via reactive polling.
 
 ---
 
 ## Table of Contents
 
-- [Overview & Architecture](#overview--architecture)
+- [Overview & Technology Stack](#overview--technology-stack)
 - [Frontend–Backend Communication](#frontendbackend-communication)
-- [Key Features & User Interface](#key-features--user-interface)
+  - [Vite Reverse Proxy](#vite-reverse-proxy)
+  - [API Communication Lifecycle](#api-communication-lifecycle)
+- [Directory & Component Architecture](#directory--component-architecture)
+- [Key Pages & Views](#key-pages--views)
   - [1. Progressive Detection Dashboard (`/`)](#1-progressive-detection-dashboard-)
-  - [2. Fixed Gemma Generator & Independent Peer Review](#2-fixed-gemma-generator--independent-peer-review)
-  - [3. MetaQA Inspection Panels](#3-metaqa-inspection-panels)
-  - [4. Web Evidence Source Cards](#4-web-evidence-source-cards)
-  - [5. Overall VeriFact Result Card](#5-overall-verifact-result-card)
-  - [6. History, Guides, & Settings](#6-history-guides--settings)
-- [Setup & Installation](#setup--installation)
+  - [2. History & Audit Log (`/history`)](#2-history--audit-log-history)
+  - [3. MetaQA Educational Guide (`/metaqa`)](#3-metaqa-educational-guide-metaqa)
+  - [4. Web Analysis Educational Guide (`/web-analysis`)](#4-web-analysis-educational-guide-web-analysis)
+  - [5. System Settings & Diagnostics (`/settings`)](#5-system-settings--diagnostics-settings)
+- [UI Components & Data Mapping](#ui-components--data-mapping)
+- [State Management & Polling Hook](#state-management--polling-hook)
+- [Installation & Setup](#installation--setup)
   - [Prerequisites](#prerequisites)
   - [Install Dependencies](#install-dependencies)
   - [Start Local Development Server](#start-local-development-server)
-- [Production Build, Linting, & Testing](#production-build-linting--testing)
-- [Environment Configuration](#environment-configuration)
-- [Project Structure](#project-structure)
-- [Troubleshooting](#troubleshooting)
+- [Production Build, Linting & Testing](#production-build-linting--testing)
+- [Design System & Theming](#design-system--theming)
+- [Troubleshooting & FAQ](#troubleshooting--faq)
 
 ---
 
-## Overview & Architecture
+## Overview & Technology Stack
 
-The frontend provides an interactive, explainable hallucination analysis interface. It is architected for **progressive disclosure**: rather than displaying a blocking loading spinner while lengthy AI evaluations run, it presents results incrementally as each background stage completes.
+The client application is built on modern web standards with zero legacy boilerplate:
 
-- **UI Framework**: React 19 with functional components and React hooks.
-- **Language**: TypeScript with strict type checking.
-- **Build Tool**: Vite with Hot Module Replacement (HMR).
-- **Styling**: Tailwind CSS (Tailwind v4 with `@tailwindcss/vite`) and custom design tokens in `src/index.css`.
-- **Icons & Routing**: `lucide-react` and `react-router-dom`.
-- **Theme Support**: Seamless Dark, Light, and System theme switching via `ThemeProvider`.
+- **UI Framework**: **React 19** (`^19.2.8`) with functional components and modern hooks.
+- **Language**: **TypeScript** (`~6.0.2`) with strict type checking across API mappers, UI props, and state.
+- **Styling**: **Tailwind CSS v4** (`^4.3.3`) powered by the official `@tailwindcss/vite` plugin.
+- **Build Tool**: **Vite 8** (`^8.2.2`) with instantaneous Hot Module Replacement (HMR).
+- **Client Routing**: **React Router DOM v7** (`^7.18.3`).
+- **Icons**: **Lucide React** (`^1.40.0`).
+- **Testing**: **Vitest** (`^5.0.3`) and Testing Library.
+- **Linter**: **Oxlint** (`^1.79.0`) for fast static code analysis.
 
 ---
 
 ## Frontend–Backend Communication
 
 ### Vite Reverse Proxy
-In local development, the Vite dev server (`http://localhost:5173`) proxies all requests starting with `/api` directly to the FastAPI backend service (`http://127.0.0.1:8000`), configured in `frontend/vite.config.ts`:
+In local development, the Vite dev server (`http://localhost:5173`) proxies all requests starting with `/api` directly to the FastAPI backend (`http://127.0.0.1:8000`). Configured in `frontend/vite.config.ts`:
 
 ```typescript
 server: {
@@ -56,83 +63,127 @@ server: {
 }
 ```
 
-This setup ensures zero CORS friction during development and allows frontend API calls to use relative URLs (e.g., `fetch('/api/detect')`).
+This prevents CORS errors during local development and allows client services to use standard relative paths (e.g. `fetch('/api/detect/stream')`).
 
-### Communication Lifecycle
-1. **Model Readiness**: On mount, the application checks backend provider availability and settings via `GET /api/models` and `GET /api/settings`.
-2. **Detection Submission**: Submitting a question dispatches `POST /api/detect` with:
+### API Communication Lifecycle
+1. **Initial Mount**: The app inspects provider availability and settings via `GET /api/health` and `GET /api/settings`.
+2. **Submit Query**: Submitting a question dispatches `POST /api/detect/stream` with:
    ```json
    {
-     "question": "What is the capital of Australia?",
-     "answer_model": "gemma"
+     "question": "Who discovered penicillin and in what year?",
+     "model": "gemma4:26b"
    }
    ```
-   *(Gemma 4:26B is the permanent answer-generating model; no model-selector dropdown is presented to the user).*
-3. **Immediate Answer Display**: The backend responds synchronously with `{ id: "...", base_answer: "...", status: "answer_ready" }`. The frontend renders the answer immediately in `AnswerCard`.
-4. **Asynchronous Polling**: The frontend begins polling `GET /api/runs/{id}` at 1-second intervals. As background workers progress, the UI updates:
-   - Analysis progress bars (`AnalysisProgress`)
-   - Synonym and antonym mutation tables as mutations are generated and verified across the verifier pool (`MutationTabs`)
-   - Independent Multi-Model Review Card (`IndependentVerdictsCard`) displaying peer consensus, agreement ratios, qualitative rationales, and contradictory claims
-   - Web evidence claims, search domains, and clean evidence cards (`WebEvidencePanel`)
-   - Final Overall VeriFact Assessment and Combined Risk once status transitions to `completed` or `partial`.
+3. **Immediate Handshake**: The backend synchronously returns `{ "id": "...", "answer": "...", "status": "RUNNING" }`. The frontend renders the base answer in `AnswerCard` immediately.
+4. **Reactive Polling**: The frontend hook `useVerificationPolling` polls `GET /api/runs/{id}` every 3,000 milliseconds.
+5. **Progressive Rendering**: As background tasks complete, the UI progressively mounts:
+   - Analysis progress indicator (`AnalysisProgress`)
+   - Synonym and Antonym mutation tabs with verifier votes and penalties (`MutationTabs`)
+   - Independent Multi-Model Review card with consensus metrics (`IndependentVerdictsCard`)
+   - Web evidence claim cards with domain badges and source URLs (`WebEvidencePanel`)
+   - Final Overall Result Card and Combined Hallucination Risk gauge once status reaches `COMPLETED`.
 
 ---
 
-## Key Features & User Interface
+## Directory & Component Architecture
+
+```text
+frontend/
+├── public/                             # Static assets & favicon
+├── src/
+│   ├── assets/                         # SVG logos and illustrations
+│   ├── components/                     # Modular React UI components
+│   │   ├── detect/                     # Detect view panels & cards
+│   │   │   ├── AnswerCard.tsx          # Displays base Gemma 4:26B response
+│   │   │   ├── AnalysisProgress.tsx    # Live pipeline stage progress bars
+│   │   │   ├── ScoreCard.tsx           # MetaQA hallucination score gauge
+│   │   │   ├── MutationTabs.tsx        # Synonym vs. Antonym mutation tables
+│   │   │   ├── IndependentVerdictsCard.tsx # Multi-model peer consensus panel
+│   │   │   ├── WebEvidencePanel.tsx    # Extracted claims & verified sources
+│   │   │   ├── OverallResultCard.tsx   # Combined risk & executive verdict
+│   │   │   └── AnswerModelSelector.tsx # Dead code (model selection is disabled)
+│   │   ├── history/                    # History view components
+│   │   │   ├── HistoryTable.tsx        # Paginated audit log table
+│   │   │   └── HistoryFilters.tsx      # Search bar & status filters
+│   │   ├── layout/                     # Application shell
+│   │   │   ├── Header.tsx              # Top navigation bar & theme toggle
+│   │   │   └── Footer.tsx              # Version info & GitHub link
+│   │   └── ui/                         # Reusable atomic UI elements
+│   │       ├── Badge.tsx               # Status & verdict badges
+│   │       ├── Button.tsx              # Styled interactive buttons
+│   │       ├── Card.tsx                # Container cards with border styling
+│   │       └── Modal.tsx               # Accessible dialog container
+│   ├── data/                           # Static documentation data & presets
+│   ├── hooks/                          # Custom React hooks
+│   │   └── useVerificationPolling.ts   # 3000ms polling hook for active runs
+│   ├── pages/                          # Primary view routes
+│   │   ├── DetectPage.tsx              # Interactive detection interface (/)
+│   │   ├── HistoryPage.tsx             # Audit log of previous runs (/history)
+│   │   ├── MetaQAPage.tsx              # Educational guide to MetaQA (/metaqa)
+│   │   ├── WebAnalysisPage.tsx         # Educational guide to Web Evidence (/web-analysis)
+│   │   └── SettingsPage.tsx            # Model provider config & theme (/settings)
+│   ├── services/                       # API client and response mappers
+│   │   ├── api.ts                      # Axios/Fetch HTTP requests
+│   │   └── mappers.ts                  # Backend JSON to TypeScript mappers
+│   ├── theme/                          # ThemeContext (Dark, Light, System)
+│   ├── types/                          # Shared domain TypeScript interfaces
+│   │   └── index.ts                    # Run, Mutation, Claim, Evidence types
+│   ├── App.tsx                         # Router & layout shell
+│   ├── main.tsx                        # DOM mount & context provider setup
+│   └── index.css                       # Design tokens & Tailwind imports
+├── package.json                        # Dependencies, scripts, and engine specs
+├── vite.config.ts                      # Vite configuration & dev server proxy
+├── tsconfig.json                       # TypeScript compiler options
+└── README.md                           # Frontend developer guide (this file)
+```
+
+---
+
+## Key Pages & Views
 
 ### 1. Progressive Detection Dashboard (`/`)
-- **Non-blocking workflow**: Candidate AI answer renders within seconds.
-- **Step-by-step progress tracking**: Independent progress indicators show real-time states for MetaQA, Multi-Model Review, and Web Evidence.
-- **Side-by-side verification tabs**: Effortlessly toggle between metamorphic testing details and external web sources.
+The primary interactive interface:
+- **Input Bar**: User inputs factual questions with sample prompt chips.
+- **AnswerCard**: Immediately displays the candidate answer generated by Gemma 4:26B.
+- **IndependentVerdictsCard**: Visualizes direct answer peer reviews across Microsoft Phi-4, GLM-4.7, Qwen-2.5, and Liquid LFM-2.5, showing consensus ratios (`3/4 agreed`) and qualitative rationales.
+- **MetaQA Section**: Displays the MetaQA Inconsistency Score ($H \in [0.0, 1.0]$) and tabbed tables of synonym and antonym mutations with observed verifier votes.
+- **Web Evidence Section**: Displays extracted claims, domain categorization badges, and expandable source cards with relevance scores and external hyperlinks.
+- **OverallResultCard**: Displays the combined executive verdict (`Likely Reliable`, `Potentially Hallucinated`, `Needs Verification`) and composite risk gauge.
 
-### 2. Fixed Gemma Generator & Independent Peer Review
-- **Dedicated Answer Generation**: Candidate answers are generated exclusively by **Gemma 4:26B** (Ollama Cloud). The model-selection dropdown has been removed from the user interface to ensure a standardized benchmark baseline.
-- **Independent Multi-Model Review Card (`IndependentVerdictsCard`)**:
-  - Peer models (**Phi-4 Reasoning** [Microsoft via OpenRouter], **GLM-4.7-Flash** [Cloudflare], **Qwen-2.5-32B** [Alibaba / Groq], and **Liquid LFM-2.5** [Liquid (Liquid AI) via OpenRouter]) concurrently evaluate Gemma's complete answer text with full context (question, answer, claims, mutations, and web snippets). Google Gemini remains supported as an optional legacy client.
-  - **Provider Subtitles**: Displays verified provider families ('Microsoft' for Phi-4 Reasoning, 'Liquid (Liquid AI)' for OpenRouter Liquid).
-  - **Consensus Badge**: Displays `Consensus: Correct`, `Disagreement Detected`, `Consensus: Incorrect`, `Uncertain Consensus`, or `No Reviews Available`.
-  - **Agreement Metric**: Shows `X/Y agreed` across all responding peer models.
-  - **Peer Reasoning Accordions**: Expandable details displaying each verifier's confidence score and qualitative explanation.
-  - **Contradictory Claims Registry**: Highlights specific claims where peer verifiers disputed Gemma's answer.
+### 2. History & Audit Log (`/history`)
+- Paginated table of all previous detection runs stored in SQLite.
+- Search by question text, filter by status (`COMPLETED`, `RUNNING`, `FAILED`).
+- Inspect individual runs or trigger CSV exports.
 
-### 3. MetaQA Inspection Panels
-- **ScoreCard**: Visual gauge displaying the arithmetic MetaQA Hallucination Score ($H \in [0.0, 1.0]$) and categorical badge (**Reliable** vs. **Hallucinated** based on threshold $\theta = 0.5$).
-- **MutationTabs**: Separate tabs for Synonym (meaning-preserving) and Antonym (meaning-reversing) mutations.
-- Displays:
-  - Mutated statement text
-  - Verifier verdict badge (`YES`, `NO`, `NOT SURE`)
-  - Expected relationship indicator
-  - Verifier rationale expandable accordion.
+### 3. MetaQA Educational Guide (`/metaqa`)
+- Educational documentation explaining metamorphic relations, synonym and antonym perturbations, prompt blindness, and Equation 5 penalty mathematics.
 
-### 4. Web Evidence Source Cards
-- **Claim-Level Panels**: Lists each factual claim extracted from the answer.
-- **Source Quality Tiers**: Badges every source with its authoritative quality tier (`Official / Primary`, `Government / Official`, `Academic`, `Reputable News`, `Reference`, `General Web`, or `Low priority`).
-- **Strict Evidence Relevance & Rationales**: Surfaces topical relevance scores and explanatory rationales explaining why sources directly address the claim propositions.
-- **Clean Evidence Cards**: Surfaces preprocessed 1–2 sentence evidence summaries (`evidenceSummary`) stripped of navigation noise, markdown clutter, and bracket citations.
-- **Strict Eligibility Gate & Unassessed Status**: Claims without relevant sources are clearly labeled `Not assessed (no relevant source)` and visibly marked as excluded from consistency score aggregation.
-- **Metadata**: Shows source domain tag, page title, verifier reasoning, and direct clickable external URLs.
-- **Contradicted Claims Drawer**: Dedicated highlight section when contradictions are detected.
+### 4. Web Analysis Educational Guide (`/web-analysis`)
+- Visual guide to question domain classification, authoritative domain whitelisting, topical relevance filtering, and compound claim coverage.
 
-### 5. Overall VeriFact Result Card
-- Synthesizes findings into a clear executive summary at the conclusion of the run:
-  - **Verdict Badge**: `Likely Reliable`, `Potentially Hallucinated`, `Needs Verification`, or `Insufficient Evidence`.
-  - **Combined Hallucination Risk**: Prominent numeric risk score ($0.5 \times \text{MetaQA} + 0.5 \times \text{Web Risk}$).
-  - **3-Column Score Summary**: Equal-width cards for MetaQA Score, Web Evidence Consistency %, and Combined Risk.
-  - **Transparent Disclaimer**: Clear explanation that the combined score is an application-level heuristic.
-
-### 6. History, Guides, & Settings
-- **History (`/history`)**: Filterable, paginated audit log of previous runs stored in the local SQLite database. Displays synchronized Combined Risk Score gauges, overall verdict badges, and subtext breakdowns (`MetaQA <score> • Web <score>%`). Inspect previous questions, answers, scores, and full verification traces.
-- **MetaQA Guide (`/metaqa`)**: Visual educational guide explaining metamorphic testing, synonym/antonym perturbations, the scoring contribution matrix, and thresholds.
-- **Web Analysis Guide (`/web-analysis`)**: Educational guide explaining question-type routing, authoritative domain categorization, and evidence consistency scoring.
-- **Settings (`/settings`)**: Theme switcher (Light, Dark, System), read-only display of configured backend AI providers with updated family subtitles, and About VeriFact citations.
+### 5. System Settings & Diagnostics (`/settings`)
+- Health status of backend and individual LLM provider adapters.
+- Dark / Light / System theme switching.
+- Academic citations and project metadata.
 
 ---
 
-## Setup & Installation
+## State Management & Polling Hook
+
+VeriFact uses React's native state combined with the custom hook `useVerificationPolling`:
+- **File**: `src/hooks/useVerificationPolling.ts`
+- **Interval**: 3,000 milliseconds.
+- **Trigger**: Starts automatically when a `run_id` is created with status `RUNNING`.
+- **Termination**: Halts polling when `status === "COMPLETED"` or `status === "FAILED"`, or when the component unmounts.
+- **Error Handling**: Implements exponential backoff on transient network failures.
+
+---
+
+## Installation & Setup
 
 ### Prerequisites
-- **Node.js**: Version 20.0 or higher
-- **npm**: Version 9.0 or higher
+- **Node.js**: Version `20.x` or higher
+- **npm**: Version `9.x` or higher
 
 ### Install Dependencies
 ```bash
@@ -144,87 +195,44 @@ npm install
 ```bash
 npm run dev
 ```
-
-The application will launch at **[http://localhost:5173](http://localhost:5173)**.
+Open **[http://localhost:5173](http://localhost:5173)** in your browser.
 
 ---
 
-## Production Build, Linting, & Testing
+## Production Build, Linting & Testing
 
 ```bash
-# 1. Typecheck and build optimized production bundle
+# 1. Type-check and build for production
 npm run build
 
-# 2. Run fast linter (oxlint)
+# 2. Preview the production build locally
+npm run preview
+
+# 3. Run high-performance linter (Oxlint)
 npm run lint
 
-# 3. Run frontend unit tests (vitest)
+# 4. Run automated frontend unit tests (Vitest)
 npm test
-
-# 4. Preview production build locally
-npm run preview
 ```
-
-Production assets are output to `frontend/dist/`.
 
 ---
 
-## Environment Configuration
+## Design System & Theming
 
-The frontend works out of the box with default settings. If custom routing is needed, configure `frontend/.env`:
+- **Tailwind CSS v4**: Utilizes the modern `@import "tailwindcss";` directive in `src/index.css`.
+- **Theme Support**: `ThemeContext` persists the user's preference (`dark`, `light`, or `system`) in `localStorage` and dynamically toggles the `dark` class on the root `<html>` element.
+- **Color Tokens**:
+  - Reliable / Supported: Emerald / Green (`text-emerald-500`, `bg-emerald-500/10`)
+  - Hallucinated / Contradicted: Rose / Red (`text-rose-500`, `bg-rose-500/10`)
+  - Needs Verification / Uncertain: Amber / Yellow (`text-amber-500`, `bg-amber-500/10`)
 
-| Variable | Default | Description |
+---
+
+## Troubleshooting & FAQ
+
+| Problem | Root Cause | Solution |
 | :--- | :--- | :--- |
-| `VITE_API_BASE_URL` | `""` (empty) | Base URL for API calls. When left empty, requests use relative `/api` paths routed through the Vite proxy. |
-
-Template file: `frontend/.env.example`.
-
----
-
-## Project Structure
-
-```text
-frontend/src/
-├── components/
-│   ├── detect/                        # Detection dashboard components
-│   │   ├── AnswerCard.tsx             # Candidate AI answer card
-│   │   ├── AnalysisProgress.tsx       # Progress steps indicator
-│   │   ├── MutationTabs.tsx           # Synonym & antonym mutation inspection
-│   │   ├── ScoreCard.tsx              # MetaQA score gauge & classification
-│   │   ├── WebEvidencePanel.tsx       # Web claims, evidence cards, sources
-│   │   └── VerificationSummaryPanel.tsx # Compact Overall Result & Combined Risk
-│   ├── layout/                        # Global layout, header, navbar, footer
-│   └── ui/                            # Primitives: buttons, badges, cards, modals, tooltips
-├── pages/                             # Route view pages
-│   ├── DetectPage.tsx                 # Core question entry & progressive analysis
-│   ├── HistoryPage.tsx                # Paginated audit log of historical runs
-│   ├── MetaQAPage.tsx                 # Educational guide to MetaQA
-│   ├── WebAnalysisPage.tsx            # Educational guide to Web Evidence
-│   └── SettingsPage.tsx               # Theme selection, active models, about
-├── services/                          # Backend API communication
-│   ├── api.ts                         # HTTP client functions for /api endpoints
-│   └── mappers.ts                     # Schema normalization into frontend domain types
-├── theme/                             # ThemeContext (Dark, Light, System)
-├── types/                             # TypeScript interfaces & domain types
-├── lib/                               # String utilities & formatting helpers
-├── App.tsx                            # React Router configuration
-├── main.tsx                           # React DOM root entry point
-└── index.css                          # Design tokens, CSS variables, Tailwind styles
-```
-
----
-
-## Troubleshooting
-
-- **API calls fail with `Connection Refused` or `500 Proxy Error`**:
-  - The FastAPI backend service is not running. Start the backend in a separate terminal:
-    ```bash
-    cd backend
-    uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
-    ```
-- **Port 5173 already in use**:
-  - Vite will automatically attempt the next available port (e.g., 5174). If this happens, ensure `FRONTEND_ORIGIN` in `backend/.env` is updated to match the new port.
-- **Provider status displays "Unconfigured"**:
-  - The cloud provider API key has not been added to `backend/.env`. Add the corresponding key (e.g., `OLLAMA_API_KEY`, `GEMINI_API_KEY`) and restart the backend.
-- **Styles not rendering properly**:
-  - Ensure dependencies are installed via `npm install` and that Tailwind CSS is correctly processed via `@tailwindcss/vite`.
+| **API requests fail with 404 / Network Error** | Backend is not running on `http://127.0.0.1:8000`. | Ensure the FastAPI backend is running via `uvicorn app.main:app --port 8000`. |
+| **Polling never stops** | Backend run status never transitioned to `COMPLETED`. | Check backend terminal logs for unhandled exceptions in background tasks. |
+| **Model selector is missing from the UI** | Model selection was intentionally deprecated. | Gemma 4:26B is permanently enforced by design to establish a fixed evaluation baseline. |
+| **Styles appear broken or unstyled** | Tailwind v4 compilation issue. | Ensure you are running Node 20+ and have installed `@tailwindcss/vite`. Run `npm run build` to verify. |

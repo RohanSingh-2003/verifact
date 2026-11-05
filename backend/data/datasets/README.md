@@ -137,7 +137,7 @@ For all future dataset preparation, VeriFact specifies the **`sha256_stratified_
 
 ## FreshQA Temporal Validation Policy
 
-Because evaluation occurs chronologically after the **`2026-04-21`** snapshot date, external search systems may retrieve present-day information published after the snapshot. VeriFact enforces a formal **Temporal Validation Policy** (full specification in [`docs/temporal_validation_policy.md`](../../docs/temporal_validation_policy.md)):
+Because evaluation occurs chronologically after the **`2026-04-21`** snapshot date, external search systems may retrieve present-day information published after the snapshot. VeriFact enforces a formal **Temporal Validation Policy** (full specification in [`docs/temporal_validation_policy.md`](../../../docs/temporal_validation_policy.md)):
 
 1. **Benchmark Reference Time**: All facts are evaluated strictly against the snapshot date `2026-04-21`. Present-day information must never be silently substituted for historical truth.
 2. **Retrospective Sources Permitted**: Retrospective sources published after April 21, 2026 (e.g. historical timelines, revision logs, official tenure records) are explicitly permitted when they reliably establish the factual state on or before April 21, 2026.
@@ -191,7 +191,7 @@ The companion manifest (`hallucination_benchmark_frozen.manifest.json`) defines 
 
 ## Ground-Truth Resolution & Precedence Hierarchy
 
-Ground-truth resolution follows a formal 4-tiered precedence hierarchy in [`backend/app/evaluation/ground_truth.py`](backend/app/evaluation/ground_truth.py):
+Ground-truth resolution follows a formal 4-tiered precedence hierarchy in [`backend/app/evaluation/ground_truth.py`](../../app/evaluation/ground_truth.py):
 
 1. **Review Flag (`needs_review: true`)**: If an item is flagged for human review or exhibits ambiguity, it is categorized as `NEEDS_REVIEW` and excluded from precision/recall calculations.
 2. **Adjudicated (`ADJUDICATED`)**: High-confidence labels synthesized from concordant multi-judge consensus and expert adjudication.
@@ -215,7 +215,7 @@ curl -X POST http://127.0.0.1:8000/api/evaluations/run \
     "threshold": 0.5,
     "name": "Formal Test Benchmark @ 0.50",
     "generator_model": "gemma4:26b",
-    "verifier_model": "gemini-3.8-flash"
+    "verifier_model": "microsoft/phi-4-reasoning:free"
   }'
 ```
 
@@ -254,7 +254,7 @@ Execution pipeline:
 ## Historical Benchmark Results & Run Status
 
 - **Locked Research Run**:
-  - Run ID: `58baff20-fb86-4f43-b20e-895a086ceb6b` (documented in [`docs/final_results_lock.md`](docs/final_results_lock.md)).
+  - Run ID: `58baff20-fb86-4f43-b20e-895a086ceb6b` (documented in [`docs/final_results_lock.md`](../../../docs/final_results_lock.md)).
   - **Status**: Executed in **`mock` mode (DEMO / MOCK DATA)** on 40 questions from the legacy pilot dataset using synthetic client fixtures (`model-a`, `model-b`).
   - **Notice**: The legacy 40-question pilot dataset used in that initial mock run has been permanently retired and removed.
 - **Stopped / Unexecuted Live Experiment**:
