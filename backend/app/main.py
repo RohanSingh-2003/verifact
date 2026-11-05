@@ -6,7 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes_detect import router as detect_router
 from app.api.routes_evaluations import router as evaluation_router
-from app.api.routes_annotations import router as annotations_router
+from app.api.routes_annotations import router as annotations_router
+from app.api.routes_review import router as review_router
 from app.api.routes_health import router as health_router
 from app.api.routes_runs import router as runs_router
 from app.api.routes_settings import router as settings_router
@@ -70,7 +71,8 @@ def create_app() -> FastAPI:
     application.include_router(detect_router)
     application.include_router(runs_router)
     application.include_router(evaluation_router)
-    application.include_router(annotations_router)
+    application.include_router(annotations_router)
+    application.include_router(review_router)
     return application
 
 

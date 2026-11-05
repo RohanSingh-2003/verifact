@@ -368,4 +368,32 @@ class HumanAnnotation(Base):
     adjudication_evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
     validation_status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    audit_logs: Mapped[list["AnnotationAuditLog"]] = relationship(
+        back_populates="annotation",
+        cascade="all, delete-orphan",
+        order_by="AnnotationAuditLog.created_at",
+    )
+
+
+class AnnotationAuditLog(Base):
+    __tablename__ = "annotation_audit_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    annotation_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("human_annotations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    question_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    actor_role: Mapped[str] = mapped_column(String(32), nullable=False)
+    action: Mapped[str] = mapped_column(String(32), nullable=False)
+    previous_label: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    new_label: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    previous_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    new_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    annotation: Mapped[HumanAnnotation] = relationship(back_populates="audit_logs")
+

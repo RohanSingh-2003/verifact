@@ -160,7 +160,7 @@ def _extract_mm_field(item: Any, field_name: str, default: Any = None) -> Any:
 
 
 
-def to_detail(run: EvaluationRun) -> EvaluationDetail:
+def to_detail(run: EvaluationRun, include_question_results: bool = True) -> EvaluationDetail:
 
     primary = primary_metric(run)
 
@@ -242,7 +242,7 @@ def to_detail(run: EvaluationRun) -> EvaluationDetail:
 
         component_metrics=component_metrics_data,
 
-        results=[
+        results=([
 
             EvaluationResultOut(
 
@@ -334,7 +334,7 @@ def to_detail(run: EvaluationRun) -> EvaluationDetail:
 
             for item in run.results
 
-        ],
+        ] if include_question_results else []),
 
     )
 

@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_dep
+from app.api.reviewer_auth import block_reviewer_access
 from app.database.models import HumanAnnotation
 from app.evaluation.agreement import compute_cohens_kappa, compute_judge_human_agreement
 from app.schemas.annotation import (
@@ -21,7 +22,11 @@ from app.schemas.annotation import (
 
 logger = logging.getLogger("verifact.api.annotations")
 
-router = APIRouter(prefix="/api/annotations", tags=["annotations"])
+router = APIRouter(
+    prefix="/api/annotations",
+    tags=["annotations"],
+    dependencies=[Depends(block_reviewer_access)],
+)
 
 
 def _to_annotation_out(row: HumanAnnotation) -> AnnotationOut:

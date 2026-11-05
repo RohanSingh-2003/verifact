@@ -131,6 +131,53 @@ class Settings(BaseSettings):
     server_host: str = "127.0.0.1"
     server_port: int = Field(default=8000, ge=1, le=65535)
 
+    # Human Annotation Reviewer Tokens (pre-shared secrets for blinded review)
+    reviewer1_token: str = ""
+    reviewer2_token: str = ""
+    adjudicator_token: str = ""
+
+    @model_validator(mode="after")
+    def _validate_reviewer_tokens(self) -> "Settings":
+        r1 = self.reviewer1_token.strip()
+        r2 = self.reviewer2_token.strip()
+        adj = self.adjudicator_token.strip()
+        tokens = [r1, r2, adj]
+
+        any_provided = any(bool(t) for t in tokens)
+        all_provided = all(bool(t) for t in tokens)
+
+        if self.environment == "production" and not all_provided:
+            raise ValueError(
+                "Production environment requires REVIEWER1_TOKEN, REVIEWER2_TOKEN, "
+                "and ADJUDICATOR_TOKEN to be configured."
+            )
+
+        if any_provided and not all_provided:
+            raise ValueError(
+                "Incomplete reviewer token configuration: all three tokens (REVIEWER1_TOKEN, "
+                "REVIEWER2_TOKEN, ADJUDICATOR_TOKEN) must be provided together."
+            )
+
+        if all_provided:
+            for name, val in [
+                ("REVIEWER1_TOKEN", r1),
+                ("REVIEWER2_TOKEN", r2),
+                ("ADJUDICATOR_TOKEN", adj),
+            ]:
+                if val.startswith("replace-with-") or val.lower() in {"default", "secret", "password"}:
+                    raise ValueError(f"{name} must not be a placeholder or default value.")
+                if len(val) < 16:
+                    raise ValueError(f"{name} is too weak (minimum 16 characters required).")
+
+            if len(set(tokens)) != 3:
+                raise ValueError(
+                    "Duplicate reviewer tokens detected: REVIEWER1_TOKEN, REVIEWER2_TOKEN, "
+                    "and ADJUDICATOR_TOKEN must all be distinct."
+                )
+
+        return self
+
+
     # API Rate Limiting
     rate_limit_enabled: bool = True
     rate_limit_detect_per_minute: int = Field(default=10, ge=1, le=1000)

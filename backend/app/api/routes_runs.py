@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import db_dep
+from app.api.reviewer_auth import require_non_reviewer
 from app.schemas.detect import DetectResponse, RunListResponse
 from app.services.run_service import get_run, list_runs, to_detect_response
 
@@ -13,6 +14,7 @@ def read_runs(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(db_dep),
+    _non_reviewer: None = Depends(require_non_reviewer),
 ) -> RunListResponse:
     try:
         return list_runs(db, limit=limit, offset=offset)
@@ -24,7 +26,11 @@ def read_runs(
 
 
 @router.get("/api/runs/{run_id}", response_model=DetectResponse)
-def read_run(run_id: str, db: Session = Depends(db_dep)) -> DetectResponse:
+def read_run(
+    run_id: str,
+    db: Session = Depends(db_dep),
+    _non_reviewer: None = Depends(require_non_reviewer),
+) -> DetectResponse:
     run = get_run(db, run_id)
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found.")

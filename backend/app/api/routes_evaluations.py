@@ -2,7 +2,14 @@ import logging
 
 
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated
+from fastapi import APIRouter, Depends, Header, HTTPException, status
+from app.api.reviewer_auth import (
+    ReviewerRole,
+    _get_reviewer_tokens,
+    get_optional_reviewer_role,
+    require_non_reviewer,
+)
 
 from fastapi.responses import Response
 
@@ -163,7 +170,7 @@ async def create_evaluation(
 
 @router.get("/api/evaluations", response_model=EvaluationListResponse)
 
-def read_evaluations(db: Session = Depends(db_dep)) -> EvaluationListResponse:
+def read_evaluations(db: Session = Depends(db_dep), _non_reviewer: None = Depends(require_non_reviewer)) -> EvaluationListResponse:
 
     return list_evaluations(db)
 
@@ -172,31 +179,50 @@ def read_evaluations(db: Session = Depends(db_dep)) -> EvaluationListResponse:
 
 
 @router.get("/api/evaluations/{evaluation_id}", response_model=EvaluationDetail)
-
-def read_evaluation(evaluation_id: str, db: Session = Depends(db_dep)) -> EvaluationDetail:
-
+def read_evaluation(
+    evaluation_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+    db: Session = Depends(db_dep),
+) -> EvaluationDetail:
+    role = get_optional_reviewer_role(authorization)
+    if role in (ReviewerRole.REVIEWER1, ReviewerRole.REVIEWER2):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Reviewer identities are restricted from accessing unblinded evaluation results and detector scores.",
+        )
     run = get_evaluation(db, evaluation_id)
-
     if run is None:
-
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evaluation not found.")
-
-    return to_detail(run)
+    token_map = _get_reviewer_tokens()
+    include_results = (role == ReviewerRole.ADJUDICATOR) or (not token_map)
+    return to_detail(run, include_question_results=include_results)
 
 
 
 
 
 @router.get("/api/evaluations/{evaluation_id}/export")
-
-def export_evaluation(evaluation_id: str, db: Session = Depends(db_dep)) -> Response:
-
+def export_evaluation(
+    evaluation_id: str,
+    authorization: Annotated[str | None, Header()] = None,
+    db: Session = Depends(db_dep),
+) -> Response:
+    role = get_optional_reviewer_role(authorization)
+    if role in (ReviewerRole.REVIEWER1, ReviewerRole.REVIEWER2):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Reviewer identities are restricted from accessing evaluation exports.",
+        )
+    token_map = _get_reviewer_tokens()
+    if token_map and role != ReviewerRole.ADJUDICATOR:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Adjudicator authorization required to export unblinded evaluation results.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     run = get_evaluation(db, evaluation_id)
-
     if run is None:
-
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Evaluation not found.")
-
     body = export_csv(run)
 
     filename = f"verifact-evaluation-{run.dataset_name}-{evaluation_id[:8]}.csv"
@@ -216,8 +242,11 @@ def export_evaluation(evaluation_id: str, db: Session = Depends(db_dep)) -> Resp
 
 
 @router.get("/api/evaluations/{evaluation_id}/export/sweep")
-
-def export_evaluation_sweep(evaluation_id: str, db: Session = Depends(db_dep)) -> Response:
+def export_evaluation_sweep(
+    evaluation_id: str,
+    db: Session = Depends(db_dep),
+    _non_reviewer: None = Depends(require_non_reviewer),
+) -> Response:
 
     run = get_evaluation(db, evaluation_id)
 
@@ -238,4 +267,3 @@ def export_evaluation_sweep(evaluation_id: str, db: Session = Depends(db_dep)) -
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
 
     )
-
