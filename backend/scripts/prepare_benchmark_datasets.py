@@ -1,12 +1,23 @@
 """Standardized benchmark dataset builder for VeriFact.
 
 Prepares the formal VeriFact benchmark by sampling and standardizing:
-1. TruthfulQA-Enhanced (target: 400 questions) - Adversarial misconceptions & cognitive falsehoods
+1. TruthfulQA (Standardized for VeriFact) (target: 400 questions) - Adversarial misconceptions & cognitive falsehoods
 2. FreshQA (target: 150 questions) - Temporal dynamic, fast/slow changing, and false-premise questions
 
 Total benchmark size: 550 questions
 Partitions: 80% Development (440 items), 20% Held-out Test (110 items)
 Random Seed: 42 (reproducible sampling and split assignment)
+
+Reproducibility & Sampling Versioning:
+- Artifact Reproducibility: The formal benchmark artifact (hallucination_benchmark_frozen.json)
+  is cryptographically locked and serves as the sole authoritative evaluation set.
+- Generation Reproducibility: This script implements the deterministic sha256_stratified_v1
+  sampling algorithm using SHA-256 seed derivation, guaranteeing cross-process determinism
+  across independent Python processes, platforms, and PYTHONHASHSEED environments.
+- Historical Legacy Note: The historical benchmark was sampled under hash_stratified_v0
+  using Python's process-randomized hash(). Because the original PYTHONHASHSEED was not
+  recorded, the exact historical selection is preserved exclusively by the frozen artifact
+  and cannot be reconstructed from the master seed alone.
 """
 
 from __future__ import annotations
@@ -42,11 +53,25 @@ TRUTHFULQA_CITATION = "Lin, Hilton, Evans. TruthfulQA: Measuring How Models Mimi
 
 FRESHQA_SHEET_ID = "1_8mi-yuK30mvoDJu1KQXD6ODem7MKMcIgVAwDSzJkjM"
 FRESHQA_URL = f"https://docs.google.com/spreadsheets/d/{FRESHQA_SHEET_ID}/export?format=csv"
-FRESHQA_LICENSE = "Apache-2.0"
+FRESHQA_REPO_LICENSE = "Apache-2.0"
+FRESHQA_DATASET_LICENSE = "Unverified — external Google Sheet dataset licensing requires confirmation."
 FRESHQA_SNAPSHOT_DATE = "2026-04-21"
 FRESHQA_CITATION = "Vu, Iyyer, Wang et al. FreshLLMs: Refreshing Large Language Models with Search Engine Augmentation (ACL 2023)"
 
 RANDOM_SEED = 42
+SAMPLING_ALGORITHM_VERSION = "sha256_stratified_v1"
+HISTORICAL_SAMPLING_ALGORITHM_VERSION = "hash_stratified_v0"
+
+
+def deterministic_seed(key: str, seed: int = RANDOM_SEED) -> int:
+    """Derive a stable integer seed from a category/stratum key and base seed using SHA-256.
+
+    Replaces Python's process-randomized built-in hash() to guarantee identical pseudo-random
+    number generation across independent Python processes, regardless of PYTHONHASHSEED.
+    """
+    digest = hashlib.sha256(f"{seed}:{key}".encode()).digest()
+    offset = int.from_bytes(digest[:8], byteorder="big", signed=False)
+    return seed + (offset % 2_147_483_647)
 
 
 def _normalize_question_key(text: str) -> str:
@@ -122,7 +147,7 @@ def extract_truthfulqa(
         items = list(by_category[cat])
         # Sort items deterministically before sampling
         items.sort(key=lambda r: r["Question"])
-        cat_rng = random.Random(seed + hash(cat))
+        cat_rng = random.Random(deterministic_seed(cat, seed))
         cat_rng.shuffle(items)
         k = allocations[cat]
         selected = items[:k]
@@ -147,7 +172,7 @@ def extract_truthfulqa(
             if cat_items:
                 k = len(cat_items)
                 n_t = max(1, round(k * 0.20)) if k >= 4 else (1 if k >= 2 else 0)
-                cat_rng = random.Random(seed + hash(curr_cat))
+                cat_rng = random.Random(deterministic_seed(curr_cat, seed))
                 chosen = cat_rng.sample(cat_items, min(n_t, len(cat_items)))
                 test_indices.update(chosen)
             curr_cat = cat
@@ -157,7 +182,7 @@ def extract_truthfulqa(
     if cat_items:
         k = len(cat_items)
         n_t = max(1, round(k * 0.20)) if k >= 4 else (1 if k >= 2 else 0)
-        cat_rng = random.Random(seed + hash(curr_cat))
+        cat_rng = random.Random(deterministic_seed(curr_cat, seed))
         chosen = cat_rng.sample(cat_items, min(n_t, len(cat_items)))
         test_indices.update(chosen)
 
@@ -269,7 +294,7 @@ def extract_freshqa(
     for key in strata_keys:
         items = list(strata[key])
         items.sort(key=lambda r: r["question"])
-        strat_rng = random.Random(seed + hash(key))
+        strat_rng = random.Random(deterministic_seed(key, seed))
         strat_rng.shuffle(items)
         selected = items[:allocations[key]]
         for r in selected:
@@ -287,7 +312,7 @@ def extract_freshqa(
         if st != curr_stratum:
             if strat_items:
                 n_t = max(1, round(len(strat_items) * 0.20))
-                s_rng = random.Random(seed + hash(curr_stratum))
+                s_rng = random.Random(deterministic_seed(curr_stratum, seed))
                 chosen = s_rng.sample(strat_items, min(n_t, len(strat_items)))
                 test_indices.update(chosen)
             curr_stratum = st
@@ -296,7 +321,7 @@ def extract_freshqa(
             strat_items.append(idx)
     if strat_items:
         n_t = max(1, round(len(strat_items) * 0.20))
-        s_rng = random.Random(seed + hash(curr_stratum))
+        s_rng = random.Random(deterministic_seed(curr_stratum, seed))
         chosen = s_rng.sample(strat_items, min(n_t, len(strat_items)))
         test_indices.update(chosen)
 
@@ -454,8 +479,8 @@ def main() -> int:
     bundle = DatasetBundle(
         name="hallucination_benchmark",
         version="1.0",
-        description="VeriFact Formal Research Benchmark combining TruthfulQA-Enhanced and FreshQA",
-        license=f"TruthfulQA: {TRUTHFULQA_LICENSE}; FreshQA: {FRESHQA_LICENSE}",
+        description="VeriFact Formal Research Benchmark combining TruthfulQA (Standardized for VeriFact) and FreshQA",
+        license=f"TruthfulQA: {TRUTHFULQA_LICENSE}; FreshQA: {FRESHQA_DATASET_LICENSE} (Repository: {FRESHQA_REPO_LICENSE})",
         source="TruthfulQA (Lin et al. 2022) and FreshQA (Vu et al. 2023)",
         examples=pydantic_examples,
     )
@@ -485,7 +510,7 @@ def main() -> int:
     logger.info("SHA-256 Checksum: %s", sha256)
 
     # 9. Write Manifest
-    manifest_path = write_manifest(bundle, DATASETS_DIR / f"{bundle.name}.manifest.json")
+    manifest_path = write_manifest(bundle, output_path.with_name(f"{output_path.stem}.manifest.json"))
     logger.info("Successfully wrote manifest to %s", manifest_path)
 
     # 10. Print Validation Summary Report

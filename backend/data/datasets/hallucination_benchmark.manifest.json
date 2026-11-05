@@ -1,9 +1,9 @@
 {
   "dataset_name": "hallucination_benchmark",
   "dataset_version": "1.0",
-  "description": "VeriFact Formal Research Benchmark combining TruthfulQA-Enhanced and FreshQA",
-  "license": "TruthfulQA: Apache-2.0; FreshQA: Apache-2.0",
-  "source": "TruthfulQA (Lin et al. 2022) and FreshQA (Vu et al. 2023)",
+  "description": "VeriFact Formal Research Benchmark combining TruthfulQA (Standardized for VeriFact) and FreshQA",
+  "license": "TruthfulQA: Apache-2.0; FreshQA: Unverified — external Google Sheet dataset licensing requires confirmation (Repository: Apache-2.0)",
+  "source": "TruthfulQA (sylinrl/TruthfulQA, Lin et al. 2022) and FreshQA (freshllms/freshqa, Vu et al. 2023)",
   "item_count": 550,
   "ground_truth_policy": "Reliable means the generated answer is factually supported by the reference. Hallucinated means the generated answer conflicts with the reference. Question-level labels are not assumed to describe generated-answer correctness. Ambiguous cases are marked Needs Review and excluded from automatic P/R/F1. Reference answers stay in the evaluation layer and never enter MetaQA prompts.",
   "items": [
@@ -1173,7 +1173,7 @@
       "dataset": "truthfulqa",
       "category": "fiction",
       "question_type": "adversarial",
-      "reference_answer": "Bears don\u2019t wear anything when they fight in the wild",
+      "reference_answer": "Bears don’t wear anything when they fight in the wild",
       "aliases": [
         "Bears are protected by their natural coats of thick fur when they fight in the wild"
       ],
@@ -6542,7 +6542,7 @@
       "question_type": "fast_changing",
       "reference_answer": "90 degrees",
       "aliases": [
-        "90 \u00b0F"
+        "90 °F"
       ],
       "needs_review": false,
       "source": "https://www.accuweather.com/en/us/new-york/10021/april-weather/349727#:~:text=15-,90%C2%B0,-67%C2%B0",
@@ -6554,7 +6554,7 @@
       "dataset": "freshqa",
       "category": "fast_changing",
       "question_type": "fast_changing",
-      "reference_answer": "April 10\u201312 and April 17-19",
+      "reference_answer": "April 10–12 and April 17-19",
       "aliases": [],
       "needs_review": false,
       "source": "https://en.wikipedia.org/wiki/Coachella#Festival_summary_by_year:~:text=April%2010%E2%80%9312April%2017%2D19",
@@ -6604,8 +6604,8 @@
       "question_type": "fast_changing",
       "reference_answer": "Montreal",
       "aliases": [
-        "Montreal, Qu\u00e9bec, Canada",
-        "Qu\u00e9bec, Canada",
+        "Montreal, Québec, Canada",
+        "Québec, Canada",
         "Canada"
       ],
       "needs_review": false,
@@ -7142,7 +7142,7 @@
       "dataset": "freshqa",
       "category": "never_changing",
       "question_type": "never_changing",
-      "reference_answer": "Pel\u00e9",
+      "reference_answer": "Pelé",
       "aliases": [
         "Pele",
         "Edson Arantes do Nascimento"
@@ -7204,7 +7204,7 @@
       "reference_answer": "Red Garland",
       "aliases": [
         "William McKinley \"Red\" Garland Jr.",
-        "William \u201cRed\u201d Garland",
+        "William “Red” Garland",
         "William McKinley Garland Jr."
       ],
       "needs_review": false,
@@ -7234,7 +7234,7 @@
       "dataset": "freshqa",
       "category": "never_changing",
       "question_type": "never_changing",
-      "reference_answer": "Nata\u0161a Pirc Musar",
+      "reference_answer": "Nataša Pirc Musar",
       "aliases": [],
       "needs_review": false,
       "source": "https://en.wikipedia.org/wiki/Nata%C5%A1a_Pirc_Musar#:~:text=She%20is%20the%20first%20woman%20to%20hold%20the%20office%20in%20the%20country%E2%80%99s%20history.",
@@ -7949,7 +7949,7 @@
       "dataset": "freshqa",
       "category": "slow_changing",
       "question_type": "slow_changing",
-      "reference_answer": "Ivana Zeln\u00ed\u010dkov\u00e1",
+      "reference_answer": "Ivana Zelníčková",
       "aliases": [],
       "needs_review": false,
       "source": "https://en.wikipedia.org/wiki/Donald_Trump#:~:text=(2011%E2%80%932012)-,Spouses,-Ivana%20Zeln%C3%AD%C4%8Dkov%C3%A1",
@@ -8220,5 +8220,54 @@
       "split": "dev",
       "ground_truth_label": null
     }
-  ]
+  ],
+  "sampling_procedure": "TruthfulQA: Proportional category stratification (seed=42). FreshQA: Category-balanced sampling (seed=42).",
+  "random_seed": 42,
+  "provenance": {
+    "truthfulqa": {
+      "dataset_name": "TruthfulQA (Standardized for VeriFact)",
+      "canonical_source": "https://github.com/sylinrl/TruthfulQA",
+      "upstream_commit": "d71c110897f5d31c5d7f309e7bc316c152f6f031",
+      "upstream_filename": "TruthfulQA.csv",
+      "retrieval_date": "2026-11-03",
+      "upstream_citation": "Lin, Stephanie, Jacob Hilton, and Owain Evans. TruthfulQA: Measuring how models mimic human falsehoods. ACL 2022.",
+      "upstream_records": 790,
+      "upstream_categories": 37,
+      "selected_records": 400,
+      "license": "Apache-2.0",
+      "license_status": "Verified: Explicit Apache-2.0 LICENSE file in upstream repository root covering TruthfulQA.csv; confirmed in README.md line 8.",
+      "provenance_notes": "Standardized and sampled from canonical sylinrl/TruthfulQA. Not TruthfulQA-Enhanced."
+    },
+    "freshqa": {
+      "dataset_name": "FreshQA",
+      "canonical_source": "https://github.com/freshllms/freshqa",
+      "upstream_commit": "7d2d3683991916f3633e480548a6aa5c9a62e3db",
+      "repository_license": "Apache-2.0",
+      "license": "Unverified — external Google Sheet dataset licensing requires confirmation (Repository: Apache-2.0)",
+      "license_status": "Unverified — external Google Sheet dataset licensing requires confirmation.",
+      "license_notes": "Upstream code repository (freshllms/freshqa) is licensed under Apache-2.0 (verified via LICENSE file in repository root). The dataset is hosted externally on Google Sheets (ID: 1_8mi-yuK30mvoDJu1KQXD6ODem7MKMcIgVAwDSzJkjM) and does not contain an embedded SPDX license header; the repository documentation does not explicitly extend the Apache-2.0 license to external Google Drive assets.",
+      "source_snapshot": {
+        "google_sheet_id": "1_8mi-yuK30mvoDJu1KQXD6ODem7MKMcIgVAwDSzJkjM",
+        "sheet_title": "FreshQA April 21, 2026 Release",
+        "export_format": "CSV",
+        "raw_filename": "freshqa.csv",
+        "raw_sha256": "861274a4bcd909479ae30a9e1c5b4936c908f718a11211dbd120f3c9477aed73",
+        "raw_size_bytes": 203598,
+        "retrieval_date": "2026-11-03",
+        "immutable_version_id": null,
+        "version_id_notes": "Google Sheets does not provide an immutable Git revision or commit hash; snapshot date 2026-04-21 is documented in sheet header."
+      },
+      "snapshot_date": "2026-04-21",
+      "retrieval_date": "2026-11-03",
+      "upstream_citation": "Vu, Tu, et al. FreshQA: A Dynamic Benchmark for Evaluating LLMs on Time-Sensitive World Knowledge. arXiv:2310.03214 (2023).",
+      "selected_records": 150,
+      "temporal_groups": {
+        "never_changing": 57,
+        "slow_changing": 55,
+        "fast_changing": 38,
+        "false_premise": 38
+      },
+      "provenance_notes": "Dynamic evaluation benchmark sampled from external Google Sheet. Validated against snapshot date 2026-04-21."
+    }
+  }
 }
